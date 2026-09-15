@@ -1,0 +1,2326 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>CENQAL Control</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{--navy:#0c3f82;--blue:#277bdc;--pale:#eef6ff;--green:#18a66a;--amber:#e9a51b;--red:#d84b4b;--ink:#17304f;--muted:#6d7f96;--line:#dbe7f4;--card:#fff;--bg:#f5f9fd;--violet:#7444c7;--shadow:0 10px 30px rgba(34,67,105,.08)}
+*{box-sizing:border-box}body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--ink)}
+button,input,select,textarea{font:inherit}.app{min-height:100vh;display:grid;grid-template-columns:240px 1fr}.sidebar{background:#fff;border-right:1px solid var(--line);padding:18px 12px;position:sticky;top:0;height:100vh;overflow:auto}.brand{display:flex;gap:10px;align-items:center;padding:4px 8px 18px}.brandmark{width:42px;height:42px;border-radius:14px;background:linear-gradient(135deg,var(--navy),var(--green));position:relative}.brandmark:before,.brandmark:after{content:"";position:absolute;width:12px;height:12px;border-radius:50%;background:#fff}.brandmark:before{left:8px;top:8px}.brandmark:after{right:8px;bottom:8px}.brand h1{font-size:21px;line-height:1;margin:0;color:var(--navy)}.brand small{display:block;margin-top:5px;color:var(--muted)}
+.nav{display:grid;gap:5px}.nav button{width:100%;border:0;background:transparent;text-align:left;padding:11px 12px;border-radius:11px;color:#304866;cursor:pointer}.nav button.active,.nav button:hover{background:var(--pale);color:var(--navy);font-weight:700}.nav .danger{color:#a33}.sidefooter{margin-top:22px;padding:12px;border-radius:12px;background:#f0fbf6;color:#2f6951;font-size:13px}
+.main{padding:20px 24px 42px;min-width:0}.topbar{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-bottom:18px}.courseTitle h2{margin:0;font-size:23px;color:var(--navy)}.courseTitle p{margin:4px 0 0;color:var(--muted)}.session{font-size:12px;color:var(--muted);text-align:right}.pill{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:#fff;padding:7px 10px;border-radius:999px}.dot{width:8px;height:8px;border-radius:50%;background:var(--green)}
+.grid{display:grid;gap:14px}.metrics{grid-template-columns:repeat(5,minmax(0,1fr));margin-bottom:15px}.card{background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:16px;min-width:0}.metric b{font-size:28px;color:var(--navy);display:block}.metric span{font-size:13px;color:var(--muted)}.metric .label{font-weight:700;color:var(--ink);font-size:14px;margin-bottom:8px}.two{grid-template-columns:1.45fr 1fr}.three{grid-template-columns:repeat(3,minmax(0,1fr))}h3{margin:0 0 12px;color:var(--navy);font-size:17px}.sectionTitle{display:flex;align-items:center;justify-content:space-between;gap:10px}.sectionTitle p{margin:0;color:var(--muted);font-size:13px}.btn{border:1px solid var(--line);background:#fff;color:var(--navy);padding:9px 12px;border-radius:10px;cursor:pointer;font-weight:700}.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}.btn.green{background:var(--green);border-color:var(--green);color:#fff}.btn.warn{background:#fff7e6;border-color:#f0cf86;color:#8a5a00}.btn.danger{background:#fff0f0;border-color:#f0b7b7;color:#a62525}.btn:disabled{opacity:.45;cursor:not-allowed}.actions{display:flex;gap:8px;flex-wrap:wrap}
+.tablewrap{overflow:auto;border:1px solid var(--line);border-radius:12px}.table{width:100%;border-collapse:collapse;font-size:13px}.table th,.table td{padding:10px 11px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}.table th{background:#f8fbff;color:#536a83;font-size:12px;position:sticky;top:0}.table tr:last-child td{border-bottom:0}.status{display:inline-block;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:700;background:#eef4fb}.status.ok{background:#e9f8f0;color:#267352}.status.warn{background:#fff4dc;color:#8a5a00}.status.bad{background:#ffecec;color:#a72c2c}
+.formgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.field{display:grid;gap:5px}.field.full{grid-column:1/-1}.field label{font-size:12px;font-weight:700;color:#5d718a}.field input,.field select,.field textarea{border:1px solid #ccdbea;border-radius:10px;padding:10px;background:#fff;color:var(--ink);width:100%}.field textarea{min-height:92px;resize:vertical}.note{padding:11px 12px;border-radius:10px;background:#f6f9fc;color:#5b6f87;font-size:13px}.note.warn{background:#fff7e8;color:#825900}.note.danger{background:#fff0f0;color:#922}.empty{padding:24px;text-align:center;color:var(--muted)}
+.view{display:none}.view.active{display:block}.viewHeader{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;margin-bottom:14px}.viewHeader h2{margin:0;color:var(--navy)}.viewHeader p{margin:4px 0 0;color:var(--muted)}
+.modalBack{position:fixed;inset:0;background:rgba(15,38,67,.44);display:none;align-items:center;justify-content:center;padding:18px;z-index:1000}.modalBack.show{display:flex}.modal{background:#fff;border-radius:18px;width:min(680px,100%);max-height:92vh;overflow:auto;box-shadow:0 20px 80px rgba(0,0,0,.22);padding:20px}.modal h3{font-size:20px}.modalFooter{display:flex;justify-content:flex-end;gap:9px;margin-top:16px}.confirmPhrase{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:#f3f6fa;padding:8px 10px;border-radius:8px;font-weight:800;color:#334b67}.toast{position:fixed;right:18px;bottom:18px;background:#17304f;color:#fff;border-radius:12px;padding:12px 15px;box-shadow:var(--shadow);display:none;z-index:1100;max-width:360px}.toast.show{display:block}.toast.error{background:#9b2d2d}.loader{display:inline-block;width:15px;height:15px;border:2px solid #c9d8ea;border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+.event{display:grid;grid-template-columns:78px 1fr auto;gap:11px;align-items:center;padding:11px 0;border-bottom:1px solid var(--line)}.event:last-child{border-bottom:0}.datebox{text-align:center;background:#eef6ff;border-radius:10px;padding:8px;font-weight:800;color:var(--navy)}.datebox small{display:block;font-weight:600;color:var(--muted)}
+.resetCard{border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:10px}.resetCard h4{margin:0 0 6px}.resetCard p{margin:0 0 10px;color:var(--muted);font-size:13px}.resetCard.amber{background:#fffaf0}.resetCard.red{background:#fff4f4}
+.progressbar{height:9px;border-radius:999px;background:#edf3f8;overflow:hidden}.progressbar>span{display:block;height:100%;background:linear-gradient(90deg,var(--blue),var(--green));border-radius:999px}.riskgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.riskcard{border:1px solid var(--line);border-radius:14px;padding:13px;background:#fff}.riskcard b{display:block;font-size:24px;margin-top:4px}.risk-red{border-left:5px solid var(--red)}.risk-yellow{border-left:5px solid var(--amber)}.risk-green{border-left:5px solid var(--green)}.risk-gray{border-left:5px solid #9aa9b8}.studentrow{cursor:pointer}.studentrow:hover{background:#f7fbff}.table td.wrap{white-space:normal;min-width:240px;max-width:560px;line-height:1.35}.studentHero{display:grid;grid-template-columns:1.2fr auto;gap:16px;align-items:center}.studentHero h2{margin:0;color:var(--navy)}.studentMeta{color:var(--muted);margin-top:5px}.sectionGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.miniList{display:grid;gap:8px}.miniRow{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid var(--line);padding:8px 0;font-size:13px}.miniRow:last-child{border-bottom:0}.kpi{font-size:24px;font-weight:800;color:var(--navy)}.subtle{font-size:12px;color:var(--muted)}.searchrow{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}.searchrow input,.searchrow select{border:1px solid #ccdbea;border-radius:10px;padding:9px 10px;background:#fff;min-width:180px}.mobileOnly{display:none}details.card{padding:0;overflow:hidden}details.card>summary{list-style:none;cursor:pointer;padding:15px 16px;font-weight:800;color:var(--navy);display:flex;justify-content:space-between;gap:10px}details.card>summary::-webkit-details-marker{display:none}details.card>summary:after{content:'＋';color:var(--muted)}details.card[open]>summary:after{content:'−'}details.card>.detailBody{padding:0 16px 16px}.nowrap{white-space:nowrap}
+
+@media(max-width:1050px){.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.two,.three,.sectionGrid{grid-template-columns:1fr}.riskgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){.app{grid-template-columns:1fr}.sidebar{height:auto;position:static;border-right:0;border-bottom:1px solid var(--line);padding:10px}.brand{padding-bottom:8px}.nav{display:flex;overflow:auto;gap:6px}.nav button{width:auto;white-space:nowrap;padding:9px 10px}.sidefooter{display:none}.main{padding:14px}.topbar{align-items:flex-start}.metrics{grid-template-columns:1fr 1fr}.formgrid{grid-template-columns:1fr}.field.full{grid-column:auto}.session{display:none}}
+@media(max-width:430px){.metrics,.riskgrid{grid-template-columns:1fr}.event{grid-template-columns:62px 1fr}.event .actions{grid-column:1/-1}.studentHero{grid-template-columns:1fr}.mobileOnly{display:inline-flex}.desktopHideMobile{display:none}}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><div class="brandmark"></div><div><h1>CENQAL Control</h1><small>Panel docente seguro · v65.1</small></div></div>
+    <nav class="nav" id="nav">
+      <button data-view="home" class="active">🏠 Inicio</button>
+      <button data-view="course">🎓 Curso</button>
+      <button data-view="students">👥 Alumnos</button>
+      <button data-view="progress">📈 Progreso</button>
+      <button data-view="calendar">📅 Calendario</button>
+      <button data-view="challenges">🏆 Retos</button>
+      <button data-view="exams">📝 Exámenes</button>
+      <button data-view="groups">🗺️ Atlas / Grupos</button>
+      <button data-view="game">🪙 PP / Og</button>
+      <button data-view="evidence">📁 Evidencias</button>
+      <button data-view="audit">🧾 Auditoría</button>
+      <button data-view="system">🔧 Sistema</button>
+      <button data-view="reset" class="danger">♻️ Reinicio</button>
+    </nav>
+    <div class="sidefooter">🔐 Solo profesora. Cada cambio queda registrado y las operaciones sensibles exigen confirmación escrita.</div>
+  </aside>
+  <main class="main">
+    <div class="topbar">
+      <div class="courseTitle"><h2 id="topCourse">CENQAL Control</h2><p id="topMeta">Cargando configuración…</p></div>
+      <div class="session"><span class="pill"><span class="dot"></span><span id="sessionText">Sesión segura</span></span></div>
+    </div>
+
+    <section class="view active" id="view-home">
+      <div class="metrics grid" id="metrics"><div class="card"><span class="loader"></span> Cargando…</div></div>
+      <div class="grid two">
+        <div class="card"><div class="sectionTitle"><h3>📅 Próximos hitos</h3><button class="btn" onclick="go('calendar')">Ver calendario</button></div><div id="upcoming"></div></div>
+        <div class="card"><h3>⚡ Acciones rápidas</h3><div class="grid two">
+          <button class="btn primary" onclick="newEvent()">＋ Añadir evento</button>
+          <button class="btn" onclick="go('students')">👥 Gestionar alumnos</button>
+          <button class="btn" onclick="go('progress')">📈 Ver progreso</button>
+          <button class="btn" onclick="go('challenges')">🏆 Editar retos</button>
+          <button class="btn" onclick="go('game')">🪙 PP / Og</button>
+          <button class="btn" onclick="go('evidence')">📁 Evidencias</button>
+          <button class="btn warn" onclick="go('reset')">♻️ Reinicios</button>
+        </div><div class="note" style="margin-top:12px">Los exámenes se muestran aquí, pero en v65.0 las acciones de abrir/cerrar/revisión siguen en <b>/examen</b> por seguridad.</div></div>
+      </div>
+    </section>
+
+    <section class="view" id="view-course">
+      <div class="viewHeader"><div><h2>🎓 Configuración del curso</h2><p>Datos que pueden cambiar de un curso a otro.</p></div></div>
+      <div class="card"><form id="courseForm" class="formgrid">
+        <div class="field"><label>Curso académico</label><input name="academic_year" placeholder="2026-2027"></div>
+        <div class="field"><label>Grupo</label><input name="group_name"></div>
+        <div class="field"><label>Asignatura</label><input name="subject"></div>
+        <div class="field"><label>Código</label><input name="subject_code"></div>
+        <div class="field full"><label>Titulación</label><input name="degree"></div>
+        <div class="field"><label>ECTS</label><input name="ects" type="number" step="0.5"></div>
+        <div class="field"><label>Día habitual</label><select name="class_weekday"><option value="1">Lunes</option><option value="2">Martes</option><option value="3">Miércoles</option><option value="4">Jueves</option><option value="5">Viernes</option><option value="6">Sábado</option><option value="7">Domingo</option></select></div>
+        <div class="field"><label>Inicio</label><input name="start_date" type="date"></div>
+        <div class="field"><label>Fin</label><input name="end_date" type="date"></div>
+        <div class="field"><label>Hora inicio</label><input name="class_start" type="time"></div>
+        <div class="field"><label>Hora fin</label><input name="class_end" type="time"></div>
+        <div class="field full"><div class="note warn">Cambiar el curso académico afectará a la sincronización de los retos después de que el bot refresque la configuración. No elimina históricos.</div></div>
+        <div class="field full"><div class="actions"><button type="button" class="btn primary" onclick="saveCourse()">Guardar con confirmación</button></div></div>
+      </form></div>
+    </section>
+
+    <section class="view" id="view-students">
+      <div class="viewHeader"><div><h2>👥 Alumnos</h2><p>Pincha en un alumno para abrir su ficha 360º: notas, exámenes, retos, porfolios, aportaciones, PP/Og, evidencias e incidencias.</p></div><button class="btn" onclick="loadStudents(true)">↻ Actualizar</button></div>
+      <div class="searchrow"><input id="studentSearch" placeholder="Buscar por nombre o código" oninput="renderStudents()"><select id="studentGroupFilter" onchange="renderStudents()"><option value="">Todos los grupos</option></select></div>
+      <div class="card"><div class="tablewrap"><table class="table"><thead><tr><th>Código</th><th>Alumno</th><th>Grupo</th><th>Telegram</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id="studentsBody"></tbody></table></div></div>
+    </section>
+
+    <section class="view" id="view-progress">
+      <div class="viewHeader"><div><h2>📈 Estadísticas y progreso</h2><p>Visión global del curso. Todas las filas son clicables y abren la ficha individual.</p></div><button class="btn" onclick="loadProgress(true)">↻ Actualizar</button></div>
+      <div class="metrics grid" id="progressMetrics"></div>
+      <div class="grid two" style="margin-bottom:14px">
+        <div class="card"><h3>🚦 Seguimiento del grupo</h3><div class="riskgrid" id="riskGrid"></div></div>
+        <div class="card"><h3>📊 Lectura rápida</h3><div id="progressSummary" class="miniList"></div></div>
+      </div>
+      <div class="searchrow"><input id="progressSearch" placeholder="Buscar alumno" oninput="renderProgressTable()"><select id="progressRisk" onchange="renderProgressTable()"><option value="">Todos los estados</option><option value="🔴">🔴 Prioridad</option><option value="🟡">🟡 Atención</option><option value="🟢">🟢 Normal</option><option value="⚪">⚪ Sin evidencias</option></select></div>
+      <div class="card"><div class="tablewrap"><table class="table"><thead><tr><th></th><th>Alumno</th><th>Grupo</th><th>Evidencias</th><th>Oficial</th><th>Evaluado</th><th>PP</th><th>Og</th><th>Retos</th><th>Exámenes</th><th>Porfolios</th><th></th></tr></thead><tbody id="progressBody"></tbody></table></div></div>
+    </section>
+
+    <section class="view" id="view-student">
+      <div class="viewHeader"><div><button class="btn" onclick="go('students')">← Alumnos</button></div><div class="actions"><button class="btn" onclick="reloadCurrentStudent()">↻ Actualizar</button><button class="btn primary" id="studentDossierBtn" onclick="requestStudentDossier()">📄 Expediente PDF</button></div></div>
+      <div class="card studentHero" id="studentHero"><div><span class="loader"></span> Cargando ficha…</div></div>
+      <div class="metrics grid" id="studentMetrics" style="margin-top:14px"></div>
+      <div class="sectionGrid" style="margin-top:14px">
+        <div class="card"><h3>🧾 Evaluación oficial</h3><div id="studentComponents"></div></div>
+        <div class="card"><h3>🎮 Actividad CENQAL</h3><div id="studentActivity"></div></div>
+      </div>
+      <div class="grid" style="margin-top:14px" id="studentSections"></div>
+    </section>
+
+    <section class="view" id="view-calendar">
+      <div class="viewHeader"><div><h2>📅 Calendario</h2><p>Crear, editar o retirar eventos sin tocar GitHub ni SQL.</p></div><div class="actions"><button class="btn primary" onclick="newEvent()">＋ Evento</button><button class="btn" onclick="loadCalendar(true)">↻</button></div></div>
+      <div class="card" id="calendarList"></div>
+    </section>
+
+    <section class="view" id="view-challenges">
+      <div class="viewHeader"><div><h2>🏆 Retos semanales</h2><p>Enunciado, fuente y fecha. Un reto ya publicado queda protegido frente a reprogramación.</p></div><button class="btn" onclick="loadChallenges(true)">↻ Actualizar</button></div>
+      <div class="card"><div class="tablewrap"><table class="table"><thead><tr><th>Tema</th><th>Semana</th><th>Título</th><th>Estado</th><th>Telegram</th><th></th></tr></thead><tbody id="challengesBody"></tbody></table></div></div>
+    </section>
+        <section class="view" id="view-exams">
+      <div class="viewHeader"><div><h2>📝 Exámenes</h2><p>Consulta de convocatorias. Operaciones críticas permanecen en Telegram en esta primera versión.</p></div><button class="btn" onclick="loadExams(true)">↻ Actualizar</button></div>
+      <div class="note warn" style="margin-bottom:12px">Para preparar, abrir, cerrar o liberar revisión utiliza <b>/examen</b>. Cuando validemos CENQAL Control con datos reales, trasladaremos esas acciones aquí con doble confirmación.</div>
+      <div class="card"><div class="tablewrap"><table class="table"><thead><tr><th>Código</th><th>Tema</th><th>Título</th><th>Estado</th><th>Apertura</th><th>Cierre</th></tr></thead><tbody id="examsBody"></tbody></table></div></div>
+    </section>
+
+    <section class="view" id="view-groups">
+      <div class="viewHeader"><div><h2>🗺️ Atlas / Grupos</h2><p>Distribución actual. El grupo de cada alumno se edita desde Alumnos.</p></div></div>
+      <div class="grid three" id="groupsGrid"></div>
+    </section>
+
+    <section class="view" id="view-game">
+      <div class="viewHeader"><div><h2>🪙 PP y Oganesones</h2><p>Consulta y corrección auditada mediante movimientos, nunca sobrescribiendo el historial.</p></div><button class="btn" onclick="loadGame(true)">↻ Actualizar</button></div>
+      <div class="note warn" style="margin-bottom:12px">Un ajuste manual exige motivo y escribir exactamente <b>AJUSTAR CÓDIGO</b>. El cambio se registra como evento docente y queda en Auditoría.</div>
+      <div class="card"><div class="tablewrap"><table class="table"><thead><tr><th>Código</th><th>Alumno</th><th>PP</th><th>Og</th><th>Medallas</th><th>Nivel</th><th></th></tr></thead><tbody id="gameBody"></tbody></table></div></div>
+    </section>
+
+    <section class="view" id="view-evidence">
+      <div class="viewHeader"><div><h2>📁 Evidencias</h2><p>Índice de actas, expedientes e informes PDF generados.</p></div><button class="btn" onclick="loadEvidence(true)">↻ Actualizar</button></div>
+      <div class="card"><div class="tablewrap"><table class="table"><thead><tr><th>Fecha</th><th>Tipo</th><th>Título</th><th>Alumno</th><th>SHA-256</th><th>Ruta privada</th><th></th></tr></thead><tbody id="evidenceBody"></tbody></table></div></div>
+    </section>
+
+    <section class="view" id="view-audit">
+      <div class="viewHeader"><div><h2>🧾 Auditoría</h2><p>Historial de cambios realizados desde CENQAL Control.</p></div><button class="btn" onclick="loadAudit(true)">↻ Actualizar</button></div>
+      <div class="card"><div class="tablewrap"><table class="table"><thead><tr><th>Fecha</th><th>Acción</th><th>Entidad</th><th>ID</th><th>Motivo</th></tr></thead><tbody id="auditBody"></tbody></table></div></div>
+    </section>
+
+    <section class="view" id="view-system">
+      <div class="viewHeader"><div><h2>🔧 Sistema</h2><p>Estado de conexión y seguridad de la Mini App.</p></div><button class="btn" onclick="refreshAll()">↻ Comprobar</button></div>
+      <div class="grid two">
+        <div class="card"><h3>Estado</h3><div id="systemState"></div></div>
+        <div class="card"><h3>Seguridad</h3><div class="note">✓ Sesión temporal de 45 minutos<br>✓ anon key pública; nunca service_role<br>✓ RLS en tablas de Control<br>✓ Toda mutación exige token<br>✓ Cambios auditados<br>✓ Retiradas lógicas en calendario</div><div class="actions" style="margin-top:12px"><button class="btn danger" onclick="logout()">Cerrar sesión</button></div></div>
+      </div>
+    </section>
+
+    <section class="view" id="view-reset">
+      <div class="viewHeader"><div><h2>♻️ Reinicio y mantenimiento</h2><p>Ningún borrado global se ejecuta con un clic.</p></div></div>
+      <div class="resetCard"><h4>🔄 Reiniciar vinculación de un alumno</h4><p>Se hace desde la pestaña Alumnos. Solo borra el vínculo Telegram; conserva notas, progreso, PP/Og y evidencias.</p><button class="btn" onclick="go('students')">Ir a Alumnos</button></div>
+      <div class="resetCard amber"><h4>🟠 Preparar nuevo curso</h4><p>En v65.0 solo generamos una previsualización de todo lo que habría que archivar. No se ejecuta todavía el reset global porque primero debemos hacer el historial PP/Og dependiente del curso y validar una copia integral.</p><button class="btn warn" onclick="newCoursePreview()">Ver previsualización segura</button><div id="resetPreview" style="margin-top:12px"></div></div>
+      <div class="resetCard red"><h4>🔴 Reset técnico completo</h4><p>Deshabilitado en v65.0. No voy a habilitarlo hasta tener backup verificable, restauración probada y doble confirmación independiente.</p><button class="btn danger" disabled>Reset técnico bloqueado</button></div>
+    </section>
+  </main>
+</div>
+
+<div class="modalBack" id="modalBack"><div class="modal" id="modal"></div></div>
+<div class="toast" id="toast"></div>
+  
+<script>
+const qs=new URLSearchParams(location.search);
+const SBURL=(qs.get('sburl')||'').replace(/\/$/,'');
+const SBKEY=qs.get('sbkey')||'';
+const TOKEN=qs.get('token')||'';
+const BOT=(qs.get('bot')||'').replace(/^@/,'');
+let state={snapshot:null,students:[],calendar:[],challenges:[],exams:[],game:[],evidence:[],audit:[],progress:null,currentStudentId:null,studentDetail:null};
+try{Telegram.WebApp.ready();Telegram.WebApp.expand();}catch(e){}
+
+function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+function fmtDate(v,withTime=true){if(!v)return '—';let d=new Date(v);if(isNaN(d))return esc(v);return d.toLocaleString('es-ES',withTime?{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}:{day:'2-digit',month:'2-digit',year:'numeric'})}
+function dateInput(v){if(!v)return '';let d=new Date(v);let z=new Date(d.getTime()-d.getTimezoneOffset()*60000);return z.toISOString().slice(0,16)}
+function n(v,d=1){let x=Number(v);return Number.isFinite(x)?x.toFixed(d):'—'}
+function pct(v){let x=Number(v);return Number.isFinite(x)?`${x.toFixed(0)}%`:'—'}
+function riskFor(s={}){let gate=String(s.gate_status||'OK').toUpperCase(),e=s.evidence_average==null?null:Number(s.evidence_average),p=s.provisional_normalized==null?null:Number(s.provisional_normalized);if(gate==='FAILED'||(e!=null&&e<5)||(p!=null&&p<5))return '🔴';if((e!=null&&e<6)||(p!=null&&p<6))return '🟡';if(e==null&&p==null)return '⚪';return '🟢'}
+function botPayload(payload){if(!BOT){toast('Falta el nombre del bot en el enlace de Control.',true);return}let url=`https://t.me/${BOT}?start=${encodeURIComponent(payload)}`;try{Telegram.WebApp.openTelegramLink(url)}catch(e){window.open(url,'_blank')}}
+  
+
+function statusClass(v){v=String(v||'').toLowerCase();return ['open','published','active','approved','review'].includes(v)?'ok':['scheduled','prepared','submitted'].includes(v)?'warn':['closed','inactive','cancelled','rejected'].includes(v)?'bad':''}
+function toast(msg,error=false){let t=document.getElementById('toast');t.textContent=msg;t.className='toast show'+(error?' error':'');setTimeout(()=>t.className='toast',3500)}
+function rpcName(name){return `${SBURL}/rest/v1/rpc/${name}`}
+async function rpc(name,body={}){if(!SBURL||!SBKEY||!TOKEN)throw new Error('Faltan parámetros seguros de acceso. Abre CENQAL Control desde Telegram.');let r=await fetch(rpcName(name),{method:'POST',headers:{'apikey':SBKEY,'Authorization':'Bearer '+SBKEY,'Content-Type':'application/json'},body:JSON.stringify(body)});let txt=await r.text();let data;try{data=txt?JSON.parse(txt):null}catch(e){data=txt}if(!r.ok)throw new Error((data&&data.message)||String(data)||`HTTP ${r.status}`);return data}
+function go(name){document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));document.getElementById('view-'+name).classList.add('active');document.querySelector(`.nav button[data-view="${name}"]`)?.classList.add('active');if(name==='students')loadStudents();if(name==='progress')loadProgress();if(name==='calendar')loadCalendar();if(name==='challenges')loadChallenges();if(name==='exams')loadExams();if(name==='groups')loadStudents().then(renderGroups);if(name==='game')loadGame();if(name==='evidence')loadEvidence();if(name==='audit')loadAudit();if(name==='system')renderSystem();window.scrollTo({top:0,behavior:'smooth'})}
+document.querySelectorAll('.nav button').forEach(b=>b.addEventListener('click',()=>go(b.dataset.view)));
+
+function closeModal(){document.getElementById('modalBack').classList.remove('show')}
+document.getElementById('modalBack').addEventListener('click',e=>{if(e.target.id==='modalBack')closeModal()});
+function modal(html){document.getElementById('modal').innerHTML=html;document.getElementById('modalBack').classList.add('show')}
+function confirmModal({title,summary,phrase='CONFIRMAR',button='Confirmar',danger=false,onConfirm}){modal(`<h3>${esc(title)}</h3><div class="note ${danger?'danger':'warn'}">${summary}</div><p style="font-size:13px;color:#5d718a">Para continuar escribe exactamente:</p><div class="confirmPhrase">${esc(phrase)}</div><div class="field" style="margin-top:10px"><input id="confirmInput" autocomplete="off" placeholder="${esc(phrase)}"></div><div class="modalFooter"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn ${danger?'danger':'primary'}" id="confirmBtn">${esc(button)}</button></div>`);document.getElementById('confirmBtn').onclick=async()=>{let typed=document.getElementById('confirmInput').value.trim();if(typed.toUpperCase()!==phrase.toUpperCase()){toast('La frase de confirmación no coincide.',true);return}let btn=document.getElementById('confirmBtn');btn.disabled=true;btn.innerHTML='<span class="loader"></span> Procesando';try{await onConfirm(typed);closeModal()}catch(e){btn.disabled=false;btn.textContent=button;toast(e.message,true)}}}
+
+async function refreshSnapshot(){let s=await rpc('cenqal_control_snapshot',{p_token:TOKEN});state.snapshot=s;let c=s.course||{};document.getElementById('topCourse').textContent=`${c.subject||'CENQAL'} · ${c.academic_year||''}`;document.getElementById('topMeta').textContent=[c.degree,c.group_name].filter(Boolean).join(' · ');document.getElementById('sessionText').textContent='Sesión hasta '+fmtDate(s.session_expires_at);renderMetrics();fillCourse();renderSystem();return s}
+function metric(label,value,sub=''){return `<div class="card metric"><div class="label">${label}</div><b>${esc(value)}</b><span>${esc(sub)}</span></div>`}
+function renderMetrics(){let m=state.snapshot?.metrics||{};document.getElementById('metrics').innerHTML=[metric('👥 Alumnos activos',m.active_students??0,`${m.linked_students??0} vinculados a Telegram`),metric('📅 Próxima clase',m.next_class?fmtDate(m.next_class.starts_at,false):'—',m.next_class?.title||'Sin clases futuras'),metric('🏆 Próximo reto',m.next_challenge?`T${m.next_challenge.topic_number}`:'—',m.next_challenge?`${m.next_challenge.week_start} · ${m.next_challenge.status}`:'Sin reto'),metric('📝 Examen abierto',m.open_exams??0,m.next_exam?.title||'Sin examen abierto'),metric('📁 Evidencias',m.evidences??0,'Documentos indexados')].join('');let rows=[];if(m.next_class)rows.push(eventHTML('CLASE',m.next_class.starts_at,m.next_class.title,'calendar'));if(m.next_challenge)rows.push(eventHTML('RETO',m.next_challenge.week_start,m.next_challenge.title,'challenges'));if(m.next_exam)rows.push(eventHTML('EXAMEN',m.next_exam.opened_at||m.next_exam.created_at,m.next_exam.title,'exams'));document.getElementById('upcoming').innerHTML=rows.join('')||'<div class="empty">No hay hitos próximos.</div>'}
+function eventHTML(type,date,title,view){let d=new Date(date);let day=isNaN(d)?'—':String(d.getDate()).padStart(2,'0');let mon=isNaN(d)?'':d.toLocaleString('es-ES',{month:'short'}).toUpperCase();return `<div class="event"><div class="datebox">${day}<small>${mon}</small></div><div><b>${esc(type)}</b><div>${esc(title||'')}</div></div><button class="btn" onclick="go('${view}')">Ver</button></div>`}
+function fillCourse(){let c=state.snapshot?.course||{};let f=document.getElementById('courseForm');if(!f)return;for(let k of ['academic_year','group_name','subject','subject_code','degree','ects','class_weekday','start_date','end_date','class_start','class_end']){if(f.elements[k]){let v=c[k]??'';if(k==='class_start'||k==='class_end')v=String(v).slice(0,5);f.elements[k].value=v}}}
+async function saveCourse(){let f=document.getElementById('courseForm');let data=Object.fromEntries(new FormData(f).entries());confirmModal({title:'Guardar configuración del curso',summary:'Revisa los datos antes de continuar. El cambio quedará registrado en Auditoría. No se borrará ningún histórico.',phrase:'CONFIRMAR',onConfirm:async typed=>{await rpc('cenqal_control_update_course',{p_token:TOKEN,p_data:data,p_confirmation:typed});await refreshSnapshot();toast('Configuración actualizada.')}})}
+
+async function loadStudents(force=false){if(state.students.length&&!force){renderStudents();return state.students}let d=await rpc('cenqal_control_students',{p_token:TOKEN});state.students=d.rows||[];let sel=document.getElementById('studentGroupFilter');if(sel){let cur=sel.value;let gs=[...new Set(state.students.map(x=>x.group_name).filter(Boolean))].sort();sel.innerHTML='<option value="">Todos los grupos</option>'+gs.map(g=>`<option value="${esc(g)}">${esc(g)}</option>`).join('');sel.value=cur}renderStudents();return state.students}
+function renderStudents(){let b=document.getElementById('studentsBody');if(!b)return;let q=(document.getElementById('studentSearch')?.value||'').trim().toLowerCase(),g=document.getElementById('studentGroupFilter')?.value||'';let rows=state.students.filter(s=>{let name=String(s.full_name||[s.first_name,s.last_name].filter(Boolean).join(' ')||'').toLowerCase(),code=String(s.student_code||'').toLowerCase();return(!q||name.includes(q)||code.includes(q))&&(!g||s.group_name===g)});b.innerHTML=rows.map(s=>`<tr class="studentrow" onclick="openStudent(${s.id})"><td><b>${esc(s.student_code)}</b></td><td>${esc(s.full_name||[s.first_name,s.last_name].filter(Boolean).join(' '))}</td><td>${esc(s.group_name||'—')}</td><td>${s.telegram_user_id?`<span class="status ok">Vinculado</span> <small>${esc(s.telegram_username||'')}</small>`:'<span class="status warn">Sin vincular</span>'}</td><td><span class="status ${s.active?'ok':'bad'}">${s.active?'Activo':'Inactivo'}</span></td><td onclick="event.stopPropagation()"><div class="actions"><button class="btn primary" onclick="openStudent(${s.id})">Ver ficha</button><button class="btn" onclick="editStudent(${s.id})">Editar</button>${s.telegram_user_id?`<button class="btn danger desktopHideMobile" onclick="resetStudent(${s.id},'${esc(s.student_code)}')">Reiniciar vínculo</button>`:''}</div></td></tr>`).join('')||'<tr><td colspan="6" class="empty">No hay alumnos con ese filtro.</td></tr>'}
+
+function editStudent(id){let s=state.students.find(x=>x.id==id);if(!s)return;modal(`<h3>Editar alumno · ${esc(s.student_code)}</h3><div class="formgrid"><div class="field"><label>Nombre</label><input id="stFirst" value="${esc(s.first_name||'')}"></div><div class="field"><label>Apellidos</label><input id="stLast" value="${esc(s.last_name||'')}"></div><div class="field full"><label>Nombre completo</label><input id="stFull" value="${esc(s.full_name||'')}"></div><div class="field"><label>Grupo</label><input id="stGroup" value="${esc(s.group_name||'')}"></div><div class="field"><label>Curso académico</label><input id="stYear" value="${esc(s.academic_year||'')}"></div><div class="field full"><label><input id="stActive" type="checkbox" ${s.active?'checked':''}> Alumno activo</label></div></div><div class="modalFooter"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn primary" id="studentNext">Revisar cambio</button></div>`);document.getElementById('studentNext').onclick=()=>{let data={first_name:document.getElementById('stFirst').value,last_name:document.getElementById('stLast').value,full_name:document.getElementById('stFull').value,group_name:document.getElementById('stGroup').value,academic_year:document.getElementById('stYear').value,active:document.getElementById('stActive').checked};confirmModal({title:`Confirmar cambios · ${s.student_code}`,summary:`Alumno: <b>${esc(data.full_name||s.full_name)}</b><br>Grupo: ${esc(data.group_name)}<br>Estado: ${data.active?'Activo':'Inactivo'}`,phrase:'CONFIRMAR',onConfirm:async typed=>{await rpc('cenqal_control_update_student',{p_token:TOKEN,p_student_id:id,p_data:data,p_confirmation:typed});state.students=[];await loadStudents(true);await refreshSnapshot();toast('Alumno actualizado.')}})}}
+function resetStudent(id,code){confirmModal({title:'Reiniciar vinculación Telegram',summary:'Esto NO borra notas, PP, Og, exámenes ni evidencias. Únicamente permite que el alumno vuelva a ejecutar /registrarme con su código.',phrase:`REINICIAR ALUMNO ${code}`,button:'Reiniciar vínculo',danger:true,onConfirm:async typed=>{await rpc('cenqal_control_reset_student_link',{p_token:TOKEN,p_student_id:id,p_confirmation:typed,p_reason:'Reinicio solicitado por la profesora desde CENQAL Control'});state.students=[];await loadStudents(true);await refreshSnapshot();toast('Vinculación reiniciada.')}})}
+async function loadProgress(force=false){
+  if(state.progress&&!force){
+    renderProgress();
+    return state.progress
+  }
+  document.getElementById('progressMetrics').innerHTML=
+    '<div class="card"><span class="loader"></span> Calculando progreso…</div>';
+
+  let d=await rpc('cenqal_control_class_progress',{p_token:TOKEN});
+  state.progress=d;
+  renderProgress();
+  return d
+}
+
+function mergedProgress(){
+  let a=state.progress?.analytics?.students||[],
+      act=state.progress?.activity||[];
+
+  let byUid=new Map(
+    a.filter(x=>x.telegram_user_id!=null)
+     .map(x=>[String(x.telegram_user_id),x])
+  );
+
+  let byCode=new Map(
+    a.map(x=>[String(x.student_code||''),x])
+  );
+
+  return act.map(x=>
+    Object.assign(
+      {},
+      x,
+      byUid.get(String(x.telegram_user_id))||
+      byCode.get(String(x.student_code||''))||
+      {}
+    )
+  )
+}
+
+function renderProgress(){
+  let rows=mergedProgress();
+
+  let withEv=rows.filter(x=>x.evidence_average!=null),
+      prov=rows.filter(x=>x.provisional_normalized!=null);
+
+  let avgEv=withEv.length
+    ?withEv.reduce((a,b)=>a+Number(b.evidence_average||0),0)/withEv.length
+    :null;
+
+  let avgProv=prov.length
+    ?prov.reduce((a,b)=>a+Number(b.provisional_normalized||0),0)/prov.length
+    :null;
+
+  let rc={'🔴':0,'🟡':0,'🟢':0,'⚪':0};
+
+  rows.forEach(x=>rc[riskFor(x)]++);
+
+  document.getElementById('progressMetrics').innerHTML=[
+    metric(
+      '👥 Alumnos',
+      rows.length,
+      'activos'
+    ),
+    metric(
+      '📚 Con evidencias',
+      withEv.length,
+      avgEv==null?'sin media':`media ${n(avgEv)}/10`
+    ),
+    metric(
+      '🎓 Proyección oficial',
+      avgProv==null?'—':n(avgProv),
+      prov.length?'media /10':'sin datos'
+    ),
+    metric(
+      '🏆 Retos semanales',
+      rows.reduce((a,b)=>a+Number(b.weekly_count||0),0),
+      'participaciones registradas'
+    ),
+    metric(
+      '🎯 Porfolios',
+      rows.reduce((a,b)=>a+Number(b.portfolios_approved||0),0),
+      'aprobados'
+    )
+  ].join('');
+
+  document.getElementById('riskGrid').innerHTML=`
+    <div class="riskcard risk-red">
+      Prioridad
+      <b>${rc['🔴']}</b>
+      <span class="subtle">revisión prioritaria</span>
+    </div>
+
+    <div class="riskcard risk-yellow">
+      Atención
+      <b>${rc['🟡']}</b>
+      <span class="subtle">seguimiento</span>
+    </div>
+
+    <div class="riskcard risk-green">
+      Normal
+      <b>${rc['🟢']}</b>
+      <span class="subtle">evolución adecuada</span>
+    </div>
+
+    <div class="riskcard risk-gray">
+      Sin evidencias
+      <b>${rc['⚪']}</b>
+      <span class="subtle">todavía sin datos</span>
+    </div>
+  `;
+
+  let exams=rows.reduce((a,b)=>a+Number(b.exams_done||0),0),
+      passed=rows.reduce((a,b)=>a+Number(b.exams_passed||0),0),
+      pp=rows.reduce((a,b)=>a+Number(b.pp_total||0),0);
+
+  document.getElementById('progressSummary').innerHTML=`
+    <div class="miniRow">
+      <span>Exámenes realizados</span>
+      <b>${exams}</b>
+    </div>
+
+    <div class="miniRow">
+      <span>Exámenes superados</span>
+      <b>${passed}</b>
+    </div>
+
+    <div class="miniRow">
+      <span>PP acumulados del grupo</span>
+      <b>${pp}</b>
+    </div>
+
+    <div class="miniRow">
+      <span>Incidencias abiertas</span>
+      <b>${rows.reduce((a,b)=>a+Number(b.open_incidents||0),0)}</b>
+    </div>
+  `;
+
+  renderProgressTable()
+}
+
+function renderProgressTable(){
+  let b=document.getElementById('progressBody');
+
+  if(!b||!state.progress)return;
+
+  let q=(document.getElementById('progressSearch')?.value||'').toLowerCase(),
+      rf=document.getElementById('progressRisk')?.value||'';
+
+  let rows=mergedProgress().filter(x=>
+    (!q||
+      String(
+        x.student_name||
+        x.full_name||
+        x.student_code
+      ).toLowerCase().includes(q)
+    )
+    &&
+    (!rf||riskFor(x)===rf)
+  );
+
+  b.innerHTML=rows.map(x=>`
+    <tr class="studentrow" onclick="openStudent(${x.student_id})">
+
+      <td>${riskFor(x)}</td>
+
+      <td>
+        <b>${esc(x.student_name||x.full_name||x.student_code)}</b>
+        <br>
+        <span class="subtle">${esc(x.student_code||'')}</span>
+      </td>
+
+      <td>${esc(x.group_name||'—')}</td>
+
+      <td>
+        ${x.evidence_average==null?'—':n(x.evidence_average)}
+      </td>
+
+      <td>
+        ${x.provisional_normalized==null?'—':n(x.provisional_normalized)}
+      </td>
+
+      <td>${pct(x.graded_official_weight)}</td>
+
+      <td>${esc(x.pp_total||0)}</td>
+
+      <td>${esc(x.og_balance||0)}</td>
+
+      <td>${esc(x.weekly_count||0)}</td>
+
+      <td>
+        ${esc(x.exams_passed||0)}/${esc(x.exams_done||0)}
+      </td>
+
+      <td>${esc(x.portfolios_approved||0)}</td>
+
+      <td>
+        <button
+          class="btn primary"
+          onclick="event.stopPropagation();openStudent(${x.student_id})">
+          Ficha
+        </button>
+      </td>
+
+    </tr>
+  `).join('')
+  ||
+  '<tr><td colspan="12" class="empty">No hay alumnos con ese filtro.</td></tr>'
+}
+
+async function openStudent(id){
+  state.currentStudentId=id;
+  state.studentDetail=null;
+
+  document.querySelectorAll('.view')
+    .forEach(x=>x.classList.remove('active'));
+
+  document.querySelectorAll('.nav button')
+    .forEach(x=>x.classList.remove('active'));
+
+  document.getElementById('view-student')
+    .classList.add('active');
+
+  document.querySelector('.nav button[data-view="students"]')
+    ?.classList.add('active');
+
+  document.getElementById('studentHero').innerHTML=
+    '<div><span class="loader"></span> Cargando ficha completa…</div>';
+
+  document.getElementById('studentMetrics').innerHTML='';
+  document.getElementById('studentSections').innerHTML='';
+
+  window.scrollTo({top:0});
+
+  try{
+    let d=await rpc(
+      'cenqal_control_student_workspace',
+      {
+        p_token:TOKEN,
+        p_student_id:id
+      }
+    );
+
+    state.studentDetail=d;
+    renderStudentDetail();
+
+  }catch(e){
+    document.getElementById('studentHero').innerHTML=
+      `<div class="note danger">${esc(e.message)}</div>`;
+  }
+}
+
+async function reloadCurrentStudent(){
+  if(state.currentStudentId)
+    await openStudent(state.currentStudentId)
+}
+
+function requestStudentDossier(){
+  if(!state.currentStudentId)return;
+  botPayload('cd_'+state.currentStudentId)
+}
+
+function objv(o,...keys){
+  for(let k of keys)
+    if(o&&o[k]!=null)return o[k];
+
+  return null
+}
+
+function renderStudentDetail(){
+
+  let d=state.studentDetail||{},
+      s=d.student||{},
+      an=d.analytics||{},
+      as=an.student||{},
+      gp=d.gamification_profile||{};
+
+  let name=
+    s.full_name||
+    [s.first_name,s.last_name].filter(Boolean).join(' ')||
+    s.student_code||
+    'Alumno';
+
+  let risk=riskFor(as);
+
+  document.getElementById('studentHero').innerHTML=`
+    <div>
+      <h2>${risk} ${esc(name)}</h2>
+
+      <div class="studentMeta">
+        ${esc(s.student_code||'—')}
+        · ${esc(s.group_name||'Sin grupo')}
+        · ${s.telegram_user_id
+          ?'Telegram vinculado'
+          :'Sin vincular a Telegram'}
+      </div>
+    </div>
+
+    <div class="actions">
+      <span class="status ${s.active?'ok':'bad'}">
+        ${s.active?'ACTIVO':'INACTIVO'}
+      </span>
+    </div>
+  `;
+
+  let weekly=d.weekly||[],
+      exams=d.exams||[],
+      subs=d.portfolio_submissions||[],
+      contrib=d.contributions||[],
+      evid=d.evidences||[],
+      incs=d.incidents||[];
+
+  let mastered=(d.gym_mastery||[])
+    .filter(x=>x.mastered).length;
+
+  let passed=exams
+    .filter(x=>Number(x.attempt?.score_out_of_10)>=5)
+    .length;
+
+  let approved=(d.portfolio_progress||[])
+    .filter(x=>x.progress?.status==='approved')
+    .length;
+
+  document.getElementById('studentMetrics').innerHTML=[
+    metric(
+      '📊 Evidencias',
+      as.evidence_average==null
+        ?'—'
+        :`${n(as.evidence_average)}/10`,
+      `${as.evidence_count||0} registros`
+    ),
+
+    metric(
+      '🎓 Oficial',
+      as.provisional_normalized==null
+        ?'—'
+        :`${n(as.provisional_normalized)}/10`,
+      `${pct(as.graded_official_weight)} evaluado`
+    ),
+
+    metric(
+      '⚛️ PP',
+      gp.xp_total||0,
+      gp.level_name||'Aspirante'
+    ),
+
+    metric(
+      '🪙 Og',
+      gp.oganeson_balance||0,
+      'saldo actual'
+    ),
+
+    metric(
+      '🏆 Actividad',
+      weekly.length,
+      `retos · ${passed}/${exams.length} exámenes`
+    )
+
+  ].join('');
+
+  let comps=an.components||[];
+
+  document.getElementById('studentComponents').innerHTML=
+    comps.length
+    ?`
+      <div class="miniList">
+        ${comps.map(c=>`
+          <div class="miniRow">
+            <span>
+              ${esc(c.component_name||c.component_code)}
+            </span>
+
+            <b>
+              ${c.component_score==null
+                ?'—'
+                :n(c.component_score)}/10
+
+              ${c.official
+                ?` · ${n(c.component_weight_percent,0)}%`
+                :''}
+            </b>
+          </div>
+        `).join('')}
+      </div>
+    `
+    :
+    '<div class="empty">Todavía no hay componentes calificados.</div>';
+
+  document.getElementById('studentActivity').innerHTML=`
+    <div class="miniList">
+
+      <div class="miniRow">
+        <span>Retos semanales</span>
+        <b>${weekly.length}</b>
+      </div>
+
+      <div class="miniRow">
+        <span>Exámenes</span>
+        <b>${passed}/${exams.length} superados</b>
+      </div>
+
+      <div class="miniRow">
+        <span>Porfolios aprobados</span>
+        <b>${approved}</b>
+      </div>
+
+      <div class="miniRow">
+        <span>Entregas PDF</span>
+        <b>${subs.length}</b>
+      </div>
+
+      <div class="miniRow">
+        <span>Aportaciones CENQAL</span>
+        <b>${contrib.length}</b>
+      </div>
+
+      <div class="miniRow">
+        <span>Gym dominadas</span>
+        <b>${mastered}</b>
+      </div>
+
+      <div class="miniRow">
+        <span>Evidencias PDF</span>
+        <b>${evid.length}</b>
+      </div>
+
+      <div class="miniRow">
+        <span>Incidencias</span>
+        <b>
+          ${incs.filter(x=>
+            ['pending','in_review'].includes(x.status)
+          ).length}
+          abiertas
+        </b>
+      </div>
+
+    </div>
+  `;
+
+  let grades=an.grades||[];
+  let html='';
+
+  html+=detailCard(
+    '🧾 Últimas calificaciones',
+    grades.length
+    ?tableHTML(
+      [
+        'Fecha',
+        'Componente',
+        'Actividad',
+        'Nota',
+        'Origen'
+      ],
+      grades.slice(0,50).map(g=>[
+        fmtDate(g.created_at||g.updated_at),
+        g.component_name||g.component_code,
+        g.item_title||g.item_code,
+        g.effective_score==null
+          ?'—'
+          :n(g.effective_score),
+        g.source_type||'—'
+      ])
+    )
+    :
+    '<div class="empty">Sin calificaciones registradas.</div>',
+    true
+  );
+
+  html+=detailCard(
+    '📰 Retos semanales',
+    weekly.length
+    ?tableHTML(
+      [
+        'Tema',
+        'Fecha',
+        'Reto',
+        'Preeval.',
+        'Estado',
+        'Respuesta'
+      ],
+      weekly.map(x=>{
+        let p=x.participation||{},
+            c=x.challenge||{};
+
+        return[
+          `T${c.topic_number||'—'}`,
+          fmtDate(p.created_at),
+          c.title||'',
+          p.preliminary_score==null
+            ?'—'
+            :`${n(p.preliminary_score,0)}/5`,
+          p.status||'—',
+          p.response_text||''
+        ]
+      }),
+      'last'
+    )
+    :
+    '<div class="empty">Sin participaciones semanales.</div>'
+  );
+
+  html+=detailCard(
+    '📝 Exámenes',
+    exams.length
+    ?tableHTML(
+      [
+        'Tema',
+        'Examen',
+        'Estado',
+        'Aciertos',
+        'Nota',
+        'Entrega'
+      ],
+      exams.map(x=>{
+        let a=x.attempt||{},
+            e=x.session||{};
+
+        return[
+          `T${e.topic_number||'—'}`,
+          e.title||e.exam_code||'',
+          a.status||'—',
+          `${a.correct_count??'—'}/${e.question_count||20}`,
+          a.score_out_of_10==null
+            ?'—'
+            :`${n(a.score_out_of_10)}/10`,
+          fmtDate(a.submitted_at)
+        ]
+      })
+    )
+    :
+    '<div class="empty">Sin intentos de examen.</div>'
+  );
+
+  html+=detailCard(
+    '📄 Porfolios y entregas',
+    subs.length
+    ?tableHTML(
+      [
+        'Fecha',
+        'Reto',
+        'Versión',
+        'Archivo',
+        'Estado',
+        'Nota',
+        'PDF'
+      ],
+      subs.map(x=>[
+        fmtDate(x.created_at),
+        x.challenge_code||x.challenge_id||'',
+        x.version||'—',
+        x.file_name||'PDF',
+        x.status||'—',
+        x.teacher_evaluation?.score==null
+          ?'—'
+          :`${n(x.teacher_evaluation.score,0)}/100`,
+        x.storage_path
+          ?`<button class="btn" onclick="botPayload('cp_${x.id}')">Enviarme PDF</button>`
+          :'—'
+      ]),
+      'html'
+    )
+    :
+    '<div class="empty">Sin entregas de porfolio.</div>'
+  );
+
+  html+=detailCard(
+    '🧪 Aportaciones a CENQAL',
+    contrib.length
+    ?tableHTML(
+      [
+        'Fecha',
+        'Tema',
+        'Modo',
+        'Estado',
+        'Preeval.',
+        'PP',
+        'Og'
+      ],
+      contrib.slice(0,200).map(x=>[
+        fmtDate(x.created_at),
+        x.primary_topic||x.macrotheme_number||'—',
+        x.contribution_mode||'—',
+        x.status||'—',
+        x.preliminary_score??'—',
+        x.prestige_amount??'—',
+        x.oganeson_amount??'—'
+      ])
+    )
+    :
+    '<div class="empty">Sin aportaciones.</div>'
+  );
+
+  let gm=d.gym_mastery||[];
+  let topics={};
+
+  gm.forEach(x=>{
+    let t=x.topic_number||'—';
+
+    topics[t]??={
+      total:0,
+      mastered:0,
+      correct:0,
+      wrong:0
+    };
+
+    topics[t].total++;
+
+    if(x.mastered)
+      topics[t].mastered++;
+
+    topics[t].correct+=Number(x.correct_count||0);
+    topics[t].wrong+=Number(x.wrong_count||0);
+  });
+
+  html+=detailCard(
+    '🧠 CENQAL Gym',
+    Object.keys(topics).length
+    ?tableHTML(
+      [
+        'Tema',
+        'Preguntas trabajadas',
+        'Dominadas',
+        'Aciertos',
+        'Errores'
+      ],
+      Object.entries(topics).map(([t,x])=>[
+        `T${t}`,
+        x.total,
+        x.mastered,
+        x.correct,
+        x.wrong
+      ])
+    )
+    :
+    '<div class="empty">Sin actividad en Gym.</div>'
+  );
+
+  let ge=d.gamification_events||[];
+
+  html+=detailCard(
+    '🪙 Historial PP / Og',
+    ge.length
+    ?tableHTML(
+      [
+        'Evento',
+        'PP',
+        'Og',
+        'Descripción'
+      ],
+      ge.slice(0,100).map(x=>[
+        x.event_type||x.event_key||'—',
+        x.xp_delta||0,
+        x.oganeson_delta||0,
+        x.description||'—'
+      ])
+    )
+    :
+    '<div class="empty">Sin movimientos.</div>'
+  );
+
+  html+=detailCard(
+    '📁 Evidencias PDF',
+    evid.length
+    ?tableHTML(
+      [
+        'Fecha',
+        'Tipo',
+        'Título',
+        'Hash',
+        'PDF'
+      ],
+      evid.map(x=>[
+        fmtDate(x.generated_at),
+        x.evidence_type||'—',
+        x.title||'—',
+        (x.pdf_sha256||'').slice(0,14)+'…',
+        x.storage_path
+          ?`<button class="btn" onclick="botPayload('ce_${x.id}')">Enviarme PDF</button>`
+          :'—'
+      ]),
+      'html'
+    )
+    :
+    '<div class="empty">Sin evidencias PDF.</div>'
+  );
+
+  html+=detailCard(
+    '🛠️ Incidencias',
+    incs.length
+    ?tableHTML(
+      [
+        'Fecha',
+        'Código',
+        'Módulo',
+        'Estado',
+        'Descripción'
+      ],
+      incs.map(x=>[
+        fmtDate(x.created_at),
+        x.incident_code||'—',
+        x.module||'—',
+        x.status||'—',
+        x.description||'—'
+      ]),
+      'last'
+    )
+    :
+    '<div class="empty">Sin incidencias.</div>'
+  );
+
+  document.getElementById('studentSections').innerHTML=html
+}
+
+function detailCard(title,body,open=false){
+  return `
+    <details class="card" ${open?'open':''}>
+      <summary>${title}</summary>
+      <div class="detailBody">${body}</div>
+    </details>
+  `
+}
+
+function tableHTML(headers,rows,mode=''){
+  let h=headers.map(x=>`<th>${esc(x)}</th>`).join('');
+
+  let b=rows.map(r=>`
+    <tr>
+      ${r.map((x,i)=>{
+        let raw=(mode==='html'&&i===r.length-1);
+        let wrap=(mode==='last'&&i===r.length-1)
+          ?' class="wrap"'
+          :'';
+
+        return `<td${wrap}>${raw?x:esc(x)}</td>`
+      }).join('')}
+    </tr>
+  `).join('');
+
+  return `
+    <div class="tablewrap">
+      <table class="table">
+        <thead>
+          <tr>${h}</tr>
+        </thead>
+        <tbody>${b}</tbody>
+      </table>
+    </div>
+  `
+}
+  
+async function loadCalendar(force=false){
+  if(state.calendar.length&&!force){
+    renderCalendar();
+    return state.calendar
+  }
+
+  let d=await rpc(
+    'cenqal_control_calendar',
+    {p_token:TOKEN}
+  );
+
+  state.calendar=d.rows||[];
+  renderCalendar();
+  return state.calendar
+}
+
+function renderCalendar(){
+  let box=document.getElementById('calendarList');
+
+  let rows=state.calendar
+    .filter(x=>x.active)
+    .map(e=>`
+      <div class="event">
+
+        <div class="datebox">
+          ${new Date(e.starts_at).getDate().toString().padStart(2,'0')}
+          <small>
+            ${new Date(e.starts_at)
+              .toLocaleString('es-ES',{month:'short'})
+              .toUpperCase()}
+          </small>
+        </div>
+
+        <div>
+          <b>${esc(e.title)}</b>
+
+          <div style="font-size:13px;color:#667b93">
+            ${esc(e.event_type)}
+            · ${fmtDate(e.starts_at)}
+            ${e.location?' · '+esc(e.location):''}
+          </div>
+        </div>
+
+        <div class="actions">
+          <button
+            class="btn"
+            onclick="editEvent(${e.id})">
+            Editar
+          </button>
+
+          <button
+            class="btn danger"
+            onclick="retireEvent(${e.id})">
+            Retirar
+          </button>
+        </div>
+
+      </div>
+    `);
+
+  box.innerHTML=
+    rows.join('')
+    ||
+    '<div class="empty">No hay eventos activos.</div>'
+}
+
+function eventForm(e={}){
+  return `
+    <div class="formgrid">
+
+      <div class="field">
+        <label>Tipo</label>
+
+        <select id="evType">
+          <option value="class">Clase</option>
+          <option value="practice">Práctica</option>
+          <option value="activity">Actividad</option>
+          <option value="exam">Examen</option>
+          <option value="excursion">Excursión</option>
+          <option value="no_class">Sin clase</option>
+          <option value="holiday">Vacaciones</option>
+          <option value="info">Información</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Título</label>
+        <input
+          id="evTitle"
+          value="${esc(e.title||'')}">
+      </div>
+
+      <div class="field">
+        <label>Inicio</label>
+        <input
+          id="evStart"
+          type="datetime-local"
+          value="${dateInput(e.starts_at)}">
+      </div>
+
+      <div class="field">
+        <label>Fin</label>
+        <input
+          id="evEnd"
+          type="datetime-local"
+          value="${dateInput(e.ends_at)}">
+      </div>
+
+      <div class="field full">
+        <label>Lugar</label>
+        <input
+          id="evLocation"
+          value="${esc(e.location||'')}">
+      </div>
+
+      <div class="field full">
+        <label>Descripción</label>
+
+        <textarea id="evDesc">${esc(e.description||'')}</textarea>
+      </div>
+
+      <div class="field full">
+        <label>
+          <input
+            id="evRem"
+            type="checkbox"
+            ${e.reminders_enabled!==false?'checked':''}>
+          Recordatorios activos
+        </label>
+      </div>
+
+    </div>
+  `
+}
+
+function newEvent(){
+
+  modal(`
+    <h3>Crear evento</h3>
+
+    ${eventForm()}
+
+    <div class="modalFooter">
+      <button
+        class="btn"
+        onclick="closeModal()">
+        Cancelar
+      </button>
+
+      <button
+        class="btn primary"
+        id="evNext">
+        Revisar
+      </button>
+    </div>
+  `);
+
+  document.getElementById('evType').value='class';
+
+  document.getElementById('evNext').onclick=
+    ()=>saveEventFlow(null)
+}
+
+function editEvent(id){
+
+  let e=state.calendar.find(x=>x.id==id);
+
+  if(!e)return;
+
+  modal(`
+    <h3>Editar evento</h3>
+
+    ${eventForm(e)}
+
+    <div class="modalFooter">
+      <button
+        class="btn"
+        onclick="closeModal()">
+        Cancelar
+      </button>
+
+      <button
+        class="btn primary"
+        id="evNext">
+        Revisar
+      </button>
+    </div>
+  `);
+
+  document.getElementById('evType').value=
+    e.event_type||'info';
+
+  document.getElementById('evNext').onclick=
+    ()=>saveEventFlow(id)
+}
+
+function collectEvent(){
+
+  let s=document.getElementById('evStart').value,
+      en=document.getElementById('evEnd').value;
+
+  return{
+    event_type:
+      document.getElementById('evType').value,
+
+    title:
+      document.getElementById('evTitle').value,
+
+    starts_at:
+      s?new Date(s).toISOString():'',
+
+    ends_at:
+      en?new Date(en).toISOString():'',
+
+    location:
+      document.getElementById('evLocation').value,
+
+    description:
+      document.getElementById('evDesc').value,
+
+    reminders_enabled:
+      document.getElementById('evRem').checked
+  }
+}
+
+function saveEventFlow(id){
+
+  let data=collectEvent();
+
+  if(!data.title||!data.starts_at){
+    toast(
+      'Título y fecha de inicio son obligatorios.',
+      true
+    );
+    return
+  }
+
+  confirmModal({
+
+    title:
+      id
+      ?'Guardar cambios del evento'
+      :'Crear evento',
+
+    summary:`
+      <b>${esc(data.title)}</b>
+      <br>
+      ${fmtDate(data.starts_at)}
+      <br>
+      ${esc(data.event_type)}
+    `,
+
+    phrase:'CONFIRMAR',
+
+    onConfirm:async typed=>{
+
+      await rpc(
+        'cenqal_control_save_calendar_event',
+        {
+          p_token:TOKEN,
+          p_event_id:id,
+          p_data:data,
+          p_confirmation:typed
+        }
+      );
+
+      state.calendar=[];
+
+      await loadCalendar(true);
+      await refreshSnapshot();
+
+      toast(
+        id
+        ?'Evento actualizado.'
+        :'Evento creado.'
+      )
+    }
+  })
+}
+
+function retireEvent(id){
+
+  let e=state.calendar.find(x=>x.id==id);
+
+  if(!e)return;
+
+  confirmModal({
+
+    title:'Retirar evento del calendario',
+
+    summary:`
+      <b>${esc(e.title)}</b>
+      <br>
+      No se borrará físicamente:
+      quedará desactivado y el cambio se registrará.
+    `,
+
+    phrase:`RETIRAR EVENTO ${id}`,
+
+    button:'Retirar evento',
+
+    danger:true,
+
+    onConfirm:async typed=>{
+
+      await rpc(
+        'cenqal_control_retire_calendar_event',
+        {
+          p_token:TOKEN,
+          p_event_id:id,
+          p_confirmation:typed,
+          p_reason:
+            'Retirada desde CENQAL Control'
+        }
+      );
+
+      state.calendar=[];
+
+      await loadCalendar(true);
+      await refreshSnapshot();
+
+      toast('Evento retirado.')
+    }
+  })
+}
+
+
+/* ================================
+   RETOS SEMANALES
+================================ */
+
+async function loadChallenges(force=false){
+
+  if(state.challenges.length&&!force){
+    renderChallenges();
+    return state.challenges
+  }
+
+  let d=await rpc(
+    'cenqal_control_challenges',
+    {p_token:TOKEN}
+  );
+
+  state.challenges=d.rows||[];
+
+  renderChallenges();
+
+  return state.challenges
+}
+
+function renderChallenges(){
+
+  document.getElementById('challengesBody').innerHTML=
+
+    state.challenges.map(c=>`
+
+      <tr>
+
+        <td>
+          <b>T${c.topic_number}</b>
+        </td>
+
+        <td>
+          ${esc(c.week_start||'—')}
+        </td>
+
+        <td title="${esc(c.question||'')}">
+          ${esc(c.title)}
+        </td>
+
+        <td>
+          <span class="status ${statusClass(c.status)}">
+            ${esc(c.status)}
+          </span>
+        </td>
+
+        <td>
+          ${c.telegram_message_id
+            ?'Publicado'
+            :'—'}
+        </td>
+
+        <td>
+          <button
+            class="btn"
+            onclick="editChallenge(${c.id})">
+            Editar
+          </button>
+        </td>
+
+      </tr>
+
+    `).join('')
+    ||
+    '<tr><td colspan="6" class="empty">No hay retos.</td></tr>'
+}
+
+function editChallenge(id){
+
+  let c=state.challenges.find(x=>x.id==id);
+
+  if(!c)return;
+
+  let published=c.status==='published';
+
+  modal(`
+
+    <h3>Reto T${c.topic_number}</h3>
+
+    ${
+      published
+      ?`
+        <div class="note warn">
+          Este reto ya está publicado.
+          Puedes corregir texto/fuente,
+          pero la fecha y el estado quedan bloqueados
+          para evitar duplicar mensajes.
+        </div>
+      `
+      :''
+    }
+
+    <div class="formgrid" style="margin-top:12px">
+
+      <div class="field full">
+        <label>Título</label>
+
+        <input
+          id="chTitle"
+          value="${esc(c.title||'')}">
+      </div>
+
+      <div class="field full">
+        <label>Pregunta</label>
+
+        <textarea id="chQuestion">${esc(c.question||'')}</textarea>
+      </div>
+
+      <div class="field">
+        <label>Semana (lunes)</label>
+
+        <input
+          id="chWeek"
+          type="date"
+          value="${esc(c.week_start||'')}"
+          ${published?'disabled':''}>
+      </div>
+
+      <div class="field">
+        <label>Estado</label>
+
+        <select
+          id="chStatus"
+          ${published?'disabled':''}>
+
+          <option value="scheduled">
+            scheduled
+          </option>
+
+          <option value="closed">
+            closed
+          </option>
+
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Fuente</label>
+
+        <input
+          id="chSource"
+          value="${esc(c.source_title||'')}">
+      </div>
+
+      <div class="field">
+        <label>URL</label>
+
+        <input
+          id="chUrl"
+          value="${esc(c.source_url||'')}">
+      </div>
+
+    </div>
+
+    <div class="modalFooter">
+
+      <button
+        class="btn"
+        onclick="closeModal()">
+        Cancelar
+      </button>
+
+      <button
+        class="btn primary"
+        id="chNext">
+        Revisar
+      </button>
+
+    </div>
+  `);
+
+  if(!published){
+
+    document.getElementById('chStatus').value=
+      ['scheduled','closed'].includes(c.status)
+      ?c.status
+      :'scheduled'
+  }
+
+  document.getElementById('chNext').onclick=()=>{
+
+    let data={
+
+      title:
+        document.getElementById('chTitle').value,
+
+      question:
+        document.getElementById('chQuestion').value,
+
+      source_title:
+        document.getElementById('chSource').value,
+
+      source_url:
+        document.getElementById('chUrl').value
+    };
+
+    if(!published){
+
+      data.week_start=
+        document.getElementById('chWeek').value;
+
+      data.status=
+        document.getElementById('chStatus').value
+    }
+
+    confirmModal({
+
+      title:
+        `Guardar reto T${c.topic_number}`,
+
+      summary:
+        'El bot usará estos datos en las siguientes publicaciones. El cambio queda auditado.',
+
+      phrase:'CONFIRMAR',
+
+      onConfirm:async typed=>{
+
+        await rpc(
+          'cenqal_control_update_challenge',
+          {
+            p_token:TOKEN,
+            p_challenge_id:id,
+            p_data:data,
+            p_confirmation:typed
+          }
+        );
+
+        state.challenges=[];
+
+        await loadChallenges(true);
+        await refreshSnapshot();
+
+        toast('Reto actualizado.')
+      }
+    })
+  }
+}async function loadExams(force=false){
+  if(state.exams.length&&!force){
+    renderExams();
+    return state.exams
+  }
+
+  let d=await rpc(
+    'cenqal_control_exams',
+    {p_token:TOKEN}
+  );
+
+  state.exams=d.rows||[];
+
+  renderExams();
+
+  return state.exams
+}
+
+function renderExams(){
+
+  document.getElementById('examsBody').innerHTML=
+
+    state.exams.map(e=>`
+
+      <tr>
+
+        <td>${esc(e.exam_code)}</td>
+
+        <td>T${esc(e.topic_number)}</td>
+
+        <td>${esc(e.title)}</td>
+
+        <td>
+          <span class="status ${statusClass(e.state)}">
+            ${esc(e.state)}
+          </span>
+        </td>
+
+        <td>${fmtDate(e.opened_at)}</td>
+
+        <td>${fmtDate(e.closed_at)}</td>
+
+      </tr>
+
+    `).join('')
+    ||
+    '<tr><td colspan="6" class="empty">No hay exámenes.</td></tr>'
+}
+
+
+/* ================================
+   GRUPOS / ATLAS
+================================ */
+
+function renderGroups(){
+
+  let g={};
+
+  state.students
+    .filter(x=>x.active)
+    .forEach(s=>{
+
+      let k=s.group_name||'Sin grupo';
+
+      (g[k]??=[]).push(s)
+    });
+
+  document.getElementById('groupsGrid').innerHTML=
+
+    Object.entries(g).map(([k,v])=>`
+
+      <div class="card">
+
+        <h3>${esc(k)}</h3>
+
+        <div class="metric">
+          <b>${v.length}</b>
+          <span>alumnos</span>
+        </div>
+
+        <div style="
+          margin-top:10px;
+          font-size:13px;
+          color:#647990
+        ">
+
+          ${v.map(x=>
+            esc(x.full_name||x.student_code)
+          ).join('<br>')}
+
+        </div>
+
+      </div>
+
+    `).join('')
+    ||
+    '<div class="empty">Sin grupos.</div>'
+}
+
+
+/* ================================
+   PP / OGANESONES
+================================ */
+
+async function loadGame(force=false){
+
+  if(state.game.length&&!force){
+    renderGame();
+    return state.game
+  }
+
+  let d=await rpc(
+    'cenqal_control_gamification',
+    {p_token:TOKEN}
+  );
+
+  state.game=d.rows||[];
+
+  renderGame();
+
+  return state.game
+}
+
+function renderGame(){
+
+  document.getElementById('gameBody').innerHTML=
+
+    state.game.map(g=>`
+
+      <tr>
+
+        <td>
+          <b>${esc(g.student_code)}</b>
+        </td>
+
+        <td>${esc(g.student_name)}</td>
+
+        <td>${esc(g.xp_total)}</td>
+
+        <td>${esc(g.oganeson_balance)}</td>
+
+        <td>${esc(g.medals_earned)}</td>
+
+        <td>${esc(g.level_name)}</td>
+
+        <td>
+
+          <button
+            class="btn"
+            ${!g.telegram_user_id?'disabled':''}
+            onclick="
+              adjustGame(
+                '${esc(g.student_code)}',
+                '${esc(g.student_name)}'
+              )
+            ">
+            Ajustar
+          </button>
+
+        </td>
+
+      </tr>
+
+    `).join('')
+    ||
+    '<tr><td colspan="7" class="empty">Sin datos.</td></tr>'
+}
+
+function adjustGame(code,name){
+
+  modal(`
+
+    <h3>Ajuste auditado · ${esc(name)}</h3>
+
+    <div class="formgrid">
+
+      <div class="field">
+        <label>Variación PP</label>
+        <input
+          id="adjPP"
+          type="number"
+          value="0">
+      </div>
+
+      <div class="field">
+        <label>Variación Og</label>
+        <input
+          id="adjOG"
+          type="number"
+          value="0">
+      </div>
+
+      <div class="field full">
+        <label>Motivo obligatorio</label>
+
+        <textarea
+          id="adjReason"
+          placeholder="Ej.: Corrección de una asignación duplicada"></textarea>
+      </div>
+
+    </div>
+
+    <div
+      class="note warn"
+      style="margin-top:10px">
+
+      Usa valores negativos para retirar puntos.
+
+      No se modifica el histórico:
+      se crea un nuevo movimiento docente.
+
+    </div>
+
+    <div class="modalFooter">
+
+      <button
+        class="btn"
+        onclick="closeModal()">
+        Cancelar
+      </button>
+
+      <button
+        class="btn primary"
+        id="adjNext">
+        Revisar
+      </button>
+
+    </div>
+  `);
+
+  document.getElementById('adjNext').onclick=()=>{
+
+    let pp=parseInt(
+          document.getElementById('adjPP').value||0
+        ),
+
+        og=parseInt(
+          document.getElementById('adjOG').value||0
+        ),
+
+        reason=
+          document.getElementById('adjReason')
+            .value
+            .trim();
+
+    if(reason.length<5){
+
+      toast(
+        'Escribe un motivo claro.',
+        true
+      );
+
+      return
+    }
+
+    confirmModal({
+
+      title:
+        `Confirmar ajuste · ${code}`,
+
+      summary:`
+        PP: <b>${pp>=0?'+':''}${pp}</b>
+        <br>
+        Og: <b>${og>=0?'+':''}${og}</b>
+        <br>
+        Motivo: ${esc(reason)}
+      `,
+
+      phrase:
+        `AJUSTAR ${code}`,
+
+      button:
+        'Registrar ajuste',
+
+      danger:
+        (pp<0||og<0),
+
+      onConfirm:async typed=>{
+
+        await rpc(
+          'cenqal_control_adjust_gamification',
+          {
+            p_token:TOKEN,
+            p_student_code:code,
+            p_pp_delta:pp,
+            p_og_delta:og,
+            p_reason:reason,
+            p_confirmation:typed
+          }
+        );
+
+        state.game=[];
+
+        await loadGame(true);
+
+        toast(
+          'Ajuste registrado y auditado.'
+        )
+      }
+    })
+  }
+}
+
+
+/* ================================
+   EVIDENCIAS PDF
+================================ */
+
+async function loadEvidence(force=false){
+
+  if(state.evidence.length&&!force){
+    renderEvidence();
+    return state.evidence
+  }
+
+  let d=await rpc(
+    'cenqal_control_evidences',
+    {p_token:TOKEN}
+  );
+
+  state.evidence=d.rows||[];
+
+  renderEvidence();
+
+  return state.evidence
+}
+
+function renderEvidence(){
+
+  document.getElementById('evidenceBody').innerHTML=
+
+    state.evidence.map(e=>`
+
+      <tr>
+
+        <td>
+          ${fmtDate(e.generated_at)}
+        </td>
+
+        <td>
+          ${esc(e.evidence_type)}
+        </td>
+
+        <td>
+          ${esc(e.title)}
+        </td>
+
+        <td>
+          ${esc(e.student_code||'—')}
+        </td>
+
+        <td
+          title="${esc(e.pdf_sha256)}">
+
+          ${esc(
+            (e.pdf_sha256||'')
+            .slice(0,14)
+          )}…
+
+        </td>
+
+        <td>
+          ${esc(e.storage_path||'—')}
+        </td>
+
+        <td>
+
+          ${
+            e.storage_path
+            ?`
+              <button
+                class="btn"
+                onclick="
+                  botPayload('ce_${e.id}')
+                ">
+                Enviarme PDF
+              </button>
+            `
+            :'—'
+          }
+
+        </td>
+
+      </tr>
+
+    `).join('')
+    ||
+    '<tr><td colspan="7" class="empty">Todavía no hay evidencias.</td></tr>'
+}
+
+
+/* ================================
+   AUDITORÍA
+================================ */
+
+async function loadAudit(force=false){
+
+  if(state.audit.length&&!force){
+    renderAudit();
+    return state.audit
+  }
+
+  let d=await rpc(
+    'cenqal_control_audit_log',
+    {p_token:TOKEN}
+  );
+
+  state.audit=d.rows||[];
+
+  renderAudit();
+
+  return state.audit
+}
+
+function renderAudit(){
+
+  document.getElementById('auditBody').innerHTML=
+
+    state.audit.map(a=>`
+
+      <tr>
+
+        <td>
+          ${fmtDate(a.created_at)}
+        </td>
+
+        <td>
+          <b>${esc(a.action)}</b>
+        </td>
+
+        <td>
+          ${esc(a.entity_type||'—')}
+        </td>
+
+        <td>
+          ${esc(a.entity_id||'—')}
+        </td>
+
+        <td>
+          ${esc(a.reason||'—')}
+        </td>
+
+      </tr>
+
+    `).join('')
+    ||
+    '<tr><td colspan="5" class="empty">Todavía no hay cambios desde Control.</td></tr>'
+}
+
+
+/* ================================
+   ESTADO DEL SISTEMA
+================================ */
+
+function renderSystem(){
+
+  let h=state.snapshot?.heartbeat||{};
+
+  let last=
+    h.last_seen_at
+    ?new Date(h.last_seen_at)
+    :null;
+
+  let fresh=
+    last &&
+    (
+      Date.now()-last.getTime()
+      <
+      5*60*1000
+    );
+
+  document.getElementById('systemState').innerHTML=`
+
+    <div class="event">
+
+      <div class="datebox">
+        BOT
+        <small>Render</small>
+      </div>
+
+      <div>
+
+        <b>
+          ${
+            fresh
+            ?'Operativo'
+            :'Sin heartbeat reciente'
+          }
+        </b>
+
+        <div
+          style="
+            color:#667b93;
+            font-size:13px
+          ">
+
+          Última señal:
+          ${fmtDate(h.last_seen_at)}
+
+          · ${esc(h.version||'')}
+
+        </div>
+
+      </div>
+
+      <span
+        class="status ${fresh?'ok':'warn'}">
+
+        ${
+          fresh
+          ?'OK'
+          :'REVISAR'
+        }
+
+      </span>
+
+    </div>
+
+
+    <div class="event">
+
+      <div class="datebox">
+        DB
+        <small>Supabase</small>
+      </div>
+
+      <div>
+
+        <b>Conectado</b>
+
+        <div
+          style="
+            color:#667b93;
+            font-size:13px
+          ">
+
+          La Mini App ha podido leer
+          el snapshot seguro.
+
+        </div>
+
+      </div>
+
+      <span class="status ok">
+        OK
+      </span>
+
+    </div>
+  `
+}
+
+
+/* ================================
+   REINICIO SEGURO
+================================ */
+
+async function newCoursePreview(){
+
+  try{
+
+    let d=await rpc(
+      'cenqal_control_new_course_preview',
+      {p_token:TOKEN}
+    );
+
+    let x=d.would_archive||{};
+
+    document.getElementById('resetPreview').innerHTML=`
+
+      <div class="note warn">
+
+        <b>
+          PREVIEW — no se ha modificado nada
+        </b>
+
+        <br><br>
+
+        Alumnos activos:
+        ${x.students||0}
+
+        <br>
+
+        Eventos:
+        ${x.calendar_events||0}
+
+        <br>
+
+        Retos históricos:
+        ${x.weekly_challenges||0}
+
+        <br>
+
+        Exámenes:
+        ${x.exam_sessions||0}
+
+        <br>
+
+        Evidencias:
+        ${x.evidences||0}
+
+        <br>
+
+        Movimientos PP/Og:
+        ${x.gamification_events||0}
+
+        <br><br>
+
+        ${esc(d.blocked_reason||'')}
+
+      </div>
+    `
+
+  }catch(e){
+
+    toast(
+      e.message,
+      true
+    )
+  }
+}
+
+
+/* ================================
+   CERRAR SESIÓN
+================================ */
+
+async function logout(){
+
+  confirmModal({
+
+    title:
+      'Cerrar sesión de CENQAL Control',
+
+    summary:
+      'Se invalidará este acceso temporal. Para volver a entrar tendrás que abrir /control desde Telegram.',
+
+    phrase:
+      'CERRAR SESION',
+
+    button:
+      'Cerrar sesión',
+
+    danger:true,
+
+    onConfirm:async()=>{
+
+      await rpc(
+        'cenqal_control_logout',
+        {p_token:TOKEN}
+      );
+
+      document.body.innerHTML=`
+
+        <div style="
+          padding:40px;
+          font-family:system-ui;
+          text-align:center
+        ">
+
+          <h2>Sesión cerrada</h2>
+
+          <p>
+            Vuelve a Telegram y abre /control
+            para obtener un acceso nuevo.
+          </p>
+
+        </div>
+      `
+    }
+  })
+}
+
+
+/* ================================
+   REFRESCAR TODO
+================================ */
+
+async function refreshAll(){
+
+  state.students=[];
+  state.calendar=[];
+  state.challenges=[];
+  state.exams=[];
+  state.game=[];
+  state.evidence=[];
+  state.audit=[];
+  state.progress=null;
+  state.studentDetail=null;
+
+  await refreshSnapshot();
+
+  toast(
+    'Estado actualizado.'
+  )
+}
+  /* ================================
+   ARRANQUE
+================================ */
+
+async function init(){
+
+  try{
+
+    if(!SBURL||!SBKEY||!TOKEN){
+
+      document.body.innerHTML=`
+        <div style="
+          max-width:760px;
+          margin:60px auto;
+          padding:24px;
+          font-family:system-ui;
+        ">
+
+          <div class="card">
+
+            <h2 style="color:#0c3f82">
+              CENQAL Control
+            </h2>
+
+            <div class="note danger">
+
+              Falta la sesión segura de acceso.
+
+              <br><br>
+
+              Abre este panel desde
+              <b>/control</b>
+              en Mr. Berilio.
+
+            </div>
+
+          </div>
+
+        </div>
+      `;
+
+      return
+    }
+
+    await refreshSnapshot();
+
+    try{
+      await loadStudents()
+    }catch(e){}
+
+    try{
+      await loadProgress()
+    }catch(e){}
+
+    toast(
+      'CENQAL Control conectado.'
+    )
+
+  }catch(e){
+
+    document.body.innerHTML=`
+      <div style="
+        max-width:760px;
+        margin:60px auto;
+        padding:24px;
+        font-family:system-ui;
+      ">
+
+        <div class="card">
+
+          <h2 style="color:#0c3f82">
+            No se pudo abrir CENQAL Control
+          </h2>
+
+          <div class="note danger">
+            ${esc(e.message)}
+          </div>
+
+          <p style="
+            color:#657a92;
+            margin-top:18px
+          ">
+
+            Vuelve a Telegram y ejecuta
+            <b>/control</b>
+            para generar una sesión nueva.
+
+          </p>
+
+        </div>
+
+      </div>
+    `
+  }
+}
+
+init();
+
+</script>
+
+</body>
+</html>
