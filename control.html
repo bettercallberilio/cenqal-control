@@ -2036,6 +2036,112 @@ if('serviceWorker' in navigator){
 ========================================================= */
 
 boot();
+  /* ===== CENQAL HOTFIX v65.4 · botones de alumnos ===== */
+(function(){
+
+  const openStudentOriginal = openStudent;
+  const editStudentOriginal = editStudent;
+
+  function studentId(row){
+    if(!row) return null;
+
+    const code =
+      row.querySelector('td b')?.textContent?.trim() ||
+      row.querySelector('.subtle')?.textContent?.trim();
+
+    let s = (state.students || []).find(x =>
+      String(x.student_code || '').trim() === String(code || '').trim()
+    );
+
+    if(!s && typeof mergedProgress === 'function'){
+      s = mergedProgress().find(x =>
+        String(x.student_code || '').trim() === String(code || '').trim()
+      );
+    }
+
+    return s?.student_id ?? s?.id ?? null;
+  }
+
+  openStudent = function(id){
+    const sid = Number(id);
+
+    if(!Number.isFinite(sid) || sid <= 0){
+      toast('No se pudo identificar al alumno.', true);
+      return;
+    }
+
+    return openStudentOriginal(sid).catch(e=>{
+      toast(e?.message || 'No se pudo abrir la ficha.', true);
+    });
+  };
+
+  editStudent = function(id){
+    const sid = Number(id);
+
+    let s = (state.students || []).find(x =>
+      Number(x.student_id ?? x.id) === sid
+    );
+
+    if(!s){
+      toast('No se pudo identificar al alumno.', true);
+      return;
+    }
+
+    if(s.id == null && s.student_id != null){
+      s.id = s.student_id;
+    }
+
+    return editStudentOriginal(sid);
+  };
+
+  function captureStudentClick(e){
+
+    const body = e.target.closest('#studentsBody, #progressBody');
+    if(!body) return;
+
+    const row = e.target.closest('tr');
+    if(!row) return;
+
+    const button = e.target.closest('button');
+    const id = studentId(row);
+
+    if(!id) return;
+
+    if(button){
+      const text = button.textContent.trim().toLowerCase();
+
+      if(
+        text.includes('ficha') ||
+        text.includes('editar') ||
+        text.includes('reiniciar')
+      ){
+        e.preventDefault();
+        e.stopImmediatePropagation();
+
+        if(text.includes('editar')){
+          editStudent(id);
+        }else if(text.includes('reiniciar')){
+          const code = row.querySelector('td b')?.textContent?.trim() || '';
+          resetStudent(id, code);
+        }else{
+          openStudent(id);
+        }
+      }
+
+    }else if(body.id === 'progressBody'){
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      openStudent(id);
+    }
+  }
+
+  document.addEventListener(
+    'click',
+    captureStudentClick,
+    true
+  );
+
+})();
 
 </script>
 
