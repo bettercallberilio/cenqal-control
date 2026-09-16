@@ -3033,6 +3033,207 @@ boot();
   }
 
 })();
+  /* ===== CENQAL HOTFIX v65.6 · UUID alumnos ===== */
+(function(){
+
+  function validStudentId(id){
+    const v = String(id ?? '').trim();
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v)
+      ? v
+      : null;
+  }
+
+  openStudent = async function(id){
+
+    const sid = validStudentId(id);
+
+    if(!sid){
+      toast('No se ha podido identificar al alumno.', true);
+      return;
+    }
+
+    state.currentStudentId = sid;
+    state.studentDetail = null;
+
+    document.querySelectorAll('.view')
+      .forEach(x => x.classList.remove('active'));
+
+    document.querySelectorAll('.nav button')
+      .forEach(x => x.classList.remove('active'));
+
+    const view = document.getElementById('view-student');
+
+    if(!view){
+      toast('No se encuentra la pantalla de ficha.', true);
+      return;
+    }
+
+    view.classList.add('active');
+
+    document.querySelector(
+      '.nav button[data-view="students"]'
+    )?.classList.add('active');
+
+    const hero = document.getElementById('studentHero');
+
+    hero.innerHTML =
+      '<div><span class="loader"></span> Cargando ficha completa…</div>';
+
+    document.getElementById('studentMetrics').innerHTML = '';
+    document.getElementById('studentSections').innerHTML = '';
+
+    if(document.getElementById('studentComponents')){
+      document.getElementById('studentComponents').innerHTML = '';
+    }
+
+    if(document.getElementById('studentActivity')){
+      document.getElementById('studentActivity').innerHTML = '';
+    }
+
+    window.scrollTo({top:0});
+
+    try{
+
+      const d = await rpc(
+        'cenqal_control_student_workspace',
+        {
+          p_token:TOKEN,
+          p_student_id:sid
+        }
+      );
+
+      state.studentDetail = d;
+      renderStudentDetail();
+
+    }catch(e){
+
+      hero.innerHTML =
+        `<div class="note danger">${esc(e.message)}</div>`;
+
+      toast(
+        e.message || 'No se pudo cargar la ficha.',
+        true
+      );
+    }
+  };
+
+
+  editStudent = function(id){
+
+    const sid = validStudentId(id);
+
+    if(!sid){
+      toast('No se ha podido identificar al alumno.', true);
+      return;
+    }
+
+    const s = (state.students || []).find(x =>
+      String(x.student_id ?? x.id ?? '') === sid
+    );
+
+    if(!s){
+      toast('No se ha podido identificar al alumno.', true);
+      return;
+    }
+
+    modal(`
+      <h3>Editar alumno · ${esc(s.student_code || '')}</h3>
+
+      <div class="formgrid">
+
+        <div class="field">
+          <label>Nombre</label>
+          <input id="stFirst" value="${esc(s.first_name || '')}">
+        </div>
+
+        <div class="field">
+          <label>Apellidos</label>
+          <input id="stLast" value="${esc(s.last_name || '')}">
+        </div>
+
+        <div class="field full">
+          <label>Nombre completo</label>
+          <input id="stFull" value="${esc(s.full_name || '')}">
+        </div>
+
+        <div class="field">
+          <label>Grupo</label>
+          <input id="stGroup" value="${esc(s.group_name || '')}">
+        </div>
+
+        <div class="field">
+          <label>Curso académico</label>
+          <input id="stYear" value="${esc(s.academic_year || '')}">
+        </div>
+
+        <div class="field full">
+          <label>
+            <input id="stActive" type="checkbox"
+              ${s.active ? 'checked' : ''}>
+            Alumno activo
+          </label>
+        </div>
+
+      </div>
+
+      <div class="modalFooter">
+        <button class="btn" onclick="closeModal()">Cancelar</button>
+        <button class="btn primary" id="studentNext">Revisar cambio</button>
+      </div>
+    `);
+
+    document.getElementById('studentNext').onclick = ()=>{
+
+      const data = {
+        first_name:
+          document.getElementById('stFirst').value,
+
+        last_name:
+          document.getElementById('stLast').value,
+
+        full_name:
+          document.getElementById('stFull').value,
+
+        group_name:
+          document.getElementById('stGroup').value,
+
+        academic_year:
+          document.getElementById('stYear').value,
+
+        active:
+          document.getElementById('stActive').checked
+      };
+
+      confirmModal({
+        title:`Confirmar cambios · ${s.student_code || ''}`,
+        summary:`Alumno: <b>${esc(data.full_name)}</b><br>
+                 Grupo: ${esc(data.group_name)}<br>
+                 Estado: ${data.active ? 'Activo' : 'Inactivo'}`,
+        phrase:'CONFIRMAR',
+
+        onConfirm: async typed => {
+
+          await rpc(
+            'cenqal_control_update_student',
+            {
+              p_token:TOKEN,
+              p_student_id:sid,
+              p_data:data,
+              p_confirmation:typed
+            }
+          );
+
+          state.students = [];
+          await loadStudents(true);
+          await refreshSnapshot();
+
+          toast('Alumno actualizado.');
+        }
+      });
+    };
+  };
+
+})();
 
 </script>
 
