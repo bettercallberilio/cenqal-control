@@ -2142,6 +2142,897 @@ boot();
   );
 
 })();
+  /* =========================================================
+   CENQAL HOTFIX v65.5
+   FICHA Y EDICIÓN DE ALUMNOS · MODO MÓVIL SEGURO
+========================================================= */
+
+(function(){
+
+  function cenqalStudentId(student){
+    if(!student) return null;
+
+    const raw =
+      student.id ??
+      student.student_id ??
+      student.cenqal_student_id ??
+      null;
+
+    if(raw === null || raw === undefined || raw === ''){
+      return null;
+    }
+
+    const id = Number(raw);
+
+    return Number.isFinite(id) && id > 0
+      ? id
+      : null;
+  }
+
+
+  /* -------------------------------------------------------
+     ABRIR FICHA
+  ------------------------------------------------------- */
+
+  openStudent = async function(id){
+
+    const sid = Number(id);
+
+    if(!Number.isFinite(sid) || sid <= 0){
+      toast(
+        'No se ha podido identificar al alumno.',
+        true
+      );
+      return;
+    }
+
+    state.currentStudentId = sid;
+    state.studentDetail = null;
+
+    document
+      .querySelectorAll('.view')
+      .forEach(x => x.classList.remove('active'));
+
+    document
+      .querySelectorAll('.nav button')
+      .forEach(x => x.classList.remove('active'));
+
+    const view = document.getElementById('view-student');
+
+    if(!view){
+      toast(
+        'No se encuentra la pantalla de ficha.',
+        true
+      );
+      return;
+    }
+
+    view.classList.add('active');
+
+    document
+      .querySelector(
+        '.nav button[data-view="students"]'
+      )
+      ?.classList.add('active');
+
+    const hero =
+      document.getElementById('studentHero');
+
+    if(hero){
+      hero.innerHTML =
+        '<div><span class="loader"></span> Cargando ficha completa…</div>';
+    }
+
+    const metrics =
+      document.getElementById('studentMetrics');
+
+    if(metrics){
+      metrics.innerHTML = '';
+    }
+
+    const sections =
+      document.getElementById('studentSections');
+
+    if(sections){
+      sections.innerHTML = '';
+    }
+
+    const components =
+      document.getElementById('studentComponents');
+
+    if(components){
+      components.innerHTML = '';
+    }
+
+    const activity =
+      document.getElementById('studentActivity');
+
+    if(activity){
+      activity.innerHTML = '';
+    }
+
+    window.scrollTo({
+      top:0,
+      behavior:'auto'
+    });
+
+    try{
+
+      const data = await rpc(
+        'cenqal_control_student_workspace',
+        {
+          p_token:TOKEN,
+          p_student_id:sid
+        }
+      );
+
+      state.studentDetail = data;
+
+      renderStudentDetail();
+
+    }catch(e){
+
+      console.error(
+        'CENQAL STUDENT WORKSPACE:',
+        e
+      );
+
+      if(hero){
+        hero.innerHTML =
+          '<div class="note danger">' +
+          esc(
+            e?.message ||
+            'No se pudo cargar la ficha.'
+          ) +
+          '</div>';
+      }
+
+      toast(
+        e?.message ||
+        'No se pudo cargar la ficha.',
+        true
+      );
+    }
+  };
+
+
+  /* -------------------------------------------------------
+     EDITAR ALUMNO
+  ------------------------------------------------------- */
+
+  editStudent = function(id){
+
+    const sid = Number(id);
+
+    const s = (state.students || [])
+      .find(x =>
+        cenqalStudentId(x) === sid
+      );
+
+    if(!s){
+      toast(
+        'No se ha podido identificar al alumno.',
+        true
+      );
+      return;
+    }
+
+    modal(`
+      <h3>
+        Editar alumno ·
+        ${esc(s.student_code || '')}
+      </h3>
+
+      <div class="formgrid">
+
+        <div class="field">
+          <label>Nombre</label>
+          <input
+            id="stFirst"
+            value="${esc(s.first_name || '')}">
+        </div>
+
+        <div class="field">
+          <label>Apellidos</label>
+          <input
+            id="stLast"
+            value="${esc(s.last_name || '')}">
+        </div>
+
+        <div class="field full">
+          <label>Nombre completo</label>
+          <input
+            id="stFull"
+            value="${esc(s.full_name || '')}">
+        </div>
+
+        <div class="field">
+          <label>Grupo</label>
+          <input
+            id="stGroup"
+            value="${esc(s.group_name || '')}">
+        </div>
+
+        <div class="field">
+          <label>Curso académico</label>
+          <input
+            id="stYear"
+            value="${esc(s.academic_year || '')}">
+        </div>
+
+        <div class="field full">
+          <label>
+            <input
+              id="stActive"
+              type="checkbox"
+              ${s.active ? 'checked' : ''}>
+            Alumno activo
+          </label>
+        </div>
+
+      </div>
+
+      <div class="modalFooter">
+
+        <button
+          class="btn"
+          id="studentCancelBtn"
+          type="button">
+          Cancelar
+        </button>
+
+        <button
+          class="btn primary"
+          id="studentNext"
+          type="button">
+          Revisar cambio
+        </button>
+
+      </div>
+    `);
+
+    document
+      .getElementById('studentCancelBtn')
+      ?.addEventListener(
+        'click',
+        closeModal
+      );
+
+    document
+      .getElementById('studentNext')
+      ?.addEventListener(
+        'click',
+        ()=>{
+
+          const data = {
+            first_name:
+              document.getElementById('stFirst')
+                ?.value || '',
+
+            last_name:
+              document.getElementById('stLast')
+                ?.value || '',
+
+            full_name:
+              document.getElementById('stFull')
+                ?.value || '',
+
+            group_name:
+              document.getElementById('stGroup')
+                ?.value || '',
+
+            academic_year:
+              document.getElementById('stYear')
+                ?.value || '',
+
+            active:
+              Boolean(
+                document.getElementById(
+                  'stActive'
+                )?.checked
+              )
+          };
+
+          confirmModal({
+
+            title:
+              `Confirmar cambios · ${
+                s.student_code || ''
+              }`,
+
+            summary:
+              `Alumno: <b>${
+                esc(
+                  data.full_name ||
+                  s.full_name ||
+                  ''
+                )
+              }</b><br>
+               Grupo: ${
+                 esc(data.group_name)
+               }<br>
+               Estado: ${
+                 data.active
+                   ? 'Activo'
+                   : 'Inactivo'
+               }`,
+
+            phrase:'CONFIRMAR',
+
+            onConfirm:
+              async typed => {
+
+                await rpc(
+                  'cenqal_control_update_student',
+                  {
+                    p_token:TOKEN,
+                    p_student_id:sid,
+                    p_data:data,
+                    p_confirmation:typed
+                  }
+                );
+
+                state.students = [];
+
+                await loadStudents(true);
+                await refreshSnapshot();
+
+                toast(
+                  'Alumno actualizado.'
+                );
+              }
+          });
+        }
+      );
+  };
+
+
+  /* -------------------------------------------------------
+     TABLA DE ALUMNOS
+  ------------------------------------------------------- */
+
+  renderStudents = function(){
+
+    const body =
+      document.getElementById(
+        'studentsBody'
+      );
+
+    if(!body) return;
+
+    const q =
+      (
+        document
+          .getElementById('studentSearch')
+          ?.value || ''
+      )
+      .trim()
+      .toLowerCase();
+
+    const group =
+      document
+        .getElementById(
+          'studentGroupFilter'
+        )
+        ?.value || '';
+
+    const rows =
+      (state.students || [])
+      .filter(s => {
+
+        const name =
+          String(
+            s.full_name ||
+            [
+              s.first_name,
+              s.last_name
+            ]
+            .filter(Boolean)
+            .join(' ') ||
+            ''
+          )
+          .toLowerCase();
+
+        const code =
+          String(
+            s.student_code || ''
+          )
+          .toLowerCase();
+
+        return (
+          (!q ||
+            name.includes(q) ||
+            code.includes(q))
+          &&
+          (!group ||
+            s.group_name === group)
+        );
+      });
+
+    body.innerHTML =
+      rows.map((s,index)=>{
+
+        const sid =
+          cenqalStudentId(s);
+
+        return `
+          <tr
+            class="studentrow"
+            data-cenqal-row="${index}">
+
+            <td>
+              <b>
+                ${esc(
+                  s.student_code || ''
+                )}
+              </b>
+            </td>
+
+            <td>
+              ${esc(
+                s.full_name ||
+                [
+                  s.first_name,
+                  s.last_name
+                ]
+                .filter(Boolean)
+                .join(' ')
+              )}
+            </td>
+
+            <td>
+              ${esc(
+                s.group_name || '—'
+              )}
+            </td>
+
+            <td>
+              ${
+                s.telegram_user_id
+                ? `
+                  <span class="status ok">
+                    Vinculado
+                  </span>
+                  <small>
+                    ${esc(
+                      s.telegram_username ||
+                      ''
+                    )}
+                  </small>
+                `
+                : `
+                  <span class="status warn">
+                    Sin vincular
+                  </span>
+                `
+              }
+            </td>
+
+            <td>
+              <span
+                class="status ${
+                  s.active
+                    ? 'ok'
+                    : 'bad'
+                }">
+                ${
+                  s.active
+                    ? 'Activo'
+                    : 'Inactivo'
+                }
+              </span>
+            </td>
+
+            <td>
+              <div class="actions">
+
+                <button
+                  type="button"
+                  class="btn primary"
+                  data-cenqal-open="${sid || ''}">
+                  Ver ficha
+                </button>
+
+                <button
+                  type="button"
+                  class="btn"
+                  data-cenqal-edit="${sid || ''}">
+                  Editar
+                </button>
+
+              </div>
+            </td>
+
+          </tr>
+        `;
+      })
+      .join('')
+      ||
+      `
+        <tr>
+          <td
+            colspan="6"
+            class="empty">
+            No hay alumnos con ese filtro.
+          </td>
+        </tr>
+      `;
+
+
+    body
+      .querySelectorAll(
+        '[data-cenqal-open]'
+      )
+      .forEach(button => {
+
+        button.addEventListener(
+          'click',
+          e => {
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            const id =
+              Number(
+                button.dataset.cenqalOpen
+              );
+
+            if(!id){
+              toast(
+                'No se ha podido identificar al alumno.',
+                true
+              );
+              return;
+            }
+
+            openStudent(id);
+          }
+        );
+      });
+
+
+    body
+      .querySelectorAll(
+        '[data-cenqal-edit]'
+      )
+      .forEach(button => {
+
+        button.addEventListener(
+          'click',
+          e => {
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            const id =
+              Number(
+                button.dataset.cenqalEdit
+              );
+
+            if(!id){
+              toast(
+                'No se ha podido identificar al alumno.',
+                true
+              );
+              return;
+            }
+
+            editStudent(id);
+          }
+        );
+      });
+
+
+    body
+      .querySelectorAll(
+        'tr[data-cenqal-row]'
+      )
+      .forEach(row => {
+
+        row.addEventListener(
+          'click',
+          e => {
+
+            if(
+              e.target.closest('button')
+            ){
+              return;
+            }
+
+            const index =
+              Number(
+                row.dataset.cenqalRow
+              );
+
+            const student =
+              rows[index];
+
+            const id =
+              cenqalStudentId(
+                student
+              );
+
+            if(!id){
+              toast(
+                'No se ha podido identificar al alumno.',
+                true
+              );
+              return;
+            }
+
+            openStudent(id);
+          }
+        );
+      });
+  };
+
+
+  /* -------------------------------------------------------
+     TABLA PROGRESO
+  ------------------------------------------------------- */
+
+  renderProgressTable =
+    function(){
+
+      const body =
+        document.getElementById(
+          'progressBody'
+        );
+
+      if(
+        !body ||
+        !state.progress
+      ){
+        return;
+      }
+
+      const q =
+        (
+          document
+            .getElementById(
+              'progressSearch'
+            )
+            ?.value || ''
+        )
+        .toLowerCase();
+
+      const risk =
+        document
+          .getElementById(
+            'progressRisk'
+          )
+          ?.value || '';
+
+      const rows =
+        mergedProgress()
+        .filter(x =>
+          (
+            !q ||
+            String(
+              x.student_name ||
+              x.full_name ||
+              x.student_code ||
+              ''
+            )
+            .toLowerCase()
+            .includes(q)
+          )
+          &&
+          (
+            !risk ||
+            riskFor(x) === risk
+          )
+        );
+
+
+      body.innerHTML =
+        rows.map((x,index)=>{
+
+          const student =
+            (state.students || [])
+            .find(s =>
+              String(
+                s.student_code || ''
+              ) ===
+              String(
+                x.student_code || ''
+              )
+            );
+
+          const sid =
+            cenqalStudentId(student) ||
+            Number(
+              x.student_id ||
+              x.id
+            ) ||
+            null;
+
+          return `
+            <tr
+              class="studentrow"
+              data-progress-row="${index}">
+
+              <td>
+                ${riskFor(x)}
+              </td>
+
+              <td>
+                <b>
+                  ${esc(
+                    x.student_name ||
+                    x.full_name ||
+                    x.student_code ||
+                    ''
+                  )}
+                </b>
+
+                <br>
+
+                <span class="subtle">
+                  ${esc(
+                    x.student_code || ''
+                  )}
+                </span>
+              </td>
+
+              <td>
+                ${esc(
+                  x.group_name || '—'
+                )}
+              </td>
+
+              <td>
+                ${
+                  x.evidence_average == null
+                  ? '—'
+                  : n(
+                      x.evidence_average
+                    )
+                }
+              </td>
+
+              <td>
+                ${
+                  x.provisional_normalized == null
+                  ? '—'
+                  : n(
+                      x.provisional_normalized
+                    )
+                }
+              </td>
+
+              <td>
+                ${pct(
+                  x.graded_official_weight
+                )}
+              </td>
+
+              <td>
+                ${esc(
+                  x.pp_total || 0
+                )}
+              </td>
+
+              <td>
+                ${esc(
+                  x.og_balance || 0
+                )}
+              </td>
+
+              <td>
+                ${esc(
+                  x.weekly_count || 0
+                )}
+              </td>
+
+              <td>
+                ${esc(
+                  x.exams_passed || 0
+                )}
+                /
+                ${esc(
+                  x.exams_done || 0
+                )}
+              </td>
+
+              <td>
+                ${esc(
+                  x.portfolios_approved ||
+                  0
+                )}
+              </td>
+
+              <td>
+                <button
+                  type="button"
+                  class="btn primary"
+                  data-progress-open="${
+                    sid || ''
+                  }">
+                  Ficha
+                </button>
+              </td>
+
+            </tr>
+          `;
+        })
+        .join('')
+        ||
+        `
+          <tr>
+            <td
+              colspan="12"
+              class="empty">
+              No hay alumnos con ese filtro.
+            </td>
+          </tr>
+        `;
+
+
+      body
+        .querySelectorAll(
+          '[data-progress-open]'
+        )
+        .forEach(button => {
+
+          button.addEventListener(
+            'click',
+            e => {
+
+              e.preventDefault();
+              e.stopPropagation();
+
+              const id =
+                Number(
+                  button
+                    .dataset
+                    .progressOpen
+                );
+
+              if(!id){
+                toast(
+                  'No se ha podido identificar al alumno.',
+                  true
+                );
+                return;
+              }
+
+              openStudent(id);
+            }
+          );
+        });
+    };
+
+
+  /* -------------------------------------------------------
+     REGENERAR TABLAS SI YA ESTÁN CARGADAS
+  ------------------------------------------------------- */
+
+  try{
+
+    if(
+      Array.isArray(
+        state.students
+      )
+      &&
+      state.students.length
+    ){
+      renderStudents();
+    }
+
+    if(state.progress){
+      renderProgressTable();
+    }
+
+  }catch(e){
+
+    console.error(
+      'CENQAL HOTFIX 65.5:',
+      e
+    );
+  }
+
+})();
 
 </script>
 
