@@ -2718,7 +2718,131 @@ if('serviceWorker' in navigator){
   );
 }
 
+/* =========================================================
+   MATRICULAR ALUMNO EXISTENTE
+========================================================= */
 
+async function enrollExistingStudent(){
+  try{
+    const d=await rpc(
+      'cenqal_control_student_catalog',
+      {p_token:TOKEN}
+    );
+
+    const rows=(d.rows||[])
+      .filter(x=>
+        !x.enrolled_in_selected_course &&
+        x.student_active!==false
+      );
+
+    if(!rows.length){
+      toast(
+        'No hay alumnos existentes pendientes de matricular en este curso.'
+      );
+      return;
+    }
+
+    const courseId=Number(d.course_id);
+
+    modal(`
+      <h3>＋ Matricular alumno existente</h3>
+
+      <div class="note">
+        Se conserva la misma identidad del alumno,
+        incluido su UUID y su vínculo con Telegram/Berilio.
+        Solo se crea una matrícula en el curso seleccionado.
+      </div>
+
+      <div class="formgrid" style="margin-top:14px">
+
+        <div class="field full">
+          <label>Alumno</label>
+          <select id="enrollStudent">
+            ${rows.map(s=>`
+              <option value="${esc(s.student_id)}">
+                ${esc(s.full_name||s.student_code)}
+                · ${esc(s.student_code||'')}
+                ${s.telegram_user_id?' · Telegram vinculado':''}
+              </option>
+            `).join('')}
+          </select>
+        </div>
+
+        <div class="field full">
+          <label>Grupo</label>
+          <input
+            id="enrollGroup"
+            placeholder="Grupo del alumno en este curso">
+        </div>
+
+      </div>
+
+      <div class="modalFooter">
+        <button class="btn" onclick="closeModal()">
+          Cancelar
+        </button>
+
+        <button class="btn primary" id="enrollNext">
+          Revisar matrícula
+        </button>
+      </div>
+    `);
+
+    document.getElementById('enrollNext').onclick=()=>{
+      const sid=
+        document.getElementById('enrollStudent').value;
+
+      const group=
+        document.getElementById('enrollGroup').value.trim();
+
+      const student=
+        rows.find(x=>String(x.student_id)===String(sid))||{};
+
+      confirmModal({
+        title:'Confirmar matrícula',
+        summary:`
+          Alumno:
+          <b>${esc(student.full_name||student.student_code)}</b>
+          <br>
+          Curso seleccionado: ID ${courseId}
+          <br>
+          Grupo: ${esc(group||'—')}
+          <br><br>
+          Su identidad y su vínculo con Telegram/Berilio
+          no se modificarán.
+        `,
+        phrase:'MATRICULAR ALUMNO',
+        button:'Matricular',
+        onConfirm:async typed=>{
+          await rpc(
+            'cenqal_control_enroll_student',
+            {
+              p_token:TOKEN,
+              p_course_id:courseId,
+              p_student_id:sid,
+              p_group_name:group||null,
+              p_confirmation:typed
+            }
+          );
+
+          state.students=[];
+          state.progress=null;
+
+          await refreshSnapshot();
+          await loadStudents(true);
+
+          toast('Alumno matriculado en el curso.');
+        }
+      });
+    };
+
+  }catch(e){
+    toast(
+      e.message||'No se pudo abrir el catálogo de alumnos.',
+      true
+    );
+  }
+}
 /* =========================================================
    LANZAR
 ========================================================= */
