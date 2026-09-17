@@ -2852,6 +2852,133 @@ async function enrollExistingStudent(){
     );
   }
 }
+  /* =========================================================
+   CREAR ALUMNO NUEVO
+========================================================= */
+
+function newStudent(){
+
+  modal(`
+    <h3>＋ Nuevo alumno</h3>
+
+    <div class="note">
+      Se creará una identidad nueva en CENQAL y se matriculará
+      automáticamente en el curso que esté seleccionado.
+    </div>
+
+    <div class="formgrid" style="margin-top:14px">
+
+      <div class="field">
+        <label>Nombre *</label>
+        <input id="newStFirst">
+      </div>
+
+      <div class="field">
+        <label>Apellidos *</label>
+        <input id="newStLast">
+      </div>
+
+      <div class="field full">
+        <label>Correo académico</label>
+        <input id="newStEmail" type="email">
+      </div>
+
+      <div class="field">
+        <label>Grupo</label>
+        <input id="newStGroup"
+               placeholder="Si se deja vacío, usará el grupo del curso">
+      </div>
+
+      <div class="field">
+        <label>Código de alumno</label>
+        <input id="newStCode"
+               placeholder="Vacío = CENQAL lo genera">
+      </div>
+
+    </div>
+
+    <div class="modalFooter">
+      <button class="btn" onclick="closeModal()">
+        Cancelar
+      </button>
+
+      <button class="btn primary" id="newStudentNext">
+        Revisar alta
+      </button>
+    </div>
+  `);
+
+  document.getElementById('newStudentNext').onclick=()=>{
+
+    const first=
+      document.getElementById('newStFirst').value.trim();
+
+    const last=
+      document.getElementById('newStLast').value.trim();
+
+    const email=
+      document.getElementById('newStEmail').value.trim();
+
+    const group=
+      document.getElementById('newStGroup').value.trim();
+
+    const code=
+      document.getElementById('newStCode').value.trim();
+
+    if(!first || !last){
+      toast('Nombre y apellidos son obligatorios.',true);
+      return;
+    }
+
+    confirmModal({
+      title:'Confirmar nuevo alumno',
+
+      summary:`
+        Alumno: <b>${esc(first)} ${esc(last)}</b>
+        <br>
+        Correo: ${esc(email||'—')}
+        <br>
+        Grupo: ${esc(group||'grupo del curso')}
+        <br>
+        Código: ${esc(code||'generado automáticamente')}
+        <br><br>
+        Se creará una identidad nueva y se matriculará
+        en el curso seleccionado.
+      `,
+
+      phrase:'CREAR ALUMNO',
+      button:'Crear alumno',
+
+      onConfirm:async typed=>{
+
+        const result=await rpc(
+          'cenqal_control_create_student',
+          {
+            p_token:TOKEN,
+            p_data:{
+              first_name:first,
+              last_name:last,
+              academic_email:email||null,
+              group_name:group||null,
+              student_code:code||null
+            },
+            p_confirmation:typed
+          }
+        );
+
+        state.students=[];
+        state.progress=null;
+
+        await refreshSnapshot();
+        await loadStudents(true);
+
+        toast(
+          `Alumno creado · código ${result.student_code}`
+        );
+      }
+    });
+  };
+}
 /* =========================================================
    LANZAR
 ========================================================= */
