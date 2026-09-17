@@ -244,7 +244,7 @@ details.card>.detailBody{padding:0 16px 16px}
       <div class="brandmark"></div>
       <div>
         <h1>CENQAL Control</h1>
-        <small>Panel docente seguro · v65.9</small>
+        <small>Panel docente seguro · v66.0</small>
       </div>
     </div>
 
@@ -261,7 +261,7 @@ details.card>.detailBody{padding:0 16px 16px}
       <button data-view="evidence">📁 Evidencias</button>
       <button data-view="audit">🧾 Auditoría</button>
       <button data-view="system">🔧 Sistema</button>
-      <button data-view="reset" class="danger">♻️ Reinicio</button>
+      <button data-view="reset">🗂️ Gestión de cursos</button>
     </nav>
 
     <div class="sidefooter">
@@ -420,10 +420,36 @@ details.card>.detailBody{padding:0 16px 16px}
     </section>
 
     <section class="view" id="view-reset">
-      <div class="viewHeader"><div><h2>♻️ Reinicio y mantenimiento</h2><p>Ningún borrado global se ejecuta con un clic.</p></div></div>
-      <div class="resetCard"><h4>🔄 Reiniciar vinculación de un alumno</h4><p>Se hace desde la pestaña Alumnos. Solo borra el vínculo Telegram; conserva notas, progreso, PP/Og y evidencias.</p><button class="btn" onclick="go('students')">Ir a Alumnos</button></div>
-      <div class="resetCard amber"><h4>🟠 Preparar nuevo curso</h4><p>Por seguridad, actualmente solo generamos una previsualización de todo lo que habría que archivar. No se ejecuta todavía el reset global porque primero debemos hacer el historial PP/Og dependiente del curso y validar una copia integral.</p><button class="btn warn" onclick="newCoursePreview()">Ver previsualización segura</button><div id="resetPreview" style="margin-top:12px"></div></div>
-      <div class="resetCard red"><h4>🔴 Reset técnico completo</h4><p>Deshabilitado por seguridad. No voy a habilitarlo hasta tener backup verificable, restauración probada y doble confirmación independiente.</p><button class="btn danger" disabled>Reset técnico bloqueado</button></div>
+      <div class="viewHeader">
+        <div><h2>🗂️ Gestión de cursos</h2><p>Crear, duplicar, seleccionar, activar y archivar cursos sin borrar históricos.</p></div>
+        <button class="btn" onclick="loadCourses(true)">↻ Actualizar</button>
+      </div>
+
+      <div class="note" style="margin-bottom:14px">
+        <b>Seleccionar</b> cambia el curso que estás viendo y gestionando en este panel.
+        <b>Activar</b> cambia el curso operativo global de CENQAL y del bot.
+        Archivar nunca elimina alumnos, notas, evidencias ni movimientos PP/Og.
+      </div>
+
+      <div class="card" style="margin-bottom:14px">
+        <div class="actions">
+          <button class="btn primary" onclick="openCourseWizard('create')">＋ Nuevo curso</button>
+          <button class="btn" onclick="duplicateSelectedCourse()">⧉ Duplicar seleccionado</button>
+          <button class="btn" onclick="go('course')">✏️ Editar seleccionado</button>
+          <button class="btn" onclick="newCoursePreview()">🔎 Resumen del seleccionado</button>
+        </div>
+        <div id="resetPreview" style="margin-top:12px"></div>
+      </div>
+
+      <div class="card">
+        <div id="courseManagerSummary" style="margin-bottom:12px"></div>
+        <div class="tablewrap">
+          <table class="table">
+            <thead><tr><th>Curso</th><th>Grupo</th><th>Alumnos</th><th>Estado</th><th>Acciones</th></tr></thead>
+            <tbody id="coursesBody"><tr><td colspan="5" class="empty">Cargando cursos…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
     </section>
   </main>
 </div>
@@ -453,6 +479,8 @@ let state={
   game:[],
   evidence:[],
   audit:[],
+  courses:[],
+  selectedCourseId:null,
   progress:null,
   currentStudentId:null,
   studentDetail:null
@@ -889,6 +917,7 @@ function go(name){
   if(name==='evidence')loadEvidence();
   if(name==='audit')loadAudit();
   if(name==='system')renderSystem();
+  if(name==='reset')loadCourses();
 
   window.scrollTo({
     top:0,
@@ -1016,6 +1045,274 @@ function eventHTML(type,date,title,view){let d=new Date(date);let day=isNaN(d)?'
 function fillCourse(){let c=state.snapshot?.course||{};let f=document.getElementById('courseForm');if(!f)return;for(let k of ['academic_year','group_name','subject','subject_code','degree','ects','class_weekday','start_date','end_date','class_start','class_end']){if(f.elements[k]){let v=c[k]??'';if(k==='class_start'||k==='class_end')v=String(v).slice(0,5);f.elements[k].value=v}}}
 
 async function saveCourse(){let f=document.getElementById('courseForm');let data=Object.fromEntries(new FormData(f).entries());confirmModal({title:'Guardar configuración del curso',summary:'Revisa los datos antes de continuar. El cambio quedará registrado en Auditoría. No se borrará ningún histórico.',phrase:'CONFIRMAR',onConfirm:async typed=>{await rpc('cenqal_control_update_course',{p_token:TOKEN,p_data:data,p_confirmation:typed});await refreshSnapshot();toast('Configuración actualizada.')}})}
+
+
+function clearCourseScopedState(){
+  state.students=[];
+  state.calendar=[];
+  state.challenges=[];
+  state.exams=[];
+  state.game=[];
+  state.evidence=[];
+  state.audit=[];
+  state.courses=[];
+  state.selectedCourseId=null;
+  state.progress=null;
+  state.studentDetail=null;
+  state.currentStudentId=null;
+}
+
+async function loadCourses(force=false){
+  if(state.courses.length&&!force){
+    renderCourseManager();
+    return state.courses;
+  }
+
+  try{
+    const d=await rpc('cenqal_control_courses',{p_token:TOKEN});
+    state.courses=d.rows||[];
+    state.selectedCourseId=d.selected_course_id??null;
+    renderCourseManager();
+    return state.courses;
+  }catch(e){
+    const body=document.getElementById('coursesBody');
+    if(body)body.innerHTML=`<tr><td colspan="5" class="empty">${esc(e.message)}</td></tr>`;
+    throw e;
+  }
+}
+
+function courseRowById(id){
+  return (state.courses||[]).find(c=>String(c.id)===String(id))||null;
+}
+
+function renderCourseManager(){
+  const body=document.getElementById('coursesBody');
+  if(!body)return;
+
+  const rows=state.courses||[];
+  const selectedId=String(state.selectedCourseId??'');
+  const selected=rows.find(c=>String(c.id)===selectedId);
+  const active=rows.find(c=>c.legacy_active&&!c.archived_at);
+
+  const summary=document.getElementById('courseManagerSummary');
+  if(summary){
+    summary.innerHTML=`
+      <div class="miniList">
+        <div class="miniRow"><span>Curso seleccionado en este panel</span><b>${selected?esc(`${selected.subject} · ${selected.academic_year}`):'—'}</b></div>
+        <div class="miniRow"><span>Curso operativo global</span><b>${active?esc(`${active.subject} · ${active.academic_year}`):'—'}</b></div>
+      </div>
+    `;
+  }
+
+  body.innerHTML=rows.map(c=>{
+    const archived=Boolean(c.archived_at);
+    const selectedNow=String(c.id)===selectedId;
+    const activeNow=Boolean(c.legacy_active)&&!archived;
+
+    let labels=[];
+    if(activeNow)labels.push('<span class="status ok">ACTIVO</span>');
+    if(selectedNow)labels.push('<span class="status">SELECCIONADO</span>');
+    if(archived)labels.push('<span class="status bad">ARCHIVADO</span>');
+    if(!activeNow&&!archived)labels.push('<span class="status warn">PREPARADO</span>');
+
+    let actions=[];
+    if(!archived&&!selectedNow){
+      actions.push(`<button class="btn" onclick="selectCourse(${Number(c.id)})">Seleccionar</button>`);
+    }
+    if(!archived&&!activeNow){
+      actions.push(`<button class="btn primary" onclick="activateCourse(${Number(c.id)})">Activar</button>`);
+      actions.push(`<button class="btn danger" onclick="archiveCourse(${Number(c.id)})">Archivar</button>`);
+    }
+    if(archived){
+      actions.push(`<button class="btn" onclick="restoreCourse(${Number(c.id)})">Restaurar</button>`);
+    }
+    actions.push(`<button class="btn" onclick="openCourseWizard('duplicate',${Number(c.id)})">Duplicar</button>`);
+
+    return `
+      <tr>
+        <td><b>${esc(c.subject||'Curso')}</b><br><span class="subtle">${esc(c.academic_year||'')}</span></td>
+        <td>${esc(c.group_name||'—')}</td>
+        <td>${esc(c.students??0)}</td>
+        <td>${labels.join(' ')}</td>
+        <td><div class="actions">${actions.join('')}</div></td>
+      </tr>
+    `;
+  }).join('')||'<tr><td colspan="5" class="empty">No hay cursos registrados.</td></tr>';
+}
+
+function courseWizardField(label,name,value='',type='text',extra=''){
+  return `<div class="field"><label>${esc(label)}</label><input name="${esc(name)}" type="${esc(type)}" value="${esc(value??'')}" ${extra}></div>`;
+}
+
+function openCourseWizard(mode='create',sourceId=null){
+  const duplicate=mode==='duplicate';
+  const source=duplicate?courseRowById(sourceId):null;
+
+  if(duplicate&&!source){
+    toast('No se ha podido identificar el curso de origen.',true);
+    return;
+  }
+
+  const title=duplicate?'⧉ Duplicar curso':'＋ Crear curso nuevo';
+  const intro=duplicate
+    ?'Se copiarán la ficha y los componentes de evaluación. No se copiarán alumnos, notas, evidencias ni actividad.'
+    :'Se creará una ficha de curso nueva y vacía. Quedará inactiva hasta que la actives expresamente.';
+
+  const d=source||{};
+  const weekday=d.class_weekday??'';
+
+  document.getElementById('modal').innerHTML=`
+    <h3>${title}</h3>
+    <p>${esc(intro)}</p>
+    <form id="courseWizardForm" class="formgrid" onsubmit="return false">
+      ${courseWizardField('Curso académico *','academic_year',duplicate?'':d.academic_year||'','text','required')}
+      ${courseWizardField('Grupo / identificador *','group_name','','text','required placeholder="Ej. 2728-T1"')}
+      ${courseWizardField('Asignatura *','subject',d.subject||'','text','required')}
+      ${courseWizardField('Código','subject_code',d.subject_code||'')}
+      <div class="field full"><label>Titulación</label><input name="degree" value="${esc(d.degree||'')}"></div>
+      ${courseWizardField('ECTS','ects',d.ects??'','number','step="0.5"')}
+      <div class="field"><label>Día habitual</label><select name="class_weekday">
+        <option value="">—</option>
+        ${[1,2,3,4,5,6,7].map((x,i)=>`<option value="${x}" ${String(weekday)===String(x)?'selected':''}>${['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'][i]}</option>`).join('')}
+      </select></div>
+      ${courseWizardField('Inicio','start_date',duplicate?'':d.start_date||'','date')}
+      ${courseWizardField('Fin','end_date',duplicate?'':d.end_date||'','date')}
+      ${courseWizardField('Hora inicio','class_start',String(d.class_start||'').slice(0,5),'time')}
+      ${courseWizardField('Hora fin','class_end',String(d.class_end||'').slice(0,5),'time')}
+    </form>
+    <div class="note warn" style="margin-top:12px">
+      ${duplicate?'El curso nuevo quedará preparado e inactivo. Después podrás revisarlo y activarlo.':'Un curso nuevo en blanco no podrá activarse hasta tener una evaluación oficial configurada al 100 %.'}
+    </div>
+    <div class="actions" style="margin-top:16px;justify-content:flex-end">
+      <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn primary" onclick="submitCourseWizard('${duplicate?'duplicate':'create'}',${duplicate?Number(source.id):'null'})">${duplicate?'Crear copia':'Crear curso'}</button>
+    </div>
+  `;
+  document.getElementById('modalBack').classList.add('show');
+}
+
+async function submitCourseWizard(mode,sourceId=null){
+  const form=document.getElementById('courseWizardForm');
+  if(!form)return;
+  const data=Object.fromEntries(new FormData(form).entries());
+
+  if(!String(data.academic_year||'').trim()||!String(data.group_name||'').trim()||!String(data.subject||'').trim()){
+    toast('Completa curso académico, grupo y asignatura.',true);
+    return;
+  }
+
+  const duplicate=mode==='duplicate';
+
+  // La función de duplicación hereda los valores del curso origen.
+  // No enviamos cadenas vacías a campos tipados (fecha, hora, número),
+  // porque PostgreSQL no debe intentar convertir '' a date/time/numeric.
+  if(duplicate){
+    for(const key of ['subject_code','degree','ects','class_weekday','start_date','end_date','class_start','class_end']){
+      if(String(data[key]??'').trim()==='') delete data[key];
+    }
+  }
+
+  const phrase=duplicate?'DUPLICAR CURSO':'CREAR CURSO';
+  const summary=duplicate
+    ?'Se creará una copia independiente del curso. No se copiarán alumnos, calificaciones ni actividad. El nuevo curso quedará inactivo.'
+    :'Se creará un curso nuevo en blanco. No modificará el curso actualmente operativo.';
+
+  confirmModal({
+    title:duplicate?'Confirmar duplicación':'Confirmar creación',
+    summary,
+    phrase,
+    button:duplicate?'Duplicar curso':'Crear curso',
+    onConfirm:async typed=>{
+      const result=duplicate
+        ?await rpc('cenqal_control_duplicate_course',{p_token:TOKEN,p_source_course_id:Number(sourceId),p_data:data,p_confirmation:typed})
+        :await rpc('cenqal_control_create_course',{p_token:TOKEN,p_data:data,p_confirmation:typed});
+
+      const newId=result.new_course_id;
+      if(newId){
+        await rpc('cenqal_control_select_course',{p_token:TOKEN,p_course_id:Number(newId)});
+      }
+      clearCourseScopedState();
+      state.courses=[];
+      await refreshSnapshot();
+      await loadCourses(true);
+      go('reset');
+      toast(duplicate?'Curso duplicado y seleccionado.':'Curso creado y seleccionado.');
+    }
+  });
+}
+
+function duplicateSelectedCourse(){
+  const id=state.selectedCourseId??state.snapshot?.course?.id;
+  if(!id){
+    toast('No hay ningún curso seleccionado.',true);
+    return;
+  }
+  openCourseWizard('duplicate',id);
+}
+
+async function selectCourse(id){
+  try{
+    await rpc('cenqal_control_select_course',{p_token:TOKEN,p_course_id:Number(id)});
+    clearCourseScopedState();
+    state.courses=[];
+    await refreshSnapshot();
+    await loadCourses(true);
+    toast('Curso seleccionado en el panel.');
+  }catch(e){toast(e.message,true)}
+}
+
+function activateCourse(id){
+  const c=courseRowById(id)||{};
+  confirmModal({
+    title:'Activar curso operativo',
+    summary:`Vas a convertir ${c.subject||'este curso'} · ${c.academic_year||''} en el curso operativo global de CENQAL y del bot. El curso anterior no se borrará ni se archivará.`,
+    phrase:'ACTIVAR CURSO',
+    button:'Activar curso',
+    onConfirm:async typed=>{
+      await rpc('cenqal_control_activate_course',{p_token:TOKEN,p_course_id:Number(id),p_confirmation:typed});
+      clearCourseScopedState();
+      state.courses=[];
+      await refreshSnapshot();
+      await loadCourses(true);
+      toast('Curso operativo cambiado correctamente.');
+    }
+  });
+}
+
+function archiveCourse(id){
+  const c=courseRowById(id)||{};
+  confirmModal({
+    title:'Archivar curso',
+    summary:`Se archivará ${c.subject||'este curso'} · ${c.academic_year||''}. No se eliminará ningún dato y podrás restaurarlo después.`,
+    phrase:'ARCHIVAR CURSO',
+    button:'Archivar curso',
+    danger:true,
+    onConfirm:async typed=>{
+      await rpc('cenqal_control_archive_course',{p_token:TOKEN,p_course_id:Number(id),p_confirmation:typed});
+      clearCourseScopedState();
+      state.courses=[];
+      await refreshSnapshot();
+      await loadCourses(true);
+      toast('Curso archivado sin borrar históricos.');
+    }
+  });
+}
+
+function restoreCourse(id){
+  const c=courseRowById(id)||{};
+  confirmModal({
+    title:'Restaurar curso',
+    summary:`Se restaurará ${c.subject||'este curso'} · ${c.academic_year||''}. Quedará disponible pero no se activará automáticamente.`,
+    phrase:'RESTAURAR CURSO',
+    button:'Restaurar curso',
+    onConfirm:async typed=>{
+      await rpc('cenqal_control_restore_course',{p_token:TOKEN,p_course_id:Number(id),p_confirmation:typed});
+      state.courses=[];
+      await loadCourses(true);
+      toast('Curso restaurado.');
+    }
+  });
+}
 
 async function loadStudents(force=false){if(state.students.length&&!force){renderStudents();return state.students}let d=await rpc('cenqal_control_students',{p_token:TOKEN});state.students=d.rows||[];let sel=document.getElementById('studentGroupFilter');if(sel){let cur=sel.value;let gs=[...new Set(state.students.map(x=>x.group_name).filter(Boolean))].sort();sel.innerHTML='<option value="">Todos los grupos</option>'+gs.map(g=>`<option value="${esc(g)}">${esc(g)}</option>`).join('');sel.value=cur}renderStudents();return state.students}
 
@@ -1965,7 +2262,7 @@ function renderSystem(){
 
 
 /* =========================================================
-   REINICIO SEGURO
+   RESUMEN SEGURO DEL CURSO SELECCIONADO
 ========================================================= */
 
 async function newCoursePreview(){
@@ -1983,12 +2280,12 @@ async function newCoursePreview(){
       <div class="note warn">
 
         <b>
-          PREVIEW — no se ha modificado nada
+          RESUMEN — no se ha modificado nada
         </b>
 
         <br><br>
 
-        Alumnos activos:
+        Alumnos matriculados activos:
         ${x.students||0}
 
         <br>
@@ -2094,6 +2391,8 @@ async function logout(){
           game:[],
           evidence:[],
           audit:[],
+          courses:[],
+          selectedCourseId:null,
           progress:null,
           currentStudentId:null,
           studentDetail:null
@@ -2139,6 +2438,8 @@ async function refreshAll(){
   state.game=[];
   state.evidence=[];
   state.audit=[];
+  state.courses=[];
+  state.selectedCourseId=null;
   state.progress=null;
   state.studentDetail=null;
 
