@@ -346,8 +346,17 @@ details.card>.detailBody{padding:0 16px 16px}
       </form></div>
     </section>
 
-    <section class="view" id="view-students">
-      <div class="viewHeader"><div><h2>👥 Alumnos</h2><p>Pincha en un alumno para abrir su ficha 360º: notas, exámenes, retos, porfolios, aportaciones, PP/Og, evidencias e incidencias.</p></div><button class="btn" onclick="loadStudents(true)">↻ Actualizar</button></div>
+    <div class="viewHeader">
+    <div>
+      <h2>👥 Alumnos</h2>
+      <p>Pincha en un alumno para abrir su ficha 360º: notas, exámenes, retos, porfolios, aportaciones, PP/Og, evidencias e incidencias.</p>
+    </div>
+
+    <div class="actions">
+      <button class="btn primary" onclick="enrollExistingStudent()">＋ Matricular alumno existente</button>
+      <button class="btn" onclick="loadStudents(true)">↻ Actualizar</button>
+    </div>
+  </div>
       <div class="searchrow"><input id="studentSearch" placeholder="Buscar por nombre o código" oninput="renderStudents()"><select id="studentGroupFilter" onchange="renderStudents()"><option value="">Todos los grupos</option></select></div>
       <div class="card"><div class="tablewrap"><table class="table"><thead><tr><th>Código</th><th>Alumno</th><th>Grupo</th><th>Telegram</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id="studentsBody"></tbody></table></div></div>
     </section>
