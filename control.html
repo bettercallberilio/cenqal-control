@@ -2652,7 +2652,54 @@ try{
 
       if(TELEGRAM_MODE)
         return;
+if(
+  event==='PASSWORD_RECOVERY' &&
+  session?.access_token
+){
+  setTimeout(
+    async()=>{
+      try{
 
+        const newPassword=window.prompt(
+          'Escribe la nueva contraseña de CENQAL (mínimo 8 caracteres):'
+        );
+
+        if(!newPassword)return;
+
+        if(newPassword.length<8){
+          showAuth(
+            'La contraseña debe tener al menos 8 caracteres.',
+            true
+          );
+          return;
+        }
+
+        const {error}=await sb.auth.updateUser({
+          password:newPassword
+        });
+
+        if(error)throw error;
+
+        await issueControlTokenFromAuth();
+
+        hideAuth();
+        await startPanel();
+
+        toast('Contraseña de CENQAL actualizada.');
+
+      }catch(e){
+
+        showAuth(
+          e.message||'No se pudo cambiar la contraseña.',
+          true
+        );
+      }
+    },
+    0
+  );
+
+  return;
+}
       if(
         event==='SIGNED_IN' &&
         session?.access_token &&
