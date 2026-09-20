@@ -255,6 +255,7 @@ details.card>.detailBody{padding:0 16px 16px}
       <button data-view="progress">📈 Progreso</button>
       <button data-view="calendar">📅 Calendario</button>
       <button data-view="challenges">🏆 Retos</button>
+      <button data-view="weekly-grade">✅ Nota de retos</button>
       <button data-view="exams">📝 Exámenes</button>
       <button data-view="groups">🗺️ Atlas / Grupos</button>
       <button data-view="game">🪙 PP / Og</button>
@@ -387,6 +388,13 @@ details.card>.detailBody{padding:0 16px 16px}
     <section class="view" id="view-calendar">
       <div class="viewHeader"><div><h2>📅 Calendario</h2><p>Crear, editar o retirar eventos sin tocar GitHub ni SQL.</p></div><div class="actions"><button class="btn primary" onclick="newEvent()">＋ Evento</button><button class="btn" onclick="loadCalendar(true)">↻</button></div></div>
       <div class="card" id="calendarList"></div>
+    </section>
+
+    <section class="view" id="view-weekly-grade">
+      <div class="viewHeader"><div><h2>✅ Nota de retos semanales</h2><p>Participación sí/no en los retos publicados del curso. Cada reto cuenta una sola vez; la preevaluación no afecta a la nota.</p></div><button class="btn" onclick="loadWeeklyGrades(true)">↻ Actualizar</button></div>
+      <div class="note warn" style="margin-bottom:14px">Cálculo provisional mientras existan retos publicados pendientes de cierre. Una participación que el bot no haya registrado debe comprobarse en Telegram. Esta vista no escribe la calificación oficial.</div>
+      <div class="card" id="weeklyGradeSummary">Pulsa Actualizar para calcular la nota.</div>
+      <div class="card" style="margin-top:14px"><div class="tablewrap"><table class="table"><thead><tr><th>Alumno</th><th>Participación por reto</th><th>Realizados</th><th>Nota /10</th><th>Aporta al curso</th></tr></thead><tbody id="weeklyGradeBody"></tbody></table></div></div>
     </section>
 
     <section class="view" id="view-challenges">
@@ -921,6 +929,7 @@ function go(name){
   if(name==='progress')loadProgress();
   if(name==='calendar')loadCalendar();
   if(name==='challenges')loadChallenges();
+  if(name==='weekly-grade')loadWeeklyGrades();
   if(name==='exams')loadExams();
   if(name==='groups')loadStudents().then(renderGroups);
   if(name==='game')loadGame();
@@ -1756,6 +1765,49 @@ function collectEvent(){let s=document.getElementById('evStart').value,en=docume
 function saveEventFlow(id){let data=collectEvent();if(!data.title||!data.starts_at){toast('Título y fecha de inicio son obligatorios.',true);return}confirmModal({title:id?'Guardar cambios del evento':'Crear evento',summary:`<b>${esc(data.title)}</b><br>${fmtDate(data.starts_at)}<br>${esc(data.event_type)}`,phrase:'CONFIRMAR',onConfirm:async typed=>{await rpc('cenqal_control_save_calendar_event',{p_token:TOKEN,p_event_id:id,p_data:data,p_confirmation:typed});state.calendar=[];await loadCalendar(true);await refreshSnapshot();toast(id?'Evento actualizado.':'Evento creado.')}})}
 
 function retireEvent(id){let e=state.calendar.find(x=>x.id==id);if(!e)return;confirmModal({title:'Retirar evento del calendario',summary:`<b>${esc(e.title)}</b><br>No se borrará físicamente: quedará desactivado y el cambio se registrará.`,phrase:`RETIRAR EVENTO ${id}`,button:'Retirar evento',danger:true,onConfirm:async typed=>{await rpc('cenqal_control_retire_calendar_event',{p_token:TOKEN,p_event_id:id,p_confirmation:typed,p_reason:'Retirada desde CENQAL Control'});state.calendar=[];await loadCalendar(true);await refreshSnapshot();toast('Evento retirado.')}})}
+
+async function loadWeeklyGrades(force=false){
+  const summary=document.getElementById('weeklyGradeSummary');
+  const body=document.getElementById('weeklyGradeBody');
+  if(!force && state.weeklyGrades){renderWeeklyGrades();return}
+  summary.textContent='Calculando participaciones…';
+  body.innerHTML='';
+  try{
+    // Both RPCs restrict the data to the teacher's selected course.
+    const [challenges, students]=await Promise.all([loadChallenges(force),loadStudents(force)]);
+    const eligible=challenges.filter(c=>['published','closed'].includes(c.status) && c.telegram_message_id);
+    const active=students.filter(s=>s.active!==false);
+    const rows=[];
+    for(const s of active){
+      const sid=studentIdOf(s);
+      if(!sid){rows.push({student:s,error:'No se ha podido identificar al alumno'});continue}
+      try{
+        const workspace=await rpc('cenqal_control_student_workspace',{p_token:TOKEN,p_student_id:sid});
+        // The workspace contains only this student's recorded weekly participations.
+        const participation=new Set((workspace.weekly||[]).filter(x=>
+          x.participation && !['rejected','deleted','withdrawn','cancelled'].includes(x.participation.status)
+        ).map(x=>String(x.challenge?.id ?? x.participation.challenge_id)));
+        rows.push({student:s,participation});
+      }catch(e){rows.push({student:s,error:e.message||'No se pudo consultar'})}
+    }
+    state.weeklyGrades={eligible,rows};
+    renderWeeklyGrades();
+  }catch(e){summary.textContent='No se pudo calcular: '+(e.message||e);toast(e.message,true)}
+}
+
+function renderWeeklyGrades(){
+  const {eligible,rows}=state.weeklyGrades;
+  const pending=eligible.some(c=>c.status!=='closed');
+  document.getElementById('weeklyGradeSummary').innerHTML=`<b>${eligible.length} retos publicados</b> · ${rows.length} alumnos · ${pending?'Cálculo provisional: quedan retos abiertos':'Cálculo de los retos publicados'}<br><span class="subtle">Nota = 10 × retos realizados / retos publicados; aportación máxima al curso: 1 punto (10%). Los retos futuros aún no publicados no cuentan.</span>`;
+  document.getElementById('weeklyGradeBody').innerHTML=rows.map(({student:s,participation,error})=>{
+    const name=s.full_name||s.student_name||s.student_code||'Alumno';
+    if(error)return `<tr><td>${esc(name)}</td><td colspan="4" class="note warn">${esc(error)}</td></tr>`;
+    const done=eligible.filter(c=>participation.has(String(c.id))).length;
+    const marks=eligible.map(c=>`<span title="${esc(c.title||'')} (${esc(c.week_start||'')})">T${esc(c.topic_number||'?')}: ${participation.has(String(c.id))?'Sí':'No'}</span>`).join(' · ');
+    const grade=eligible.length?10*done/eligible.length:null;
+    return `<tr><td><b>${esc(name)}</b></td><td>${marks||'No hay retos publicados'}</td><td>${done}/${eligible.length}</td><td>${grade==null?'—':n(grade,2)}</td><td>${grade==null?'—':n(grade*0.1,2)} / 1</td></tr>`;
+  }).join('')||'<tr><td colspan="5" class="empty">No hay alumnos activos.</td></tr>';
+}
 
 async function loadChallenges(force=false){if(state.challenges.length&&!force){renderChallenges();return state.challenges}let d=await rpc('cenqal_control_challenges',{p_token:TOKEN});state.challenges=d.rows||[];renderChallenges();return state.challenges}
 
