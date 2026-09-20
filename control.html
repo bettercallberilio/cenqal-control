@@ -386,7 +386,7 @@ details.card>.detailBody{padding:0 16px 16px}
     </section>
 
     <section class="view" id="view-calendar">
-      <div class="viewHeader"><div><h2>📅 Calendario</h2><p>Crear, editar o retirar eventos sin tocar GitHub ni SQL.</p></div><div class="actions"><button class="btn primary" onclick="newEvent()">＋ Evento</button><button class="btn" onclick="loadCalendar(true)">↻</button></div></div>
+      <div class="viewHeader"><div><h2>📅 Calendario</h2><p>Crear, editar o retirar eventos sin tocar GitHub ni SQL.</p></div><div class="actions"><button class="btn primary" onclick="prepareExamCalendar()">📋 Programar exámenes 2026</button><button class="btn primary" onclick="newEvent()">＋ Evento</button><button class="btn" onclick="loadCalendar(true)">↻</button></div></div>
       <div class="card" id="calendarList"></div>
     </section>
 
@@ -1753,6 +1753,65 @@ function tableHTML(headers,rows,mode=''){let h=headers.map(x=>`<th>${esc(x)}</th
 async function loadCalendar(force=false){if(state.calendar.length&&!force){renderCalendar();return state.calendar}let d=await rpc('cenqal_control_calendar',{p_token:TOKEN});state.calendar=d.rows||[];renderCalendar();return state.calendar}
 
 function renderCalendar(){let box=document.getElementById('calendarList');let rows=state.calendar.filter(x=>x.active).map(e=>`<div class="event"><div class="datebox">${new Date(e.starts_at).getDate().toString().padStart(2,'0')}<small>${new Date(e.starts_at).toLocaleString('es-ES',{month:'short'}).toUpperCase()}</small></div><div><b>${esc(e.title)}</b><div style="font-size:13px;color:#667b93">${esc(e.event_type)} · ${fmtDate(e.starts_at)}${e.location?' · '+esc(e.location):''}</div></div><div class="actions"><button class="btn" onclick="editEvent(${e.id})">Editar</button><button class="btn danger" onclick="retireEvent(${e.id})">Retirar</button></div></div>`);box.innerHTML=rows.join('')||'<div class="empty">No hay eventos activos.</div>'}
+
+// Dates are local Spanish course dates; Date converts them to UTC for Supabase.
+const EXAM_CALENDAR_2026=[
+  {key:'ex1',title:'Ex1',start:'2026-10-02T16:00',type:'exam'},
+  {key:'ex2',title:'Ex2',start:'2026-10-16T16:00',type:'exam'},
+  {key:'ex3',title:'Ex3',start:'2026-10-30T16:00',type:'exam'},
+  {key:'ex4',title:'Ex4',start:'2026-11-13T16:00',type:'exam'},
+  {key:'ex5',title:'Ex5',start:'2026-11-27T16:00',type:'exam'},
+  {key:'ex6',title:'Ex6',start:'2026-12-04T16:00',type:'exam'},
+  {key:'ex7',title:'Ex7',start:'2026-12-11T16:00',type:'exam'},
+  {key:'eic',title:'Prácticas EIC',start:'2026-12-11T09:00',end:'2026-12-11T16:00',type:'practice',location:'EIC'},
+  {key:'ex8',title:'Ex8',start:'2026-12-18T16:00',type:'exam'},
+  {key:'final',title:'Prueba escrita final',start:'2026-12-18T17:00',end:'2026-12-18T20:00',type:'exam'}
+];
+
+function matchingExamEvent(e,item){
+  const t=String(e.title||'').trim();
+  if(item.key.startsWith('ex'))return new RegExp('^(?:ex|examen)\\s*0?'+item.key.slice(2)+'(?:\\b|\\s|[.:–-])','i').test(t);
+  if(item.key==='eic')return /(?:práctic|practic).*(?:eic)|(?:eic).*(?:práctic|practic)/i.test(t);
+  return /(?:prueba|examen).*(?:escrit|final)|(?:final).*(?:escrit)/i.test(t);
+}
+
+async function prepareExamCalendar(){
+  try{
+    await refreshSnapshot();
+    const year=String(state.snapshot?.course?.academic_year||'');
+    if(!year.includes('2026') || !year.includes('2027'))throw new Error('Selecciona primero el curso 2026/27 en CENQAL Control.');
+    await loadCalendar(true);
+    const changes=EXAM_CALENDAR_2026.map(item=>{
+      const matches=state.calendar.filter(e=>e.active && matchingExamEvent(e,item));
+      if(matches.length>1)throw new Error('Hay varios eventos para '+item.title+'. Revísalos en el calendario antes de programar.');
+      const existing=matches[0]||null;
+      const start=new Date(item.start).toISOString();
+      const oldDuration=existing?.ends_at ? new Date(existing.ends_at)-new Date(existing.starts_at) : 0;
+      const end=item.end ? new Date(item.end).toISOString() : oldDuration>0 ? new Date(new Date(start).getTime()+oldDuration).toISOString() : '';
+      const data={event_type:item.type,title:item.title,starts_at:start,ends_at:end,
+        location:item.location||existing?.location||'',description:existing?.description||'',
+        reminders_enabled:existing?.reminders_enabled!==false};
+      const unchanged=existing && existing.title===data.title && existing.event_type===data.event_type &&
+        existing.starts_at===data.starts_at && (existing.ends_at||'')===data.ends_at && (existing.location||'')===data.location;
+      return {item,existing,data,unchanged};
+    });
+    const pending=changes.filter(c=>!c.unchanged);
+    if(!pending.length){toast('Los diez eventos ya tienen estas fechas y horas.');return}
+    const preview=changes.map(c=>`${esc(c.item.title)} · ${esc(c.item.start.slice(8,10)+'/'+c.item.start.slice(5,7))} ${esc(c.item.start.slice(11))}${c.item.end?'–'+esc(c.item.end.slice(11)):''} · ${c.unchanged?'ya correcto':c.existing?'actualizar':'crear'}`).join('<br>');
+    confirmModal({title:'Calendario de exámenes 2026/27',summary:preview,phrase:'CONFIRMAR',
+      onConfirm:async typed=>{
+        for(const c of pending){
+          await rpc('cenqal_control_save_calendar_event',{
+            p_token:TOKEN,p_event_id:c.existing?.id||null,p_data:c.data,p_confirmation:typed
+          });
+        }
+        state.calendar=[];
+        await loadCalendar(true);
+        await refreshSnapshot();
+        toast('Calendario actualizado: '+pending.length+' eventos.');
+      }});
+  }catch(e){toast(e.message||'No se pudo preparar el calendario.',true)}
+}
 
 function eventForm(e={}){return `<div class="formgrid"><div class="field"><label>Tipo</label><select id="evType"><option value="class">Clase</option><option value="practice">Práctica</option><option value="activity">Actividad</option><option value="exam">Examen</option><option value="excursion">Excursión</option><option value="no_class">Sin clase</option><option value="holiday">Vacaciones</option><option value="info">Información</option></select></div><div class="field"><label>Título</label><input id="evTitle" value="${esc(e.title||'')}"></div><div class="field"><label>Inicio</label><input id="evStart" type="datetime-local" value="${dateInput(e.starts_at)}"></div><div class="field"><label>Fin</label><input id="evEnd" type="datetime-local" value="${dateInput(e.ends_at)}"></div><div class="field full"><label>Lugar</label><input id="evLocation" value="${esc(e.location||'')}"></div><div class="field full"><label>Descripción</label><textarea id="evDesc">${esc(e.description||'')}</textarea></div><div class="field full"><label><input id="evRem" type="checkbox" ${e.reminders_enabled!==false?'checked':''}> Recordatorios activos</label></div></div>`}
 
