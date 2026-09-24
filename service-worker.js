@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cenqal-control-static-v1';
+const CACHE_NAME = 'cenqal-control-static-v67';
 
 const STATIC_ASSETS = [
   './manifest.webmanifest',
