@@ -259,7 +259,7 @@ details.card>.detailBody{padding:0 16px 16px}
       <button data-view="weekly-grade">✅ Nota de retos</button>
       <button data-view="exams">📝 Exámenes</button>
       <button data-view="groups">🗺️ Atlas / Grupos</button>
-      <button data-view="game">🪙 PP / Og</button>
+      <button data-view="game">🏆 Ranking / economía</button>
       <button data-view="evidence">📁 Evidencias</button>
       <button data-view="audit">🧾 Auditoría</button>
       <button data-view="system">🔧 Sistema</button>
@@ -429,9 +429,10 @@ details.card>.detailBody{padding:0 16px 16px}
     </section>
 
     <section class="view" id="view-game">
-      <div class="viewHeader"><div><h2>🪙 PP y Oganesones</h2><p>Consulta y corrección auditada mediante movimientos, nunca sobrescribiendo el historial.</p></div><button class="btn" onclick="loadGame(true)">↻ Actualizar</button></div>
-      <div class="note warn" style="margin-bottom:12px">Un ajuste manual exige motivo y escribir exactamente <b>AJUSTAR CÓDIGO</b>. El cambio se registra como evento docente y queda en Auditoría.</div>
-      <div class="card"><div class="tablewrap"><table class="table"><thead><tr><th>Código</th><th>Alumno</th><th>PP</th><th>Og</th><th>Medallas</th><th>Nivel</th><th></th></tr></thead><tbody id="gameBody"></tbody></table></div></div>
+      <div class="viewHeader"><div><h2>🏆 Ranking de Prestigio y economía</h2><p>La posición depende exclusivamente de los PP: +100 PP por cada prueba semanal T1–T8 aprobada. Los Óganesones son moneda y no alteran el ranking.</p></div><button class="btn" onclick="loadGame(true)">↻ Actualizar</button></div>
+      <div class="note warn" style="margin-bottom:12px">Control de coherencia: se compara el marcador PP con las pruebas aprobadas registradas. Las diferencias nunca se corrigen automáticamente; cualquier corrección exige motivo, confirmación y queda en Auditoría.</div>
+      <div id="gameMetrics" class="cards"></div>
+      <div class="card"><div class="tablewrap"><table class="table"><thead><tr><th>Pos.</th><th>Código</th><th>Alumno</th><th>Pruebas aprob.</th><th>PP actuales</th><th>PP de referencia</th><th>Control</th><th>Og</th><th>Medallas</th><th>Nivel</th><th></th></tr></thead><tbody id="gameBody"></tbody></table></div></div>
     </section>
 
     <section class="view" id="view-evidence">
@@ -2136,10 +2137,11 @@ async function loadGame(force=false){
     return state.game;
   }
 
-  let d=await rpc(
-    'cenqal_control_gamification',
-    {p_token:TOKEN}
-  );
+  let [d]=await Promise.all([
+    rpc('cenqal_control_gamification',{p_token:TOKEN}),
+    loadProgress(force).catch(()=>null),
+    loadStudents(force).catch(()=>null)
+  ]);
 
   state.game=d.rows||[];
   renderGame();
@@ -2147,10 +2149,39 @@ async function loadGame(force=false){
   return state.game;
 }
 
+function gameProgress(g){
+  let uid=String(g.telegram_user_id??'');
+  let code=String(g.student_code??'').toLowerCase();
+  return mergedProgress().find(x=>(uid&&String(x.telegram_user_id??'')===uid)||(code&&String(x.student_code??'').toLowerCase()===code))||{};
+}
+
+function gameReference(g){
+  let p=gameProgress(g);
+  let passed=Math.max(0,Math.min(8,Number(p.exams_passed||0)));
+  let expected=passed*100;
+  let current=Number(g.xp_total||0);
+  return {passed,expected,current,difference:expected-current};
+}
+
+function gameIsActive(g){
+  if(!state.students.length)return true;
+  let uid=String(g.telegram_user_id??'');
+  let code=String(g.student_code??'').toLowerCase();
+  let s=state.students.find(x=>(uid&&String(x.telegram_user_id??'')===uid)||(code&&String(x.student_code??'').toLowerCase()===code));
+  return !!(s&&s.active!==false);
+}
+
 function renderGame(){
+  let rows=state.game.filter(gameIsActive).sort((a,b)=>Number(b.xp_total||0)-Number(a.xp_total||0)||String(a.student_name||'').localeCompare(String(b.student_name||''),'es'));
+  let discrepancies=rows.filter(g=>gameReference(g).difference!==0).length;
+  let totalPP=rows.reduce((sum,g)=>sum+Number(g.xp_total||0),0);
+  let totalOg=rows.reduce((sum,g)=>sum+Number(g.oganeson_balance||0),0);
+  document.getElementById('gameMetrics').innerHTML=[metric('🏆 Alumnos en ranking',rows.length,'posición calculada solo con PP'),metric('⚛️ PP registrados',totalPP,'prestigio acumulado'),metric('🪙 Og en saldo',totalOg,'moneda disponible'),metric(discrepancies?'⚠️ Diferencias PP':'✅ Coherencia PP',discrepancies,discrepancies?'revisar antes de corregir':'marcadores coherentes')].join('');
   document.getElementById('gameBody').innerHTML=
-    state.game.map(g=>`
+    rows.map((g,index)=>{let ref=gameReference(g);return `
       <tr>
+
+        <td><b>${index+1}</b></td>
 
         <td>
           <b>${esc(g.student_code)}</b>
@@ -2158,7 +2189,13 @@ function renderGame(){
 
         <td>${esc(g.student_name)}</td>
 
-        <td>${esc(g.xp_total)}</td>
+        <td>${ref.passed}/8</td>
+
+        <td><b>${esc(ref.current)} PP</b></td>
+
+        <td>${esc(ref.expected)} PP</td>
+
+        <td>${ref.difference===0?'<span class="status ok">✓ Coherente</span>':`<span class="status bad">${ref.difference>0?'+':''}${ref.difference} PP por ajustar</span>`}</td>
 
         <td>${esc(g.oganeson_balance)}</td>
 
@@ -2172,19 +2209,20 @@ function renderGame(){
             ${!g.telegram_user_id?'disabled':''}
             onclick="adjustGame(
               '${esc(g.student_code)}',
-              '${esc(g.student_name)}'
+              '${esc(g.student_name)}',
+              ${ref.difference}
             )">
-            Ajustar
+            ${ref.difference?'Revisar / corregir':'Ajustar'}
           </button>
         </td>
 
       </tr>
-    `).join('')
+    `}).join('')
     ||
-    '<tr><td colspan="7" class="empty">Sin datos.</td></tr>';
+    '<tr><td colspan="11" class="empty">Sin datos.</td></tr>';
 }
 
-function adjustGame(code,name){
+function adjustGame(code,name,suggestedPP=0){
   modal(`
     <h3>Ajuste auditado · ${esc(name)}</h3>
 
@@ -2195,7 +2233,7 @@ function adjustGame(code,name){
         <input
           id="adjPP"
           type="number"
-          value="0">
+          value="${Number(suggestedPP||0)}">
       </div>
 
       <div class="field">
@@ -2216,9 +2254,8 @@ function adjustGame(code,name){
     </div>
 
     <div class="note warn" style="margin-top:10px">
-      Usa valores negativos para retirar puntos.
-      No se modifica el histórico:
-      se crea un nuevo movimiento docente.
+      <b>Economía vigente:</b> PP = prestigio (+100 por prueba semanal T1–T8 aprobada). Og = moneda obtenida o gastada mediante eventos autorizados.<br>
+      Usa valores negativos para retirar una asignación antigua o duplicada. No se modifica el histórico: se crea un nuevo movimiento docente.
     </div>
 
     <div class="modalFooter">
