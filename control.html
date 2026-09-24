@@ -1779,6 +1779,23 @@ function contributionById(id){
   return own.find(x=>String(x.id)===String(id))||(state.deliveries?.contributions||[]).find(x=>String(x.id)===String(id));
 }
 
+function contributionControlAction(x,compact=false){
+  let st=String(x?.status||'').toLowerCase();
+  if(st==='needs_review'){
+    return `<button class="btn primary" onclick="botPayload('cc_${x.id}')">✅ Validar e incorporar${compact?'':' en CENQAL'}</button>`;
+  }
+  if(st==='validated'&&x.resource_id){
+    return `<span class="status ok">✅ Ya incorporada en CENQAL</span>`;
+  }
+  if(st==='validated'&&!x.resource_id){
+    return `<button class="btn danger" onclick="botPayload('cc_${x.id}')">⚠️ Revisar: falta ficha CENQAL</button>`;
+  }
+  if(st==='rejected'){
+    return `<span class="status bad">Rechazada</span>`;
+  }
+  return `<button class="btn" onclick="botPayload('cc_${x.id}')">Revisar en Berilio</button>`;
+}
+
 function portfolioById(id){
   let own=state.studentDetail?.portfolio_submissions||[];
   return own.find(x=>String(x.id)===String(id))||(state.deliveries?.portfolios||[]).find(x=>String(x.id)===String(id));
@@ -1800,7 +1817,8 @@ function showContributionDetail(id){
     <div class="field" style="margin-top:12px"><label>Rúbrica / desglose</label><div class="note" style="white-space:pre-wrap">${esc(prettyObject(objv(x,'rubric_scores','rubric','automatic_evaluation')))}</div></div>
     <div class="field" style="margin-top:12px"><label>Feedback preliminar</label><div class="note" style="white-space:pre-wrap">${esc(prettyObject(x.preliminary_feedback))}</div></div>
     <div class="field" style="margin-top:12px"><label>Verificación docente</label><div class="note" style="white-space:pre-wrap">${esc(prettyObject(x.verification_feedback))}</div></div>
-    <div class="actions" style="margin-top:16px"><button class="btn primary" onclick="botPayload('cc_${x.id}')">Revisar en Berilio</button></div>`);
+    <div class="note warn" style="margin-top:12px">La validación definitiva utiliza el flujo oficial de Berilio: comprueba duplicados, crea o enlaza la ficha CENQAL, notifica al alumno y evita duplicar recompensas.</div>
+    <div class="actions" style="margin-top:16px">${contributionControlAction(x)}</div>`);
 }
 
 function showPortfolioDetail(id){
@@ -1890,7 +1908,7 @@ function renderDeliveries(){
   let c=d.contributions.filter(x=>deliveryMatches(x,q,st,'contribution')),p=d.portfolios.filter(x=>deliveryMatches(x,q,st,'portfolio')),w=d.weekly.filter(x=>deliveryMatches(x,q,st,'weekly'));
   let pendingC=d.contributions.filter(x=>deliveryGroup(x.status)==='pending').length,pendingP=d.portfolios.filter(x=>deliveryGroup(x.status)==='pending').length;
   document.getElementById('deliveryMetrics').innerHTML=[metric('🧪 Aportaciones',d.contributions.length,`${pendingC} pendientes`),metric('📄 Portfolios',d.portfolios.length,`${pendingP} pendientes`),metric('🏆 Respuestas a retos',d.weekly.length,'registradas'),metric('⚠️ Fichas no cargadas',d.failed||0,d.failed?'Reintenta la actualización':'Todo correcto')].join('');
-  document.getElementById('contributionsInbox').innerHTML=c.length?tableHTML(['Fecha','Alumno','Título / tema','Estado','Preeval.','Acciones'],c.map(x=>[fmtDate(x.created_at),studentName(x._student),x.title||x.primary_topic||x.topic||'—',x.status||'—',x.preliminary_score??'—',`<button class="btn" onclick="showContributionDetail('${x.id}')">Ver respuestas y rúbrica</button>`]),'html'):'<div class="empty">No hay aportaciones con estos filtros.</div>';
+  document.getElementById('contributionsInbox').innerHTML=c.length?tableHTML(['Fecha','Alumno','Título / tema','Estado','Preeval.','Acciones'],c.map(x=>[fmtDate(x.created_at),studentName(x._student),x.title||x.primary_topic||x.topic||'—',x.status||'—',x.preliminary_score??'—',`<div class="actions"><button class="btn" onclick="showContributionDetail('${x.id}')">Ver respuestas y rúbrica</button>${contributionControlAction(x,true)}</div>`]),'html'):'<div class="empty">No hay aportaciones con estos filtros.</div>';
   document.getElementById('portfoliosInbox').innerHTML=p.length?tableHTML(['Fecha','Alumno','Reto / archivo','Estado','Nota','Acciones'],p.map(x=>[fmtDate(x.created_at),studentName(x._student),x.challenge_code||x.file_name||'—',x.status||'—',x.teacher_evaluation?.score??'—',`<button class="btn" onclick="showPortfolioDetail('${x.id}')">Ver evaluación</button>`]),'html'):'<div class="empty">No hay portfolios con estos filtros.</div>';
   document.getElementById('challengesInbox').innerHTML=w.length?tableHTML(['Fecha','Alumno','Reto','Estado','Preeval.','Respuesta'],w.map(x=>{let a=x.participation||{},ch=x.challenge||{};return[fmtDate(a.created_at),studentName(x._student),ch.title||`Tema ${ch.topic_number||'—'}`,a.status||'—',a.preliminary_score??'—',a.response_text||'—']}),'last'):'<div class="empty">No hay respuestas a retos con estos filtros.</div>';
 }
