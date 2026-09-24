@@ -1762,7 +1762,7 @@ function requestStudentDossier(){if(!state.currentStudentId)return;botPayload('c
 
 function objv(o,...keys){for(let k of keys)if(o&&o[k]!=null)return o[k];return null}
 
-function studentName(s={}){return s.full_name||[s.first_name,s.last_name].filter(Boolean).join(' ')||s.student_code||'Alumno'}
+function studentName(s={}){return s.student_name||s.full_name||[s.first_name,s.last_name].filter(Boolean).join(' ')||s.student_code||'Alumno'}
 
 function prettyObject(value){
   if(value==null||value==='')return '—';
@@ -1842,8 +1842,16 @@ function deliveryGroup(status){
 async function loadDeliveries(force=false){
   if(state.deliveries&&!force){renderDeliveries();return state.deliveries}
   document.getElementById('deliveryMetrics').innerHTML='<div class="card"><span class="loader"></span> Reuniendo las fichas del curso…</div>';
-  await loadStudents(force);
-  let active=state.students.filter(s=>s.active!==false&&studentIdOf(s));
+  await Promise.all([loadStudents(force),loadProgress(force)]);
+  const candidates=[];
+  const seen=new Set();
+  [...state.students,...mergedProgress()].forEach(s=>{
+    const sid=studentIdOf(s);
+    if(!sid||seen.has(String(sid)))return;
+    seen.add(String(sid));
+    candidates.push(s);
+  });
+  let active=candidates;
   let settled=await Promise.allSettled(active.map(s=>rpc('cenqal_control_student_workspace',{p_token:TOKEN,p_student_id:studentIdOf(s)}).then(d=>({s,d}))));
   let contributions=[],portfolios=[],weekly=[];
   settled.forEach(r=>{if(r.status!=='fulfilled')return;let {s,d}=r.value;(d.contributions||[]).forEach(x=>contributions.push({...x,_student:s}));(d.portfolio_submissions||[]).forEach(x=>portfolios.push({...x,_student:s}));(d.weekly||[]).forEach(x=>weekly.push({...x,_student:s}))});
