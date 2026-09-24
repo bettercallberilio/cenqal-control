@@ -1842,6 +1842,22 @@ function deliveryGroup(status){
 async function loadDeliveries(force=false){
   if(state.deliveries&&!force){renderDeliveries();return state.deliveries}
   document.getElementById('deliveryMetrics').innerHTML='<div class="card"><span class="loader"></span> Reuniendo las fichas del curso…</div>';
+  try{
+    const direct=await rpc('cenqal_control_deliveries_v67',{p_token:TOKEN});
+    if(direct&&direct.ok!==false){
+      let newest=(a,b)=>new Date(b.created_at||b.participation?.created_at||0)-new Date(a.created_at||a.participation?.created_at||0);
+      state.deliveries={
+        contributions:(direct.contributions||[]).sort(newest),
+        portfolios:(direct.portfolios||[]).sort(newest),
+        weekly:(direct.weekly||[]).sort(newest),
+        failed:0
+      };
+      renderDeliveries();
+      return state.deliveries;
+    }
+  }catch(e){
+    console.warn('CENQAL entregas directas no disponibles; se usa compatibilidad:',e);
+  }
   await Promise.all([loadStudents(force),loadProgress(force)]);
   const candidates=[];
   const seen=new Set();
