@@ -244,7 +244,7 @@ details.card>.detailBody{padding:0 16px 16px}
       <div class="brandmark"></div>
       <div>
         <h1>CENQAL Control</h1>
-        <small>Panel docente seguro · v66.0</small>
+        <small>Panel docente seguro · v67.0</small>
       </div>
     </div>
 
@@ -253,6 +253,7 @@ details.card>.detailBody{padding:0 16px 16px}
       <button data-view="course">🎓 Curso</button>
       <button data-view="students">👥 Alumnos</button>
       <button data-view="progress">📈 Progreso</button>
+      <button data-view="deliveries">📥 Entregas</button>
       <button data-view="calendar">📅 Calendario</button>
       <button data-view="challenges">🏆 Retos</button>
       <button data-view="weekly-grade">✅ Nota de retos</button>
@@ -313,6 +314,7 @@ details.card>.detailBody{padding:0 16px 16px}
             <button class="btn primary" onclick="newEvent()">＋ Añadir evento</button>
             <button class="btn" onclick="go('students')">👥 Gestionar alumnos</button>
             <button class="btn" onclick="go('progress')">📈 Ver progreso</button>
+            <button class="btn" onclick="go('deliveries')">📥 Revisar entregas</button>
             <button class="btn" onclick="go('challenges')">🏆 Editar retos</button>
             <button class="btn" onclick="go('game')">🪙 PP / Og</button>
             <button class="btn" onclick="go('evidence')">📁 Evidencias</button>
@@ -372,6 +374,19 @@ details.card>.detailBody{padding:0 16px 16px}
       </div>
       <div class="searchrow"><input id="progressSearch" placeholder="Buscar alumno" oninput="renderProgressTable()"><select id="progressRisk" onchange="renderProgressTable()"><option value="">Todos los estados</option><option value="🔴">🔴 Prioridad</option><option value="🟡">🟡 Atención</option><option value="🟢">🟢 Normal</option><option value="⚪">⚪ Sin evidencias</option></select></div>
       <div class="card"><div class="tablewrap"><table class="table"><thead><tr><th></th><th>Alumno</th><th>Grupo</th><th>Evidencias</th><th>Oficial</th><th>Evaluado</th><th>PP</th><th>Og</th><th>Retos</th><th>Exámenes</th><th>Porfolios</th><th></th></tr></thead><tbody id="progressBody"></tbody></table></div></div>
+    </section>
+
+    <section class="view" id="view-deliveries">
+      <div class="viewHeader">
+        <div><h2>📥 Entregas y revisión</h2><p>Consulta centralizada de aportaciones, rúbricas, portfolios y retos. La concesión de PP y Og se confirma exclusivamente en Berilio.</p></div>
+        <div class="actions"><button class="btn primary" onclick="botPayload('cg_course')">📄 Informe del curso</button><button class="btn" onclick="exportDeliveriesCSV()">⬇ CSV</button><button class="btn" onclick="loadDeliveries(true)">↻ Actualizar</button></div>
+      </div>
+      <div class="note warn" style="margin-bottom:14px">Las preevaluaciones son orientativas. Ver una entrega aquí no concede puntos: usa <b>Revisar en Berilio</b> para validar, devolver o rechazar.</div>
+      <div class="metrics grid" id="deliveryMetrics"><div class="card"><span class="loader"></span> Cargando entregas…</div></div>
+      <div class="searchrow"><input id="deliverySearch" placeholder="Buscar alumno, título o tema" oninput="renderDeliveries()"><select id="deliveryStatus" onchange="renderDeliveries()"><option value="">Todos los estados</option><option value="pending">Pendientes</option><option value="validated">Validadas</option><option value="rejected">Rechazadas/devueltas</option></select></div>
+      <div class="card"><h3>🧪 Aportaciones a CENQAL</h3><div id="contributionsInbox"></div></div>
+      <div class="card" style="margin-top:14px"><h3>📄 Portfolios</h3><div id="portfoliosInbox"></div></div>
+      <div class="card" style="margin-top:14px"><h3>🏆 Retos y respuestas</h3><div id="challengesInbox"></div></div>
     </section>
 
     <section class="view" id="view-student">
@@ -500,6 +515,7 @@ let state={
   courses:[],
   selectedCourseId:null,
   progress:null,
+  deliveries:null,
   currentStudentId:null,
   studentDetail:null
 };
@@ -844,9 +860,9 @@ function botPayload(payload){
 function statusClass(v){
   v=String(v||'').toLowerCase();
 
-  return ['open','published','active','approved','review'].includes(v)
+  return ['open','published','active','approved','review','validated','accepted'].includes(v)
     ?'ok'
-    :['scheduled','prepared','submitted'].includes(v)
+    :['scheduled','prepared','submitted','needs_review','pending','in_review'].includes(v)
       ?'warn'
       :['closed','inactive','cancelled','rejected'].includes(v)
         ?'bad'
@@ -927,6 +943,7 @@ function go(name){
 
   if(name==='students')loadStudents();
   if(name==='progress')loadProgress();
+  if(name==='deliveries')loadDeliveries();
   if(name==='calendar')loadCalendar();
   if(name==='challenges')loadChallenges();
   if(name==='weekly-grade')loadWeeklyGrades();
@@ -1077,6 +1094,7 @@ function clearCourseScopedState(){
   state.courses=[];
   state.selectedCourseId=null;
   state.progress=null;
+  state.deliveries=null;
   state.studentDetail=null;
   state.currentStudentId=null;
 }
@@ -1744,11 +1762,124 @@ function requestStudentDossier(){if(!state.currentStudentId)return;botPayload('c
 
 function objv(o,...keys){for(let k of keys)if(o&&o[k]!=null)return o[k];return null}
 
+function studentName(s={}){return s.full_name||[s.first_name,s.last_name].filter(Boolean).join(' ')||s.student_code||'Alumno'}
+
+function prettyObject(value){
+  if(value==null||value==='')return '—';
+  if(typeof value==='string'){
+    try{value=JSON.parse(value)}catch(e){return value}
+  }
+  if(Array.isArray(value))return value.map((x,i)=>`${i+1}. ${typeof x==='object'?JSON.stringify(x):x}`).join('\n');
+  if(typeof value==='object')return Object.entries(value).map(([k,v])=>`${k}: ${typeof v==='object'?JSON.stringify(v):v}`).join('\n');
+  return String(value);
+}
+
+function contributionById(id){
+  let own=state.studentDetail?.contributions||[];
+  return own.find(x=>String(x.id)===String(id))||(state.deliveries?.contributions||[]).find(x=>String(x.id)===String(id));
+}
+
+function portfolioById(id){
+  let own=state.studentDetail?.portfolio_submissions||[];
+  return own.find(x=>String(x.id)===String(id))||(state.deliveries?.portfolios||[]).find(x=>String(x.id)===String(id));
+}
+
+function showContributionDetail(id){
+  let x=contributionById(id);if(!x)return toast('No se ha encontrado la aportación.',true);
+  let s=x._student||state.studentDetail?.student||{};
+  let answers=[
+    ['1. Concepto / tema',objv(x,'topic','primary_topic','macrotheme_number')],
+    ['2. Afirmación científica',objv(x,'main_scientific_claim','scientific_claim','claim')],
+    ['3. Evidencias y fuentes',objv(x,'evidence_sources','sources','evidence')],
+    ['4. Valor didáctico',objv(x,'why_recommended','didactic_value')],
+    ['5. Valoración crítica',objv(x,'critical_assessment','critical_value')]
+  ];
+  modal(`<div class="sectionTitle"><h3>🧪 Aportación de ${esc(studentName(s))}</h3><button class="btn" onclick="closeModal()">Cerrar</button></div>
+    <div class="miniList"><div class="miniRow"><span>Título</span><b>${esc(x.title||'Sin título')}</b></div><div class="miniRow"><span>Estado</span><b><span class="status ${statusClass(x.status)}">${esc(x.status||'—')}</span></b></div><div class="miniRow"><span>Preevaluación</span><b>${esc(x.preliminary_score??'—')}</b></div></div>
+    ${answers.map(([k,v])=>`<div class="field" style="margin-top:12px"><label>${esc(k)}</label><div class="note" style="white-space:pre-wrap">${esc(prettyObject(v))}</div></div>`).join('')}
+    <div class="field" style="margin-top:12px"><label>Rúbrica / desglose</label><div class="note" style="white-space:pre-wrap">${esc(prettyObject(objv(x,'rubric_scores','rubric','automatic_evaluation')))}</div></div>
+    <div class="field" style="margin-top:12px"><label>Feedback preliminar</label><div class="note" style="white-space:pre-wrap">${esc(prettyObject(x.preliminary_feedback))}</div></div>
+    <div class="field" style="margin-top:12px"><label>Verificación docente</label><div class="note" style="white-space:pre-wrap">${esc(prettyObject(x.verification_feedback))}</div></div>
+    <div class="actions" style="margin-top:16px"><button class="btn primary" onclick="botPayload('cc_${x.id}')">Revisar en Berilio</button></div>`);
+}
+
+function showPortfolioDetail(id){
+  let x=portfolioById(id);if(!x)return toast('No se ha encontrado el portfolio.',true);
+  let s=x._student||state.studentDetail?.student||{};
+  modal(`<div class="sectionTitle"><h3>📄 Portfolio de ${esc(studentName(s))}</h3><button class="btn" onclick="closeModal()">Cerrar</button></div>
+    <div class="miniList"><div class="miniRow"><span>Reto</span><b>${esc(x.challenge_code||x.challenge_id||'—')}</b></div><div class="miniRow"><span>Archivo</span><b>${esc(x.file_name||'PDF')}</b></div><div class="miniRow"><span>Estado</span><b><span class="status ${statusClass(x.status)}">${esc(x.status||'—')}</span></b></div></div>
+    <div class="field" style="margin-top:12px"><label>Preevaluación / rúbrica automática</label><div class="note" style="white-space:pre-wrap">${esc(prettyObject(x.automatic_evaluation))}</div></div>
+    <div class="field" style="margin-top:12px"><label>Evaluación docente</label><div class="note" style="white-space:pre-wrap">${esc(prettyObject(x.teacher_evaluation))}</div></div>
+    <div class="field" style="margin-top:12px"><label>Feedback</label><div class="note" style="white-space:pre-wrap">${esc(prettyObject(objv(x,'teacher_feedback','feedback')))}</div></div>
+    <div class="actions" style="margin-top:16px"><button class="btn primary" onclick="botPayload('cs_${x.id}')">Revisar en Berilio</button>${x.storage_path?`<button class="btn" onclick="botPayload('cp_${x.id}')">Enviarme PDF</button>`:''}</div>`);
+}
+
 function renderStudentDetail(){let d=state.studentDetail||{},s=d.student||{},an=d.analytics||{},as=an.student||{},gp=d.gamification_profile||{};let name=s.full_name||[s.first_name,s.last_name].filter(Boolean).join(' ')||s.student_code||'Alumno';let risk=riskFor(as);document.getElementById('studentHero').innerHTML=`<div><h2>${risk} ${esc(name)}</h2><div class="studentMeta">${esc(s.student_code||'—')} · ${esc(s.group_name||'Sin grupo')} · ${s.telegram_user_id?'Telegram vinculado':'Sin vincular a Telegram'}</div></div><div class="actions"><span class="status ${s.active?'ok':'bad'}">${s.active?'ACTIVO':'INACTIVO'}</span></div>`;let weekly=d.weekly||[],exams=d.exams||[],subs=d.portfolio_submissions||[],contrib=d.contributions||[],evid=d.evidences||[],incs=d.incidents||[];let mastered=(d.gym_mastery||[]).filter(x=>x.mastered).length,passed=exams.filter(x=>Number(x.attempt?.score_out_of_10)>=5).length,approved=(d.portfolio_progress||[]).filter(x=>x.progress?.status==='approved').length;document.getElementById('studentMetrics').innerHTML=[metric('📊 Evidencias',as.evidence_average==null?'—':`${n(as.evidence_average)}/10`,`${as.evidence_count||0} registros`),metric('🎓 Oficial',as.provisional_normalized==null?'—':`${n(as.provisional_normalized)}/10`,`${pct(as.graded_official_weight)} evaluado`),metric('⚛️ PP',gp.xp_total||0,gp.level_name||'Aspirante'),metric('🪙 Og',gp.oganeson_balance||0,'saldo actual'),metric('🏆 Actividad',weekly.length,`retos · ${passed}/${exams.length} exámenes`)].join('');let comps=an.components||[];document.getElementById('studentComponents').innerHTML=comps.length?`<div class="miniList">${comps.map(c=>`<div class="miniRow"><span>${esc(c.component_name||c.component_code)}</span><b>${c.component_score==null?'—':n(c.component_score)}/10${c.official?` · ${n(c.component_weight_percent,0)}%`:''}</b></div>`).join('')}</div>`:'<div class="empty">Todavía no hay componentes calificados.</div>';document.getElementById('studentActivity').innerHTML=`<div class="miniList"><div class="miniRow"><span>Retos semanales</span><b>${weekly.length}</b></div><div class="miniRow"><span>Exámenes</span><b>${passed}/${exams.length} superados</b></div><div class="miniRow"><span>Porfolios aprobados</span><b>${approved}</b></div><div class="miniRow"><span>Entregas PDF</span><b>${subs.length}</b></div><div class="miniRow"><span>Aportaciones CENQAL</span><b>${contrib.length}</b></div><div class="miniRow"><span>Gym dominadas</span><b>${mastered}</b></div><div class="miniRow"><span>Evidencias PDF</span><b>${evid.length}</b></div><div class="miniRow"><span>Incidencias</span><b>${incs.filter(x=>['pending','in_review'].includes(x.status)).length} abiertas</b></div></div>`;let grades=an.grades||[];let html='';html+=detailCard('🧾 Últimas calificaciones',grades.length?tableHTML(['Fecha','Componente','Actividad','Nota','Origen'],grades.slice(0,50).map(g=>[fmtDate(g.created_at||g.updated_at),g.component_name||g.component_code,g.item_title||g.item_code,g.effective_score==null?'—':n(g.effective_score),g.source_type||'—'])):'<div class="empty">Sin calificaciones registradas.</div>',true);html+=detailCard('📰 Retos semanales',weekly.length?tableHTML(['Tema','Fecha','Reto','Preeval.','Estado','Respuesta'],weekly.map(x=>{let p=x.participation||{},c=x.challenge||{};return[`T${c.topic_number||'—'}`,fmtDate(p.created_at),c.title||'',p.preliminary_score==null?'—':`${n(p.preliminary_score,0)}/5`,p.status||'—',p.response_text||''] }),'last'):'<div class="empty">Sin participaciones semanales.</div>');html+=detailCard('📝 Exámenes',exams.length?tableHTML(['Tema','Examen','Estado','Aciertos','Nota','Entrega'],exams.map(x=>{let a=x.attempt||{},e=x.session||{};return[`T${e.topic_number||'—'}`,e.title||e.exam_code||'',a.status||'—',`${a.correct_count??'—'}/${e.question_count||20}`,a.score_out_of_10==null?'—':`${n(a.score_out_of_10)}/10`,fmtDate(a.submitted_at)]})):'<div class="empty">Sin intentos de examen.</div>');html+=detailCard('📄 Porfolios y entregas',subs.length?tableHTML(['Fecha','Reto','Versión','Archivo','Estado','Nota','PDF'],subs.map(x=>[fmtDate(x.created_at),x.challenge_code||x.challenge_id||'',x.version||'—',x.file_name||'PDF',x.status||'—',x.teacher_evaluation?.score==null?'—':`${n(x.teacher_evaluation.score,0)}/100`,x.storage_path?`<button class="btn" onclick="botPayload('cp_${x.id}')">Enviarme PDF</button>`:'—']),'html'):'<div class="empty">Sin entregas de porfolio.</div>');html+=detailCard('🧪 Aportaciones a CENQAL',contrib.length?tableHTML(['Fecha','Tema','Modo','Estado','Preeval.','PP','Og'],contrib.slice(0,200).map(x=>[fmtDate(x.created_at),x.primary_topic||x.macrotheme_number||'—',x.contribution_mode||'—',x.status||'—',x.preliminary_score??'—',x.prestige_amount??'—',x.oganeson_amount??'—'])):'<div class="empty">Sin aportaciones.</div>');let gm=d.gym_mastery||[];let topics={};gm.forEach(x=>{let t=x.topic_number||'—';topics[t]??={total:0,mastered:0,correct:0,wrong:0};topics[t].total++;if(x.mastered)topics[t].mastered++;topics[t].correct+=Number(x.correct_count||0);topics[t].wrong+=Number(x.wrong_count||0)});html+=detailCard('🧠 CENQAL Gym',Object.keys(topics).length?tableHTML(['Tema','Preguntas trabajadas','Dominadas','Aciertos','Errores'],Object.entries(topics).map(([t,x])=>[`T${t}`,x.total,x.mastered,x.correct,x.wrong])):'<div class="empty">Sin actividad en Gym.</div>');let ge=d.gamification_events||[];html+=detailCard('🪙 Historial PP / Og',ge.length?tableHTML(['Evento','PP','Og','Descripción'],ge.slice(0,100).map(x=>[x.event_type||x.event_key||'—',x.xp_delta||0,x.oganeson_delta||0,x.description||'—'])):'<div class="empty">Sin movimientos.</div>');html+=detailCard('📁 Evidencias PDF',evid.length?tableHTML(['Fecha','Tipo','Título','Hash','PDF'],evid.map(x=>[fmtDate(x.generated_at),x.evidence_type||'—',x.title||'—',(x.pdf_sha256||'').slice(0,14)+'…',x.storage_path?`<button class="btn" onclick="botPayload('ce_${x.id}')">Enviarme PDF</button>`:'—']),'html'):'<div class="empty">Sin evidencias PDF.</div>');html+=detailCard('🛠️ Incidencias',incs.length?tableHTML(['Fecha','Código','Módulo','Estado','Descripción'],incs.map(x=>[fmtDate(x.created_at),x.incident_code||'—',x.module||'—',x.status||'—',x.description||'—']),'last'):'<div class="empty">Sin incidencias.</div>');document.getElementById('studentSections').innerHTML=html}
 
 function detailCard(title,body,open=false){return `<details class="card" ${open?'open':''}><summary>${title}</summary><div class="detailBody">${body}</div></details>`}
 
 function tableHTML(headers,rows,mode=''){let h=headers.map(x=>`<th>${esc(x)}</th>`).join('');let b=rows.map(r=>`<tr>${r.map((x,i)=>{let raw=(mode==='html'&&i===r.length-1);let wrap=(mode==='last'&&i===r.length-1)?' class="wrap"':'';return `<td${wrap}>${raw?x:esc(x)}</td>`}).join('')}</tr>`).join('');return `<div class="tablewrap"><table class="table"><thead><tr>${h}</tr></thead><tbody>${b}</tbody></table></div>`}
+
+const renderStudentDetailBase=renderStudentDetail;
+renderStudentDetail=function(){
+  renderStudentDetailBase();
+  let c=state.studentDetail?.contributions||[],p=state.studentDetail?.portfolio_submissions||[];
+  if(!c.length&&!p.length)return;
+  let html='';
+  if(c.length)html+=detailCard('🔎 Respuestas y rúbricas de aportaciones',tableHTML(['Fecha','Título','Estado','Preeval.','Acción'],c.map(x=>[fmtDate(x.created_at),x.title||x.primary_topic||'Sin título',x.status||'—',x.preliminary_score??'—',`<button class="btn" onclick="showContributionDetail('${x.id}')">Ver respuestas y rúbrica</button>`]),'html'));
+  if(p.length)html+=detailCard('🔎 Rúbricas de portfolios',tableHTML(['Fecha','Reto','Estado','Nota','Acción'],p.map(x=>[fmtDate(x.created_at),x.challenge_code||x.challenge_id||'—',x.status||'—',x.teacher_evaluation?.score??'—',`<button class="btn" onclick="showPortfolioDetail('${x.id}')">Ver evaluación</button>`]),'html'));
+  document.getElementById('studentSections').insertAdjacentHTML('beforeend',html);
+};
+
+function deliveryGroup(status){
+  status=String(status||'').toLowerCase();
+  if(['needs_review','submitted','pending','in_review','draft'].includes(status))return 'pending';
+  if(['validated','approved','accepted','published'].includes(status))return 'validated';
+  if(['rejected','returned','needs_changes','cancelled'].includes(status))return 'rejected';
+  return status;
+}
+
+async function loadDeliveries(force=false){
+  if(state.deliveries&&!force){renderDeliveries();return state.deliveries}
+  document.getElementById('deliveryMetrics').innerHTML='<div class="card"><span class="loader"></span> Reuniendo las fichas del curso…</div>';
+  await loadStudents(force);
+  let active=state.students.filter(s=>s.active!==false&&studentIdOf(s));
+  let settled=await Promise.allSettled(active.map(s=>rpc('cenqal_control_student_workspace',{p_token:TOKEN,p_student_id:studentIdOf(s)}).then(d=>({s,d}))));
+  let contributions=[],portfolios=[],weekly=[];
+  settled.forEach(r=>{if(r.status!=='fulfilled')return;let {s,d}=r.value;(d.contributions||[]).forEach(x=>contributions.push({...x,_student:s}));(d.portfolio_submissions||[]).forEach(x=>portfolios.push({...x,_student:s}));(d.weekly||[]).forEach(x=>weekly.push({...x,_student:s}))});
+  let newest=(a,b)=>new Date(b.created_at||b.participation?.created_at||0)-new Date(a.created_at||a.participation?.created_at||0);
+  state.deliveries={contributions:contributions.sort(newest),portfolios:portfolios.sort(newest),weekly:weekly.sort(newest),failed:settled.filter(x=>x.status==='rejected').length};
+  renderDeliveries();return state.deliveries;
+}
+
+function deliveryMatches(x,q,status,type){
+  let s=x._student||{},raw=type==='weekly'?x.participation||{}:x;
+  let group=deliveryGroup(raw.status);
+  if(status&&group!==status)return false;
+  let text=[studentName(s),s.student_code,x.title,x.primary_topic,x.topic,x.challenge_code,x.challenge?.title,raw.response_text].join(' ').toLowerCase();
+  return !q||text.includes(q);
+}
+
+function renderDeliveries(){
+  let d=state.deliveries;if(!d)return;
+  let q=(document.getElementById('deliverySearch')?.value||'').trim().toLowerCase(),st=document.getElementById('deliveryStatus')?.value||'';
+  let c=d.contributions.filter(x=>deliveryMatches(x,q,st,'contribution')),p=d.portfolios.filter(x=>deliveryMatches(x,q,st,'portfolio')),w=d.weekly.filter(x=>deliveryMatches(x,q,st,'weekly'));
+  let pendingC=d.contributions.filter(x=>deliveryGroup(x.status)==='pending').length,pendingP=d.portfolios.filter(x=>deliveryGroup(x.status)==='pending').length;
+  document.getElementById('deliveryMetrics').innerHTML=[metric('🧪 Aportaciones',d.contributions.length,`${pendingC} pendientes`),metric('📄 Portfolios',d.portfolios.length,`${pendingP} pendientes`),metric('🏆 Respuestas a retos',d.weekly.length,'registradas'),metric('⚠️ Fichas no cargadas',d.failed||0,d.failed?'Reintenta la actualización':'Todo correcto')].join('');
+  document.getElementById('contributionsInbox').innerHTML=c.length?tableHTML(['Fecha','Alumno','Título / tema','Estado','Preeval.','Acciones'],c.map(x=>[fmtDate(x.created_at),studentName(x._student),x.title||x.primary_topic||x.topic||'—',x.status||'—',x.preliminary_score??'—',`<button class="btn" onclick="showContributionDetail('${x.id}')">Ver respuestas y rúbrica</button>`]),'html'):'<div class="empty">No hay aportaciones con estos filtros.</div>';
+  document.getElementById('portfoliosInbox').innerHTML=p.length?tableHTML(['Fecha','Alumno','Reto / archivo','Estado','Nota','Acciones'],p.map(x=>[fmtDate(x.created_at),studentName(x._student),x.challenge_code||x.file_name||'—',x.status||'—',x.teacher_evaluation?.score??'—',`<button class="btn" onclick="showPortfolioDetail('${x.id}')">Ver evaluación</button>`]),'html'):'<div class="empty">No hay portfolios con estos filtros.</div>';
+  document.getElementById('challengesInbox').innerHTML=w.length?tableHTML(['Fecha','Alumno','Reto','Estado','Preeval.','Respuesta'],w.map(x=>{let a=x.participation||{},ch=x.challenge||{};return[fmtDate(a.created_at),studentName(x._student),ch.title||`Tema ${ch.topic_number||'—'}`,a.status||'—',a.preliminary_score??'—',a.response_text||'—']}),'last'):'<div class="empty">No hay respuestas a retos con estos filtros.</div>';
+}
+
+function csvCell(v){return `"${String(v??'').replace(/"/g,'""')}"`}
+function exportDeliveriesCSV(){
+  let d=state.deliveries;if(!d)return toast('Carga primero las entregas.',true);
+  let rows=[['tipo','fecha','alumno','codigo','titulo_reto','estado','preevaluacion']];
+  d.contributions.forEach(x=>rows.push(['aportacion',x.created_at,studentName(x._student),x._student?.student_code,x.title||x.primary_topic,x.status,x.preliminary_score]));
+  d.portfolios.forEach(x=>rows.push(['portfolio',x.created_at,studentName(x._student),x._student?.student_code,x.challenge_code||x.file_name,x.status,x.teacher_evaluation?.score]));
+  d.weekly.forEach(x=>{let a=x.participation||{},ch=x.challenge||{};rows.push(['reto',a.created_at,studentName(x._student),x._student?.student_code,ch.title,a.status,a.preliminary_score])});
+  let blob=new Blob(['\ufeff'+rows.map(r=>r.map(csvCell).join(';')).join('\n')],{type:'text/csv;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='cenqal_entregas.csv';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
 
 async function loadCalendar(force=false){if(state.calendar.length&&!force){renderCalendar();return state.calendar}let d=await rpc('cenqal_control_calendar',{p_token:TOKEN});state.calendar=d.rows||[];renderCalendar();return state.calendar}
 
@@ -2562,6 +2693,7 @@ async function refreshAll(){
   state.courses=[];
   state.selectedCourseId=null;
   state.progress=null;
+  state.deliveries=null;
   state.studentDetail=null;
 
   await refreshSnapshot();
@@ -2995,6 +3127,7 @@ async function enrollExistingStudent(){
 
           state.students=[];
           state.progress=null;
+          state.deliveries=null;
 
           await refreshSnapshot();
           await loadStudents(true);
@@ -3127,6 +3260,7 @@ function newStudent(){
 
         state.students=[];
         state.progress=null;
+        state.deliveries=null;
 
         await refreshSnapshot();
         await loadStudents(true);
