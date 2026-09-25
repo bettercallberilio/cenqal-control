@@ -12,6 +12,8 @@
 <meta name="apple-mobile-web-app-title" content="CENQAL Control">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 <style>
 :root{--navy:#0c3f82;--blue:#277bdc;--pale:#eef6ff;--green:#18a66a;--amber:#e9a51b;--red:#d84b4b;--ink:#17304f;--muted:#6d7f96;--line:#dbe7f4;--card:#fff;--bg:#f5f9fd;--violet:#7444c7;--shadow:0 10px 30px rgba(34,67,105,.08)}
@@ -198,6 +200,30 @@ details.card>.detailBody{padding:0 16px 16px}
   .mobileOnly{display:inline-flex}
   .desktopHideMobile{display:none}
 }
+
+/* ===== CENQAL v69 · Learning Analytics ===== */
+.analyticsToolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.analyticsGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:14px}
+.analyticsChart{position:relative;min-height:330px}
+.analyticsChart canvas{width:100%!important;height:310px!important}
+.analyticsWide{grid-column:1/-1}
+.analyticsHint{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.45}
+.analyticsKpis{grid-template-columns:repeat(6,minmax(0,1fr))}
+.heatmapWrap{overflow:auto;padding-bottom:4px}
+.heatmapGrid{display:grid;grid-template-columns:76px repeat(24,28px);gap:3px;min-width:790px;align-items:center;font-size:10px}
+.heatmapHead{text-align:center;color:var(--muted);font-size:9px}
+.heatmapDay{font-weight:800;color:var(--ink);font-size:11px}
+.heatCell{height:24px;border-radius:5px;background:#edf3f8;display:flex;align-items:center;justify-content:center;color:#17304f;font-size:9px}
+.heatCell.hot{color:#fff}
+.analyticsBadge{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 9px;font-size:11px;font-weight:800}
+.analyticsBadge.red{background:#ffecec;color:#a72c2c}.analyticsBadge.yellow{background:#fff4dc;color:#8a5a00}.analyticsBadge.green{background:#e9f8f0;color:#267352}.analyticsBadge.gray{background:#eef2f6;color:#68798b}
+.studentAnalytics{margin-top:14px}
+.studentAnalytics .analyticsGrid{margin-bottom:0}
+.statline{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:var(--muted)}
+.statline b{color:var(--ink)}
+@media(max-width:980px){.analyticsKpis{grid-template-columns:repeat(3,minmax(0,1fr))}.analyticsGrid{grid-template-columns:1fr}.analyticsWide{grid-column:auto}}
+@media(max-width:620px){.analyticsKpis{grid-template-columns:repeat(2,minmax(0,1fr))}.analyticsChart{min-height:290px}.analyticsChart canvas{height:270px!important}}
+
 </style>
 </head>
 
@@ -253,6 +279,7 @@ details.card>.detailBody{padding:0 16px 16px}
       <button data-view="course">🎓 Curso</button>
       <button data-view="students">👥 Alumnos</button>
       <button data-view="progress">📈 Progreso</button>
+      <button data-view="learning">📊 Learning Analytics</button>
       <button data-view="deliveries">📥 Entregas</button>
       <button data-view="calendar">📅 Calendario</button>
       <button data-view="challenges">🏆 Retos</button>
@@ -376,6 +403,69 @@ details.card>.detailBody{padding:0 16px 16px}
       <div class="card"><div class="tablewrap"><table class="table"><thead><tr><th></th><th>Alumno</th><th>Grupo</th><th>Evidencias</th><th>Oficial</th><th>Evaluado</th><th>PP</th><th>Og</th><th>Retos</th><th>Exámenes</th><th>Porfolios</th><th></th></tr></thead><tbody id="progressBody"></tbody></table></div></div>
     </section>
 
+    <section class="view" id="view-learning">
+      <div class="viewHeader">
+        <div>
+          <h2>📊 CENQAL Learning Analytics</h2>
+          <p>Rendimiento, semáforo, Gym, hábitos de estudio, PRE↔POST y relación práctica–examen. Uso exclusivamente docente.</p>
+        </div>
+        <div class="analyticsToolbar">
+          <button class="btn primary" onclick="exportLearningExcel(false)">⬇ Excel completo</button>
+          <button class="btn" onclick="exportLearningExcel(true)">🔬 Excel anonimizado</button>
+          <button class="btn" onclick="loadLearning(true)">↻ Actualizar</button>
+        </div>
+      </div>
+      <div class="note warn" style="margin-bottom:14px">Las asociaciones entre uso del Gym y resultados son descriptivas: ayudan a observar patrones, pero no demuestran causalidad. El tiempo activo es una estimación basada en los intervalos entre respuestas.</div>
+      <div class="metrics grid analyticsKpis" id="learningMetrics"><div class="card"><span class="loader"></span> Calculando analítica…</div></div>
+
+      <div class="analyticsGrid">
+        <div class="card analyticsChart analyticsWide">
+          <div class="sectionTitle"><h3>📈 Gráfica resumen del grupo</h3><span class="subtle">Gym y examen por tema</span></div>
+          <canvas id="groupSummaryChart"></canvas>
+          <div class="analyticsHint">Compara precisión del Gym y nota media de las pruebas T1–T8. Cada eje conserva su propia escala.</div>
+        </div>
+        <div class="card analyticsChart">
+          <div class="sectionTitle"><h3>🚦 Semáforo docente</h3><span class="subtle">motor de alertas CENQAL</span></div>
+          <canvas id="learningRiskChart"></canvas>
+          <div id="learningRiskText" class="analyticsHint"></div>
+        </div>
+        <div class="card analyticsChart">
+          <div class="sectionTitle"><h3>🧭 PRE → POST</h3><span class="subtle">aprendizaje y convergencia</span></div>
+          <canvas id="prePostChart"></canvas>
+          <div id="prePostText" class="analyticsHint"></div>
+        </div>
+        <div class="card analyticsChart">
+          <div class="sectionTitle"><h3>📅 Uso del Gym por día</h3><span class="subtle">respuestas registradas</span></div>
+          <canvas id="gymDayChart"></canvas>
+        </div>
+        <div class="card analyticsChart">
+          <div class="sectionTitle"><h3>🕐 Uso del Gym por hora</h3><span class="subtle">hora local Europe/Madrid</span></div>
+          <canvas id="gymHourChart"></canvas>
+        </div>
+        <div class="card analyticsChart analyticsWide">
+          <div class="sectionTitle"><h3>🧠 Uso del Gym ↔ rendimiento</h3><span class="subtle">minutos activos frente a media de examen</span></div>
+          <canvas id="gymEffectChart"></canvas>
+          <div id="gymEffectText" class="analyticsHint"></div>
+        </div>
+        <div class="card analyticsWide">
+          <div class="sectionTitle"><h3>🔥 Mapa de calor semanal</h3><span class="subtle">día × hora · intensidad = respuestas</span></div>
+          <div id="gymHeatmap" class="heatmapWrap"></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px">
+        <div class="sectionTitle"><h3>🧪 Rendimiento por tema</h3><span class="subtle">T1–T8</span></div>
+        <div id="learningTopics"></div>
+      </div>
+
+      <div class="card">
+        <div class="sectionTitle"><h3>👥 Analítica individual</h3><span class="subtle">pulsa una fila para abrir la ficha</span></div>
+        <div class="tablewrap"><table class="table"><thead><tr>
+          <th></th><th>Alumno</th><th>Gym</th><th>Tiempo activo</th><th>Acierto</th><th>Dominio</th><th>Exámenes</th><th>Media</th><th>PRE→POST</th><th>Rank PP</th><th>Rank uso</th><th>Rank dominio</th><th></th>
+        </tr></thead><tbody id="learningStudentsBody"></tbody></table></div>
+      </div>
+    </section>
+
     <section class="view" id="view-deliveries">
       <div class="viewHeader">
         <div><h2>📥 Entregas y revisión</h2><p>Consulta centralizada de aportaciones, rúbricas, portfolios y retos. La concesión de PP y Og se confirma exclusivamente en Berilio.</p></div>
@@ -396,6 +486,19 @@ details.card>.detailBody{padding:0 16px 16px}
       <div class="sectionGrid" style="margin-top:14px">
         <div class="card"><h3>🧾 Evaluación oficial</h3><div id="studentComponents"></div></div>
         <div class="card"><h3>🎮 Actividad CENQAL</h3><div id="studentActivity"></div></div>
+      </div>
+      <div class="card studentAnalytics" id="studentLearningCard" style="display:none">
+        <div class="sectionTitle">
+          <div><h3>📈 Learning Analytics individual</h3><p>Uso del Gym, hábitos, evolución, transferencia y PRE↔POST.</p></div>
+          <div class="actions"><button class="btn" onclick="exportStudentLearningExcel()">⬇ Excel alumno</button></div>
+        </div>
+        <div class="metrics grid" id="studentLearningMetrics" style="margin-top:12px"></div>
+        <div id="studentLearningSignal" style="margin:10px 0"></div>
+        <div class="analyticsGrid">
+          <div class="analyticsChart"><h3>🧪 Gym y examen por tema</h3><canvas id="studentTopicChart"></canvas></div>
+          <div class="analyticsChart"><h3>📅 Patrón semanal de estudio</h3><canvas id="studentHabitChart"></canvas></div>
+        </div>
+        <div id="studentLearningDetail"></div>
       </div>
       <div class="grid" style="margin-top:14px" id="studentSections"></div>
     </section>
@@ -517,6 +620,9 @@ let state={
   selectedCourseId:null,
   progress:null,
   deliveries:null,
+  learning:null,
+  learningExport:null,
+  studentLearning:null,
   currentStudentId:null,
   studentDetail:null
 };
@@ -944,6 +1050,7 @@ function go(name){
 
   if(name==='students')loadStudents();
   if(name==='progress')loadProgress();
+  if(name==='learning')loadLearning();
   if(name==='deliveries')loadDeliveries();
   if(name==='calendar')loadCalendar();
   if(name==='challenges')loadChallenges();
@@ -1096,6 +1203,9 @@ function clearCourseScopedState(){
   state.selectedCourseId=null;
   state.progress=null;
   state.deliveries=null;
+  state.learning=null;
+  state.learningExport=null;
+  state.studentLearning=null;
   state.studentDetail=null;
   state.currentStudentId=null;
 }
@@ -1705,6 +1815,9 @@ async function openStudent(id){
 
   state.currentStudentId=sid;
   state.studentDetail=null;
+  state.studentLearning=null;
+  const slc=document.getElementById('studentLearningCard');
+  if(slc)slc.style.display='none';
 
   document.querySelectorAll('.view')
     .forEach(x=>x.classList.remove('active'));
@@ -1745,6 +1858,7 @@ async function openStudent(id){
 
     state.studentDetail=d;
     renderStudentDetail();
+    await loadStudentLearningAnalytics(sid);
 
   }catch(e){
     document.getElementById('studentHero').innerHTML=
@@ -2773,6 +2887,9 @@ async function refreshAll(){
   state.selectedCourseId=null;
   state.progress=null;
   state.deliveries=null;
+  state.learning=null;
+  state.learningExport=null;
+  state.studentLearning=null;
   state.studentDetail=null;
 
   await refreshSnapshot();
@@ -3351,6 +3468,219 @@ function newStudent(){
     });
   };
 }
+
+/* =========================================================
+   CENQAL v69 · LEARNING ANALYTICS
+========================================================= */
+const v69Charts={};
+function v69DestroyChart(key){try{if(v69Charts[key])v69Charts[key].destroy()}catch(e){}delete v69Charts[key]}
+function v69Chart(key,canvasId,config){
+  v69DestroyChart(key);
+  const el=document.getElementById(canvasId);
+  if(!el||typeof Chart==='undefined')return null;
+  v69Charts[key]=new Chart(el.getContext('2d'),config);
+  return v69Charts[key];
+}
+function v69CourseId(){return Number(state.selectedCourseId||state.snapshot?.course?.id||0)||null}
+function v69Num(v,d=1){const x=Number(v);return Number.isFinite(x)?x.toFixed(d):'—'}
+function v69Minutes(v){const x=Number(v||0);if(x<60)return `${Math.round(x)} min`;return `${Math.floor(x/60)} h ${Math.round(x%60)} min`}
+function v69AlertStudents(){return Array.isArray(state.learning?.alerts?.students)?state.learning.alerts.students:[]}
+function v69AlertFor(row,source=state.learning?.alerts){
+  const list=Array.isArray(source?.students)?source.students:[];
+  const uid=String(row?.telegram_user_id??'');const code=String(row?.student_code??'').toLowerCase();
+  return list.find(x=>(uid&&String(x.telegram_user_id??'')===uid)||(code&&String(x.student_code??'').toLowerCase()===code))||null;
+}
+function v69Risk(row,source=state.learning?.alerts){
+  const a=v69AlertFor(row,source);const st=String(a?.alert_status||'').toUpperCase();
+  if(st==='RED')return {icon:'🔴',cls:'red',label:'Prioridad',signals:a.alert_signals||a.signals||[]};
+  if(st==='YELLOW')return {icon:'🟡',cls:'yellow',label:'Atención',signals:a.alert_signals||a.signals||[]};
+  if(st==='GREEN')return {icon:'🟢',cls:'green',label:'Normal',signals:a.alert_signals||a.signals||[]};
+  const exam=row?.exam_average==null?null:Number(row.exam_average);
+  const pre=row?.pre_knowledge==null?null:Number(row.pre_knowledge);
+  if(exam!=null&&exam<5)return {icon:'🔴',cls:'red',label:'Prioridad',signals:[{detail:'Media de examen inferior a 5'}]};
+  if(exam!=null&&exam<6)return {icon:'🟡',cls:'yellow',label:'Atención',signals:[{detail:'Media de examen entre 5 y 6'}]};
+  if(exam==null&&pre==null)return {icon:'⚪',cls:'gray',label:'Sin datos',signals:[]};
+  return {icon:'🟢',cls:'green',label:'Normal',signals:[]};
+}
+function v69AvgRank(values){
+  const indexed=values.map((v,i)=>({v:Number(v),i})).filter(x=>Number.isFinite(x.v)).sort((a,b)=>a.v-b.v);
+  const ranks=Array(values.length).fill(null);let k=0;
+  while(k<indexed.length){let j=k;while(j+1<indexed.length&&indexed[j+1].v===indexed[k].v)j++;const r=(k+j+2)/2;for(let z=k;z<=j;z++)ranks[indexed[z].i]=r;k=j+1}
+  return ranks;
+}
+function v69Spearman(xs,ys){
+  const pairs=[];for(let i=0;i<Math.min(xs.length,ys.length);i++){const x=Number(xs[i]),y=Number(ys[i]);if(Number.isFinite(x)&&Number.isFinite(y))pairs.push([x,y])}
+  if(pairs.length<3)return {rho:null,n:pairs.length};
+  const rx=v69AvgRank(pairs.map(x=>x[0])),ry=v69AvgRank(pairs.map(x=>x[1]));
+  const mx=rx.reduce((a,b)=>a+b,0)/rx.length,my=ry.reduce((a,b)=>a+b,0)/ry.length;
+  let num=0,dx=0,dy=0;for(let i=0;i<rx.length;i++){const a=rx[i]-mx,b=ry[i]-my;num+=a*b;dx+=a*a;dy+=b*b}
+  return {rho:dx&&dy?num/Math.sqrt(dx*dy):null,n:pairs.length};
+}
+
+async function loadLearning(force=false){
+  if(state.learning&&!force){renderLearning();return state.learning}
+  const box=document.getElementById('learningMetrics');if(box)box.innerHTML='<div class="card"><span class="loader"></span> Calculando Learning Analytics…</div>';
+  try{
+    const d=await rpc('cenqal_control_learning_analytics_v69',{p_token:TOKEN,p_course_id:v69CourseId()});
+    state.learning=d;renderLearning();return d;
+  }catch(e){if(box)box.innerHTML=`<div class="card note danger">${esc(e.message)}</div>`;toast('No se pudo cargar Learning Analytics. Comprueba el SQL v69.',true);throw e}
+}
+
+function renderLearning(){
+  const d=state.learning||{},sum=d.summary||{},students=d.students||[],topics=d.topics||[];
+  const risks={red:0,yellow:0,green:0,gray:0};students.forEach(x=>risks[v69Risk(x,d.alerts).cls]++);
+  const paired=d.pre_post_summary?.paired_count||0;
+  document.getElementById('learningMetrics').innerHTML=[
+    metric('👥 Alumnos',sum.students??students.length,'activos analizados'),
+    metric('🏋️ Usuarios Gym',sum.gym_users??0,`${sum.students?Math.round(100*(sum.gym_users||0)/sum.students):0}% del grupo`),
+    metric('🧠 Respuestas Gym',sum.gym_answers??0,`${sum.gym_sessions??0} sesiones`),
+    metric('⏱ Tiempo activo',v69Minutes(sum.gym_active_minutes||0),`mediana sesión ${v69Num(sum.median_session_active_minutes,0)} min`),
+    metric('🎓 Media examen',sum.exam_average==null?'—':`${v69Num(sum.exam_average,2)}/10`,'T1–T8 con resultado'),
+    metric('🧭 PRE↔POST',paired,paired?'alumnos emparejados':'aún sin POST')
+  ].join('');
+
+  const labels=topics.map(x=>`T${x.topic_number}`);
+  v69Chart('groupSummary','groupSummaryChart',{type:'bar',data:{labels,datasets:[
+    {label:'Acierto Gym (%)',data:topics.map(x=>x.gym_accuracy_pct),yAxisID:'y'},
+    {label:'Nota media examen',data:topics.map(x=>x.exam_average),type:'line',yAxisID:'y2',tension:.25}
+  ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},scales:{y:{beginAtZero:true,max:100,title:{display:true,text:'Gym (%)'}},y2:{beginAtZero:true,max:10,position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Examen /10'}}}}});
+
+  v69Chart('risk','learningRiskChart',{type:'doughnut',data:{labels:['Prioridad','Atención','Normal','Sin datos'],datasets:[{data:[risks.red,risks.yellow,risks.green,risks.gray],backgroundColor:['#d84b4b','#e9a51b','#18a66a','#9aa9b8']}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'}}}});
+  document.getElementById('learningRiskText').innerHTML=`🔴 ${risks.red} · 🟡 ${risks.yellow} · 🟢 ${risks.green} · ⚪ ${risks.gray}. Las señales detalladas se muestran en cada ficha.`;
+
+  const pp=d.pre_post_summary||{};
+  v69Chart('prepost','prePostChart',{type:'bar',data:{labels:['Conocimiento'],datasets:[{label:'PRE',data:[pp.pre_mean]},{label:'POST',data:[pp.post_mean]}]},options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,max:100}}}});
+  const sd=pp.sd_reduction_pct==null?'—':`${Number(pp.sd_reduction_pct)>0?'−':'+'}${Math.abs(Number(pp.sd_reduction_pct)).toFixed(1)}%`;
+  const iqr=pp.iqr_reduction_pct==null?'—':`${Number(pp.iqr_reduction_pct)>0?'−':'+'}${Math.abs(Number(pp.iqr_reduction_pct)).toFixed(1)}%`;
+  document.getElementById('prePostText').innerHTML=paired?`Ganancia media: <b>${v69Num(pp.mean_gain,1)} puntos</b> · cambio de dispersión (DE): <b>${sd}</b> · cambio de IQR: <b>${iqr}</b>. Valores positivos en reducción indican mayor convergencia.`:'Aún no hay suficientes respuestas POST emparejadas.';
+
+  const days=['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];const byDay=new Map((d.days||[]).map(x=>[x.day_name,x.responses]));
+  v69Chart('days','gymDayChart',{type:'bar',data:{labels:days,datasets:[{label:'Respuestas Gym',data:days.map(x=>byDay.get(x)||0)}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}}}});
+  const byHour=new Map((d.hours||[]).map(x=>[Number(x.local_hour),x.responses]));const hours=[...Array(24).keys()];
+  v69Chart('hours','gymHourChart',{type:'line',data:{labels:hours.map(h=>`${String(h).padStart(2,'0')}:00`),datasets:[{label:'Respuestas Gym',data:hours.map(h=>byHour.get(h)||0),tension:.25,fill:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}}}});
+
+  const scatter=students.filter(x=>Number(x.gym_active_minutes)>0&&x.exam_average!=null).map(x=>({x:Number(x.gym_active_minutes),y:Number(x.exam_average),student:x.full_name||x.student_code}));
+  v69Chart('effect','gymEffectChart',{type:'scatter',data:{datasets:[{label:'Alumno',data:scatter}]},options:{responsive:true,maintainAspectRatio:false,scales:{x:{beginAtZero:true,title:{display:true,text:'Minutos activos estimados'}},y:{beginAtZero:true,max:10,title:{display:true,text:'Media examen /10'}}},plugins:{tooltip:{callbacks:{label:c=>`${c.raw.student}: ${v69Num(c.raw.x,0)} min · ${v69Num(c.raw.y,2)}/10`}}}}});
+  const sp=v69Spearman(scatter.map(x=>x.x),scatter.map(x=>x.y));document.getElementById('gymEffectText').innerHTML=sp.rho==null?`No hay suficientes pares para estimar asociación (n=${sp.n}).`:`ρ de Spearman = <b>${sp.rho.toFixed(2)}</b> (n=${sp.n}). Asociación descriptiva, no causal.`;
+
+  renderGymHeatmap(d.heatmap||[]);
+  document.getElementById('learningTopics').innerHTML=tableHTML(['Tema','Usuarios Gym','Respuestas','Acierto Gym','Practicadas','Dominadas','Dominio','Exámenes','Media examen'],topics.map(x=>[
+    `T${x.topic_number}`,x.gym_users||0,x.gym_attempts||0,x.gym_accuracy_pct==null?'—':`${v69Num(x.gym_accuracy_pct,1)}%`,x.practiced_questions||0,x.mastered_questions||0,x.mastery_pct==null?'—':`${v69Num(x.mastery_pct,1)}%`,x.exam_count||0,x.exam_average==null?'—':`${v69Num(x.exam_average,2)}/10`
+  ]));
+  renderLearningStudents();
+}
+
+function renderGymHeatmap(rows){
+  const box=document.getElementById('gymHeatmap');if(!box)return;
+  const map=new Map(rows.map(x=>[`${x.iso_dow}-${x.local_hour}`,Number(x.responses||0)]));const max=Math.max(1,...map.values());
+  let html='<div class="heatmapGrid"><div></div>'+[...Array(24).keys()].map(h=>`<div class="heatmapHead">${h}</div>`).join('');
+  const days=['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
+  for(let d=1;d<=7;d++){
+    html+=`<div class="heatmapDay">${days[d-1]}</div>`;
+    for(let h=0;h<24;h++){const v=map.get(`${d}-${h}`)||0,alpha=v?(.16+.84*v/max):0;html+=`<div class="heatCell ${v/max>.55?'hot':''}" title="${days[d-1]} ${h}:00 · ${v} respuestas" style="background:${v?`rgba(39,123,220,${alpha.toFixed(2)})`:'#edf3f8'}">${v||''}</div>`}
+  }
+  box.innerHTML=html+'</div>';
+}
+
+function renderLearningStudents(){
+  const body=document.getElementById('learningStudentsBody');if(!body)return;const d=state.learning||{};const rows=d.students||[];
+  body.innerHTML=rows.map(x=>{const r=v69Risk(x,d.alerts),gain=x.knowledge_gain==null?'—':`${Number(x.knowledge_gain)>=0?'+':''}${v69Num(x.knowledge_gain,1)}`;return `<tr class="studentrow" data-student-id="${esc(x.student_id)}">
+    <td><span class="analyticsBadge ${r.cls}" title="${esc(r.label)}">${r.icon}</span></td><td><b>${esc(x.full_name||x.student_code)}</b><div class="subtle">${esc(x.student_code||'')}</div></td>
+    <td>${x.gym_sessions||0} sesiones<br><span class="subtle">${x.gym_answers||0} respuestas</span></td><td>${v69Minutes(x.gym_active_minutes||0)}</td>
+    <td>${x.gym_accuracy_pct==null?'—':v69Num(x.gym_accuracy_pct,1)+'%'}</td><td>${x.gym_mastery_pct==null?'—':v69Num(x.gym_mastery_pct,1)+'%'}</td>
+    <td>${x.exam_passed||0}/${x.exam_count||0}</td><td>${x.exam_average==null?'—':v69Num(x.exam_average,2)+'/10'}</td><td>${gain}</td>
+    <td>#${x.pp_rank||'—'}</td><td>#${x.gym_usage_rank||'—'}</td><td>#${x.gym_mastery_rank||'—'}</td><td><button class="btn primary" onclick="event.stopPropagation();openStudent('${esc(x.student_id)}')">Ficha</button></td></tr>`}).join('')||'<tr><td colspan="13" class="empty">Sin datos.</td></tr>';
+  body.onclick=e=>{const tr=e.target.closest('tr[data-student-id]');if(tr)openStudent(tr.dataset.studentId)};
+}
+
+async function loadStudentLearningAnalytics(sid){
+  const card=document.getElementById('studentLearningCard');if(!card)return;
+  card.style.display='block';document.getElementById('studentLearningMetrics').innerHTML='<div class="card"><span class="loader"></span> Calculando analítica individual…</div>';
+  try{const d=await rpc('cenqal_control_student_learning_v69',{p_token:TOKEN,p_student_id:sid,p_course_id:v69CourseId()});state.studentLearning=d;renderStudentLearningAnalytics()}
+  catch(e){document.getElementById('studentLearningMetrics').innerHTML=`<div class="note danger">${esc(e.message)}</div>`}
+}
+function renderStudentLearningAnalytics(){
+  const d=state.studentLearning||{},s=d.summary||{},topics=d.topics||[],pp=d.pre_post||{};const r=v69Risk(s,d.alerts);
+  document.getElementById('studentLearningMetrics').innerHTML=[
+    metric('🏋️ Gym',s.gym_sessions||0,`${s.gym_answers||0} respuestas`),metric('⏱ Tiempo activo',v69Minutes(s.gym_active_minutes||0),`${s.gym_active_days||0} días distintos`),
+    metric('🎯 Acierto Gym',s.gym_accuracy_pct==null?'—':`${v69Num(s.gym_accuracy_pct,1)}%`,'precisión acumulada'),metric('🧠 Dominio',s.gym_mastery_pct==null?'—':`${v69Num(s.gym_mastery_pct,1)}%`,`${s.gym_mastered_questions||0}/${s.gym_practiced_questions||0}`),
+    metric('🎓 Exámenes',s.exam_average==null?'—':`${v69Num(s.exam_average,2)}/10`,`${s.exam_passed||0}/${s.exam_count||0} superados`),metric('🧭 PRE→POST',s.knowledge_gain==null?'—':`${Number(s.knowledge_gain)>=0?'+':''}${v69Num(s.knowledge_gain,1)}`,'puntos de conocimiento')
+  ].join('');
+  const sig=(r.signals||[]).slice(0,5).map(x=>x.detail||x.title||x.code).filter(Boolean);
+  document.getElementById('studentLearningSignal').innerHTML=`<span class="analyticsBadge ${r.cls}">${r.icon} ${esc(r.label)}</span>${sig.length?` <span class="subtle">${esc(sig.join(' · '))}</span>`:''}`;
+  v69Chart('studentTopic','studentTopicChart',{type:'bar',data:{labels:topics.map(x=>`T${x.topic_number}`),datasets:[
+    {label:'Acierto Gym (%)',data:topics.map(x=>x.gym_accuracy_pct),yAxisID:'y'},
+    {label:'Dominio (%)',data:topics.map(x=>x.mastery_pct),yAxisID:'y'},
+    {label:'Examen',data:topics.map(x=>x.exam_score),type:'line',yAxisID:'y2',tension:.2}
+  ]},options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,max:100},y2:{beginAtZero:true,max:10,position:'right',grid:{drawOnChartArea:false}}}}});
+  const days=['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];const counts=Object.fromEntries(days.map(x=>[x,0]));(d.sessions||[]).forEach(x=>{if(x.day_name in counts)counts[x.day_name]++});
+  v69Chart('studentHabit','studentHabitChart',{type:'bar',data:{labels:days,datasets:[{label:'Sesiones',data:days.map(x=>counts[x])}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}}}});
+  const ranks=`PP #${s.pp_rank||'—'} · uso Gym #${s.gym_usage_rank||'—'} · dominio #${s.gym_mastery_rank||'—'} · mejora #${s.improvement_rank||'—'}`;
+  const pre=pp.pre_knowledge==null?'—':v69Num(pp.pre_knowledge,1)+'%',post=pp.post_knowledge==null?'—':v69Num(pp.post_knowledge,1)+'%';
+  document.getElementById('studentLearningDetail').innerHTML=`<div class="statline"><span><b>Rankings:</b> ${esc(ranks)}</span><span><b>Conocimiento:</b> PRE ${pre} → POST ${post}</span><span><b>Último uso Gym:</b> ${s.last_gym_activity?fmtDate(s.last_gym_activity):'—'}</span></div>`;
+}
+
+function v69Workbook(){if(typeof XLSX==='undefined')throw new Error('La librería Excel no se ha cargado.');return XLSX.utils.book_new()}
+function v69Sheet(rows){return XLSX.utils.json_to_sheet(rows.length?rows:[{sin_datos:''}])}
+function v69AddSheet(wb,name,rows,widths){const ws=v69Sheet(rows);if(widths)ws['!cols']=widths.map(w=>({wch:w}));XLSX.utils.book_append_sheet(wb,ws,name.slice(0,31));}
+function v69AnonMap(students){const m=new Map();[...students].sort((a,b)=>String(a.student_code||'').localeCompare(String(b.student_code||''),'es')).forEach((x,i)=>m.set(String(x.student_code||''),`A${String(i+1).padStart(3,'0')}`));return m}
+function v69AnonRow(row,map){const o={...row},code=String(o.student_code||'');const id=map.get(code)||'ANON';o.student_code=id;if('full_name'in o)o.full_name=id;delete o.student_id;delete o.telegram_user_id;return o}
+function v69Dictionary(){return [
+  {variable:'gym_active_minutes',descripcion:'Tiempo activo estimado. Suma intervalos entre respuestas; cada intervalo se limita a 10 minutos.'},
+  {variable:'gym_gross_minutes',descripcion:'Duración observada entre inicio de sesión y final/última respuesta.'},
+  {variable:'gym_accuracy_pct',descripcion:'Porcentaje de respuestas correctas en el Gym.'},
+  {variable:'gym_mastery_pct',descripcion:'Preguntas dominadas / preguntas practicadas según la lógica del Gym.'},
+  {variable:'gym_active_days',descripcion:'Número de fechas distintas con actividad en el Gym.'},
+  {variable:'knowledge_gain',descripcion:'POST - PRE en conocimiento (%). Solo interpretable cuando existen ambas medidas.'},
+  {variable:'pp_rank',descripcion:'Posición por Puntos de Prestigio. No depende de Oganesones.'},
+  {variable:'gym_usage_rank',descripcion:'Posición docente por tiempo activo estimado en el Gym. No concede puntos.'},
+  {variable:'gym_mastery_rank',descripcion:'Posición docente por porcentaje de dominio. No concede puntos.'},
+  {variable:'improvement_rank',descripcion:'Posición docente por ganancia PRE→POST. Solo informativa.'},
+  {variable:'alert_status',descripcion:'Semáforo docente del motor de alertas CENQAL. No se muestra al alumnado.'}
+]}
+function v69AlertRows(alerts){const a=Array.isArray(alerts?.students)?alerts.students:[];return a.map(x=>({student_code:x.student_code,full_name:x.full_name,group_name:x.group_name,alert_status:x.alert_status,signals:(x.alert_signals||x.signals||[]).map(s=>s.detail||s.title||s.code).filter(Boolean).join(' | ')}))}
+
+async function exportLearningExcel(anonymized=false){
+  try{
+    toast('Preparando Excel…');if(!state.learning)await loadLearning();
+    const raw=await rpc('cenqal_control_learning_export_v69',{p_token:TOKEN,p_course_id:v69CourseId()});state.learningExport=raw;
+    const wb=v69Workbook(),students=raw.students||[],map=v69AnonMap(students),clean=rows=>anonymized?rows.map(x=>v69AnonRow(x,map)):rows;
+    const summary=[
+      {indicador:'Curso',valor:raw.course?.academic_year||''},{indicador:'Asignatura',valor:raw.course?.subject||''},
+      {indicador:'Alumnos',valor:state.learning?.summary?.students||0},{indicador:'Usuarios Gym',valor:state.learning?.summary?.gym_users||0},
+      {indicador:'Sesiones Gym',valor:state.learning?.summary?.gym_sessions||0},{indicador:'Respuestas Gym',valor:state.learning?.summary?.gym_answers||0},
+      {indicador:'Tiempo activo total (min)',valor:state.learning?.summary?.gym_active_minutes||0},{indicador:'Media examen',valor:state.learning?.summary?.exam_average??''},
+      {indicador:'PRE/POST emparejados',valor:state.learning?.pre_post_summary?.paired_count||0},{indicador:'Ganancia PRE→POST media',valor:state.learning?.pre_post_summary?.mean_gain??''},
+      {indicador:'Reducción DE (%)',valor:state.learning?.pre_post_summary?.sd_reduction_pct??''},{indicador:'Reducción IQR (%)',valor:state.learning?.pre_post_summary?.iqr_reduction_pct??''}
+    ];
+    v69AddSheet(wb,'RESUMEN_GRUPO',summary,[34,24]);
+    v69AddSheet(wb,'ALUMNOS',clean(students),Array(30).fill(16));
+    v69AddSheet(wb,'GYM_SESIONES',clean(raw.gym_sessions||[]),Array(24).fill(16));
+    v69AddSheet(wb,'GYM_RESPUESTAS',clean(raw.gym_attempts||[]),Array(20).fill(16));
+    v69AddSheet(wb,'GYM_DOMINIO',clean(raw.gym_mastery||[]),Array(18).fill(16));
+    v69AddSheet(wb,'GYM_HORARIOS',state.learning?.heatmap||[],Array(10).fill(15));
+    v69AddSheet(wb,'GYM_TEMAS',state.learning?.topics||[],Array(12).fill(16));
+    v69AddSheet(wb,'EXAMENES',clean(raw.exams||[]),Array(20).fill(16));
+    v69AddSheet(wb,'GYM_EXAMEN',clean(state.learning?.exam_gym||[]),Array(20).fill(18));
+    v69AddSheet(wb,'PRE_POST',clean(raw.pre_post||[]),Array(26).fill(17));
+    let alerts=v69AlertRows(state.learning?.alerts);if(anonymized)alerts=alerts.map(x=>v69AnonRow(x,map));v69AddSheet(wb,'SEMAFORO',alerts,Array(8).fill(20));
+    v69AddSheet(wb,'RANKINGS',clean(students.map(x=>({student_code:x.student_code,full_name:x.full_name,pp_total:x.pp_total,pp_rank:x.pp_rank,gym_active_minutes:x.gym_active_minutes,gym_usage_rank:x.gym_usage_rank,gym_mastery_pct:x.gym_mastery_pct,gym_mastery_rank:x.gym_mastery_rank,knowledge_gain:x.knowledge_gain,improvement_rank:x.improvement_rank}))),Array(12).fill(18));
+    v69AddSheet(wb,'DICCIONARIO',v69Dictionary(),[24,70]);
+    const year=String(raw.course?.academic_year||'curso').replace(/[^0-9A-Za-z_-]+/g,'_');XLSX.writeFile(wb,`CENQAL_Learning_Analytics_${year}${anonymized?'_ANON':''}.xlsx`);
+    toast('Excel generado.');
+  }catch(e){toast(e.message||'No se pudo generar el Excel.',true)}
+}
+
+function exportStudentLearningExcel(){
+  try{
+    const d=state.studentLearning;if(!d)return toast('Carga primero la ficha analítica.',true);const wb=v69Workbook(),s=d.student||{},sum=d.summary||{};
+    v69AddSheet(wb,'RESUMEN',[{alumno:s.full_name,codigo:s.student_code,grupo:s.group_name,...sum}],[26,22,18,...Array(30).fill(16)]);
+    v69AddSheet(wb,'TEMAS',d.topics||[],Array(12).fill(17));v69AddSheet(wb,'SESIONES_GYM',d.sessions||[],Array(22).fill(17));v69AddSheet(wb,'EXAMENES',d.exams||[],Array(18).fill(17));v69AddSheet(wb,'PRE_POST',[d.pre_post||{}],Array(24).fill(18));v69AddSheet(wb,'DICCIONARIO',v69Dictionary(),[24,70]);
+    XLSX.writeFile(wb,`CENQAL_${String(s.student_code||'alumno').replace(/[^0-9A-Za-z_-]+/g,'_')}_Learning_Analytics.xlsx`);
+  }catch(e){toast(e.message||'No se pudo exportar el alumno.',true)}
+}
+
+
 /* =========================================================
    LANZAR
 ========================================================= */
@@ -3360,3 +3690,4 @@ boot();
 
 </body>
 </html>
+
