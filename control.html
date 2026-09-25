@@ -224,6 +224,34 @@ details.card>.detailBody{padding:0 16px 16px}
 @media(max-width:980px){.analyticsKpis{grid-template-columns:repeat(3,minmax(0,1fr))}.analyticsGrid{grid-template-columns:1fr}.analyticsWide{grid-column:auto}}
 @media(max-width:620px){.analyticsKpis{grid-template-columns:repeat(2,minmax(0,1fr))}.analyticsChart{min-height:290px}.analyticsChart canvas{height:270px!important}}
 
+
+/* CENQAL v69.2 · Evaluación inicial dentro de Learning Analytics */
+.initialAssessmentCard{margin-bottom:14px}
+.initialAssessmentGrid{display:grid;grid-template-columns:1.15fr 1fr;gap:14px;margin-top:12px}
+.initialAssessmentMetrics{grid-template-columns:repeat(4,minmax(0,1fr));margin:12px 0}
+.iaBars{display:grid;gap:9px}
+.iaBarRow{display:grid;grid-template-columns:minmax(145px,1.7fr) 2.3fr 58px;gap:9px;align-items:center;font-size:12px}
+.iaBarLabel{color:var(--ink);line-height:1.2}
+.iaTrack{height:10px;border-radius:999px;background:#edf3f8;overflow:hidden}
+.iaFill{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--blue),var(--green))}
+.iaFill.warn{background:linear-gradient(90deg,var(--amber),#f0c35f)}
+.iaFill.bad{background:linear-gradient(90deg,var(--red),#ef8a8a)}
+.iaValue{text-align:right;font-weight:800;color:var(--navy)}
+.iaCallouts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.iaCallout{border:1px solid var(--line);border-radius:12px;padding:12px;background:#f8fbff;font-size:13px}
+.iaCallout b{display:block;color:var(--navy);margin-bottom:5px}
+.iaMiniList{display:grid;gap:7px}
+.iaMiniRow{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid var(--line);padding:7px 0;font-size:13px}
+.iaMiniRow:last-child{border-bottom:0}
+@media(max-width:900px){
+  .initialAssessmentGrid{grid-template-columns:1fr}
+  .initialAssessmentMetrics{grid-template-columns:1fr 1fr}
+}
+@media(max-width:520px){
+  .initialAssessmentMetrics,.iaCallouts{grid-template-columns:1fr}
+  .iaBarRow{grid-template-columns:1fr 1.6fr 52px}
+}
+
 </style>
 </head>
 
@@ -417,6 +445,37 @@ details.card>.detailBody{padding:0 16px 16px}
       </div>
       <div class="note warn" style="margin-bottom:14px">Las asociaciones entre uso del Gym y resultados son descriptivas: ayudan a observar patrones, pero no demuestran causalidad. El tiempo activo es una estimación basada en los intervalos entre respuestas.</div>
       <div class="metrics grid analyticsKpis" id="learningMetrics"><div class="card"><span class="loader"></span> Calculando analítica…</div></div>
+
+      <div class="card initialAssessmentCard">
+        <div class="sectionTitle">
+          <div>
+            <h3>📋 Evaluación inicial · línea base PRE</h3>
+            <p>Conocimientos previos, pensamiento científico, hábitos de aprendizaje, gamificación, tecnología, IA y colaboración.</p>
+          </div>
+          <span class="subtle">Google Forms → Supabase → CENQAL</span>
+        </div>
+        <div class="metrics grid initialAssessmentMetrics" id="initialAssessmentMetrics">
+          <div class="card"><span class="loader"></span> Cargando evaluación inicial…</div>
+        </div>
+        <div class="initialAssessmentGrid">
+          <div>
+            <div class="sectionTitle"><h3>🧪 Conocimiento por pregunta</h3><span class="subtle">12 conceptos nucleares</span></div>
+            <div id="initialKnowledgeBars" class="iaBars"></div>
+          </div>
+          <div>
+            <div class="sectionTitle"><h3>🧭 Perfil inicial del grupo</h3><span class="subtle">media 1–5</span></div>
+            <div id="initialDomainBars" class="iaBars"></div>
+            <div id="initialFrequency" style="margin-top:14px"></div>
+          </div>
+        </div>
+        <div class="iaCallouts">
+          <div class="iaCallout" id="initialStrengths"><b>✅ Fortalezas iniciales</b><span class="subtle">Calculando…</span></div>
+          <div class="iaCallout" id="initialAttention"><b>🎯 Puntos de atención</b><span class="subtle">Calculando…</span></div>
+        </div>
+        <div class="note" id="initialAssessmentNote" style="margin-top:12px">
+          El POST se comparará con esta línea base al final del curso. La comparación pareada se realizará por código CENQAL.
+        </div>
+      </div>
 
       <div class="analyticsGrid">
         <div class="card analyticsChart analyticsWide">
@@ -3517,21 +3576,51 @@ function v69Spearman(xs,ys){
   return {rho:dx&&dy?num/Math.sqrt(dx*dy):null,n:pairs.length};
 }
 
+async async function loadInitialAssessmentV692(force=false){
+  if(state.initialAssessment&&!force)return state.initialAssessment;
+  try{
+    const d=await rpc('cenqal_control_initial_assessment',{p_token:TOKEN,p_course_id:v69CourseId()});
+    state.initialAssessment=d;
+    return d;
+  }catch(e){
+    state.initialAssessment={_error:e.message||String(e)};
+    return state.initialAssessment;
+  }
+}
+
 async function loadLearning(force=false){
-  if(state.learning&&!force){renderLearning();return state.learning}
-  const box=document.getElementById('learningMetrics');if(box)box.innerHTML='<div class="card"><span class="loader"></span> Calculando Learning Analytics…</div>';
+  if(state.learning&&!force){
+    await loadInitialAssessmentV692(false);
+    renderLearning();
+    renderInitialAssessmentV692();
+    return state.learning;
+  }
+  const box=document.getElementById('learningMetrics');
+  if(box)box.innerHTML='<div class="card"><span class="loader"></span> Calculando Learning Analytics…</div>';
   try{
     const d=await rpc('cenqal_control_learning_analytics_v69',{p_token:TOKEN,p_course_id:v69CourseId()});
-    state.learning=d;renderLearning();return d;
-  }catch(e){if(box)box.innerHTML=`<div class="card note danger">${esc(e.message)}</div>`;toast('No se pudo cargar Learning Analytics. Comprueba el SQL v69.',true);throw e}
+    state.learning=d;
+    await loadInitialAssessmentV692(force);
+    renderLearning();
+    renderInitialAssessmentV692();
+    return d;
+  }catch(e){
+    if(box)box.innerHTML=`<div class="card note danger">${esc(e.message)}</div>`;
+    toast('No se pudo cargar Learning Analytics. Comprueba el SQL v69.',true);
+    throw e;
+  }
 }
 
 function renderLearning(){
   const d=state.learning||{},sum=d.summary||{},students=d.students||[],topics=d.topics||[];
   const risks={red:0,yellow:0,green:0,gray:0};students.forEach(x=>risks[v69Risk(x,d.alerts).cls]++);
   const prepostRows=Array.isArray(d.pre_post)?d.pre_post:[];
-  const preVals=prepostRows.map(x=>Number(x.pre_knowledge)).filter(Number.isFinite);
-  const postVals=prepostRows.map(x=>Number(x.post_knowledge)).filter(Number.isFinite);
+  const validNums=(rows,key)=>rows
+    .filter(x=>x&&x[key]!==null&&x[key]!==undefined&&x[key]!=='')
+    .map(x=>Number(x[key]))
+    .filter(Number.isFinite);
+  const preVals=validNums(prepostRows,'pre_knowledge');
+  const postVals=validNums(prepostRows,'post_knowledge');
   const avg=a=>a.length?a.reduce((s,v)=>s+v,0)/a.length:null;
   const preMeanAll=avg(preVals),postMeanAll=avg(postVals);
   const paired=d.pre_post_summary?.paired_count||0;
@@ -3580,6 +3669,139 @@ function renderLearning(){
     `T${x.topic_number}`,x.gym_users||0,x.gym_attempts||0,x.gym_accuracy_pct==null?'—':`${v69Num(x.gym_accuracy_pct,1)}%`,x.practiced_questions||0,x.mastered_questions||0,x.mastery_pct==null?'—':`${v69Num(x.mastery_pct,1)}%`,x.exam_count||0,x.exam_average==null?'—':`${v69Num(x.exam_average,2)}/10`
   ]));
   renderLearningStudents();
+}
+
+
+function v692Mean(rows,key){
+  const vals=(rows||[])
+    .filter(x=>x&&x[key]!==null&&x[key]!==undefined&&x[key]!=='')
+    .map(x=>Number(x[key]))
+    .filter(Number.isFinite);
+  return vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:null;
+}
+
+function v692Bar(label,value,max=100){
+  const n=Number(value);
+  const pct=Number.isFinite(n)?Math.max(0,Math.min(100,100*n/max)):0;
+  const cls=pct<50?'bad':pct<70?'warn':'';
+  const shown=Number.isFinite(n)?(max===5?v69Num(n,2)+'/5':v69Num(n,1)+'%'):'—';
+  return `<div class="iaBarRow">
+    <div class="iaBarLabel">${esc(label)}</div>
+    <div class="iaTrack"><span class="iaFill ${cls}" style="width:${pct}%"></span></div>
+    <div class="iaValue">${shown}</div>
+  </div>`;
+}
+
+function renderInitialAssessmentV692(){
+  const box=document.getElementById('initialAssessmentMetrics');
+  if(!box)return;
+
+  const ia=state.initialAssessment||{};
+  const rows=Array.isArray(ia.responses)?ia.responses:[];
+  const learning=state.learning||{};
+  const enrolled=Number(learning.summary?.students||learning.students?.length||0);
+  const answered=rows.length;
+  const pending=Math.max(0,enrolled-answered);
+
+  // Fallback: si el RPC específico no existe, al menos mostramos la línea base
+  // que ya llega en Learning Analytics.
+  if(ia._error){
+    const pp=Array.isArray(learning.pre_post)?learning.pre_post:[];
+    const pre=pp.filter(x=>x&&x.pre_knowledge!==null&&x.pre_knowledge!==undefined&&x.pre_knowledge!=='');
+    const preMean=pre.length?pre.reduce((s,x)=>s+Number(x.pre_knowledge||0),0)/pre.length:null;
+    box.innerHTML=[
+      metric('📝 Respuestas PRE',pre.length,enrolled?`de ${enrolled} alumnos`:'recibidas'),
+      metric('⏳ Pendientes',Math.max(0,enrolled-pre.length),enrolled?'sin respuesta PRE':'—'),
+      metric('🧪 Conocimiento',preMean==null?'—':`${v69Num(preMean,1)}%`,'línea base disponible'),
+      metric('🔎 Detalle', '—','falta RPC de evaluación inicial')
+    ].join('');
+    document.getElementById('initialKnowledgeBars').innerHTML='<div class="note warn">La línea base PRE está conectada, pero para mostrar el desglose por pregunta debe estar instalado <b>cenqal_control_initial_assessment</b>.</div>';
+    document.getElementById('initialDomainBars').innerHTML='';
+    document.getElementById('initialFrequency').innerHTML='';
+    document.getElementById('initialStrengths').innerHTML='<b>✅ Fortalezas iniciales</b><span class="subtle">El desglose detallado se activará al cargar el RPC de evaluación inicial.</span>';
+    document.getElementById('initialAttention').innerHTML='<b>🎯 Puntos de atención</b><span class="subtle">La línea base general sí está disponible.</span>';
+    document.getElementById('initialAssessmentNote').innerHTML='PRE conectado. Detalle no disponible: '+esc(ia._error);
+    return;
+  }
+
+  const knowledge=v692Mean(rows,'knowledge_pct');
+  const scientific=v692Mean(rows,'scientific_pct');
+
+  box.innerHTML=[
+    metric('📝 Respuestas PRE',answered,enrolled?`de ${enrolled} alumnos · ${enrolled?Math.round(100*answered/enrolled):0}%`:'recibidas'),
+    metric('⏳ Pendientes',pending,pending?'aún sin PRE':'grupo completo'),
+    metric('🧪 Conocimiento',knowledge==null?'—':`${v69Num(knowledge,1)}%`,'12 conceptos nucleares'),
+    metric('🔎 Pensamiento crítico',scientific==null?'—':`${v69Num(scientific,1)}%`,'3 decisiones científicas')
+  ].join('');
+
+  const labels=[
+    'Agua · puentes H',
+    'Actividad de agua',
+    'Almidón',
+    'Desnaturalización',
+    'Oxidación lipídica',
+    'Catálisis enzimática',
+    'Disolución–coloide–suspensión',
+    'pH',
+    'Refrigeración',
+    'Termodinámica / cinética',
+    'Oxidación · electrones',
+    'Mayonesa / emulsión'
+  ];
+  const rates=Array.isArray(ia.question_success)?ia.question_success:[];
+  document.getElementById('initialKnowledgeBars').innerHTML=rates.length
+    ?rates.map((v,i)=>v692Bar(labels[i]||`Pregunta ${i+1}`,v,100)).join('')
+    :'<div class="note">No hay resultados por pregunta todavía.</div>';
+
+  const domains=[
+    ['Autorregulación','self_regulation'],
+    ['Aprendizaje activo','active_learning'],
+    ['Gamificación','gamification'],
+    ['Tecnología educativa','technology'],
+    ['Uso crítico de IA','ai_literacy'],
+    ['Colaboración','collaboration']
+  ];
+  document.getElementById('initialDomainBars').innerHTML=
+    domains.map(([label,key])=>v692Bar(label,v692Mean(rows,key),5)).join('');
+
+  const freq={};
+  rows.forEach(x=>{
+    const k=String(x.ai_frequency||'Sin respuesta').trim()||'Sin respuesta';
+    freq[k]=(freq[k]||0)+1;
+  });
+  document.getElementById('initialFrequency').innerHTML=
+    `<div class="sectionTitle"><h3>🤖 Frecuencia de uso de IA</h3><span class="subtle">PRE</span></div>
+     <div class="iaMiniList">${
+       Object.entries(freq).sort((a,b)=>b[1]-a[1]).map(([k,v])=>
+         `<div class="iaMiniRow"><span>${esc(k)}</span><b>${v}</b></div>`
+       ).join('')||'<div class="note">Sin datos.</div>'
+     }</div>`;
+
+  const ranked=rates.map((v,i)=>({i,v:Number(v)})).filter(x=>Number.isFinite(x.v)).sort((a,b)=>b.v-a.v);
+  const strong=ranked.slice(0,3);
+  const weak=[...ranked].sort((a,b)=>a.v-b.v).slice(0,3);
+  document.getElementById('initialStrengths').innerHTML=
+    `<b>✅ Fortalezas iniciales</b>${
+      strong.length
+        ?strong.map(x=>`<div>${esc(labels[x.i]||`Pregunta ${x.i+1}`)} · <strong>${v69Num(x.v,1)}%</strong></div>`).join('')
+        :'<span class="subtle">Sin datos suficientes.</span>'
+    }`;
+  document.getElementById('initialAttention').innerHTML=
+    `<b>🎯 Puntos de atención</b>${
+      weak.length
+        ?weak.map(x=>`<div>${esc(labels[x.i]||`Pregunta ${x.i+1}`)} · <strong>${v69Num(x.v,1)}%</strong></div>`).join('')
+        :'<span class="subtle">Sin datos suficientes.</span>'
+    }`;
+
+  const alertCounts={};
+  rows.flatMap(x=>Array.isArray(x.alerts)?x.alerts:[]).forEach(a=>alertCounts[a]=(alertCounts[a]||0)+1);
+  const alertText=Object.entries(alertCounts).sort((a,b)=>b[1]-a[1]).slice(0,4)
+    .map(([a,n])=>`${esc(a)} (${n})`).join(' · ');
+
+  document.getElementById('initialAssessmentNote').innerHTML=
+    `Línea base PRE: <b>${answered}</b> respuestas de <b>${enrolled||'—'}</b> alumnos. `+
+    `El POST se comparará por código CENQAL para medir ganancia y cambio de dispersión.`+
+    (alertText?`<br><span class="subtle">Señales iniciales más frecuentes: ${alertText}</span>`:'');
 }
 
 function renderGymHeatmap(rows){
