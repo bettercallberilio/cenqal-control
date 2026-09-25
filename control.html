@@ -252,6 +252,119 @@ details.card>.detailBody{padding:0 16px 16px}
   .iaBarRow{grid-template-columns:1fr 1.6fr 52px}
 }
 
+
+/* =========================================================
+   CENQAL v70 · IDENTIDAD QUÍMICA / AVATAR
+========================================================= */
+.v70IdentityCard{
+  width:min(100%,390px);
+  aspect-ratio:1/1;
+  margin:16px auto;
+  border-radius:28px;
+  padding:18px;
+  position:relative;
+  overflow:hidden;
+  color:#fff;
+  box-shadow:0 18px 45px rgba(6,29,55,.24);
+  border:3px solid var(--v70-accent,#F4C95D);
+  background:
+    radial-gradient(circle at 85% 12%,rgba(255,255,255,.22),transparent 24%),
+    radial-gradient(circle at 10% 85%,rgba(255,255,255,.16),transparent 30%),
+    linear-gradient(145deg,var(--v70-primary,#0D9488),var(--v70-secondary,#14B8A6));
+}
+.v70IdentityCard:before{
+  content:"";
+  position:absolute;
+  inset:0;
+  background:
+    linear-gradient(120deg,transparent 0 43%,rgba(255,255,255,.11) 44% 46%,transparent 47% 100%);
+  pointer-events:none;
+}
+.v70IdentityTop{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  position:relative;
+  z-index:2;
+}
+.v70Atomic{
+  font-size:48px;
+  line-height:1;
+  font-weight:950;
+  color:var(--v70-accent,#F4C95D);
+  text-shadow:0 2px 10px rgba(0,0,0,.18);
+}
+.v70Brand{
+  font-size:15px;
+  font-weight:900;
+  letter-spacing:.15em;
+  opacity:.9;
+}
+.v70Symbol{
+  position:relative;
+  z-index:2;
+  text-align:center;
+  margin-top:18px;
+  font-size:116px;
+  line-height:.92;
+  font-weight:1000;
+  letter-spacing:-.06em;
+  color:#fff;
+  text-shadow:0 8px 22px rgba(0,0,0,.22);
+}
+.v70Element{
+  position:relative;
+  z-index:2;
+  text-align:center;
+  margin-top:8px;
+  font-size:23px;
+  font-weight:950;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  color:var(--v70-accent,#F4C95D);
+}
+.v70Alias{
+  position:absolute;
+  z-index:2;
+  left:18px;
+  right:18px;
+  bottom:18px;
+  min-height:70px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:10px 16px;
+  border-radius:18px;
+  border:1px solid rgba(255,255,255,.25);
+  background:rgba(3,24,48,.38);
+  backdrop-filter:blur(7px);
+  font-size:34px;
+  font-weight:900;
+  font-style:italic;
+  letter-spacing:.02em;
+}
+.v70IdentityMeta{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+  margin:12px 0 4px;
+}
+.v70MetaBox{
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:10px 12px;
+  background:#f8fbff;
+  font-size:12px;
+}
+.v70MetaBox b{display:block;color:var(--navy);margin-bottom:4px}
+@media(max-width:520px){
+  .v70IdentityCard{max-width:330px;border-radius:24px}
+  .v70Atomic{font-size:40px}
+  .v70Symbol{font-size:96px}
+  .v70Alias{font-size:29px}
+  .v70IdentityMeta{grid-template-columns:1fr}
+}
+
 </style>
 </head>
 
@@ -3403,6 +3516,74 @@ async function enrollExistingStudent(){
    CREAR ALUMNO NUEVO
 ========================================================= */
 
+function v70IdentityCardHTML(i){
+  const colors=i?.colors||{};
+  const primary=colors.primary||'#0D9488';
+  const secondary=colors.secondary||'#14B8A6';
+  const accent=colors.accent||'#F4C95D';
+
+  return `
+    <div
+      class="v70IdentityCard"
+      style="
+        --v70-primary:${esc(primary)};
+        --v70-secondary:${esc(secondary)};
+        --v70-accent:${esc(accent)};
+      ">
+      <div class="v70IdentityTop">
+        <div class="v70Atomic">${esc(i?.atomic_number??'—')}</div>
+        <div class="v70Brand">CENQAL ⚛️</div>
+      </div>
+
+      <div class="v70Symbol">${esc(i?.symbol||'—')}</div>
+
+      <div class="v70Element">${esc(i?.element||'Elemento')}</div>
+
+      <div class="v70Alias">${esc(i?.alias||'Identidad CENQAL')}</div>
+    </div>
+  `;
+}
+
+async function v70FindCreatedStudentId(result,code){
+  let sid=
+    result?.student_id||
+    result?.id||
+    result?.student?.id||
+    null;
+
+  if(sid)return sid;
+
+  try{
+    const d=await rpc(
+      'cenqal_control_student_catalog',
+      {p_token:TOKEN}
+    );
+
+    const target=
+      String(
+        result?.student_code||
+        code||
+        ''
+      ).trim().toUpperCase();
+
+    const found=(d.rows||[]).find(
+      x=>
+        String(x.student_code||'')
+          .trim()
+          .toUpperCase()===target
+    );
+
+    return found?.student_id||found?.id||null;
+
+  }catch(e){
+    console.warn(
+      'No se pudo resolver student_id tras el alta:',
+      e
+    );
+    return null;
+  }
+}
+
 function newStudent(){
 
   modal(`
@@ -3410,7 +3591,11 @@ function newStudent(){
 
     <div class="note">
       Se creará una identidad nueva en CENQAL y se matriculará
-      automáticamente en el curso que esté seleccionado.
+      automáticamente en el curso seleccionado.
+      <br><br>
+      ⚛️ CENQAL también asignará un <b>elemento único</b>,
+      un <b>alias</b> y una <b>casilla-avatar de color</b>.
+      El nombre químico oficial del elemento no cambia.
     </div>
 
     <div class="formgrid" style="margin-top:14px">
@@ -3433,13 +3618,26 @@ function newStudent(){
       <div class="field">
         <label>Grupo</label>
         <input id="newStGroup"
-               placeholder="Si se deja vacío, usará el grupo del curso">
+               placeholder="Vacío = grupo del curso">
       </div>
 
       <div class="field">
         <label>Código de alumno</label>
         <input id="newStCode"
                placeholder="Vacío = CENQAL lo genera">
+      </div>
+
+      <div class="field full">
+        <label>Forma del alias CENQAL</label>
+        <select id="newStAliasStyle">
+          <option value="n" selected>Neutra</option>
+          <option value="f">Femenina</option>
+          <option value="m">Masculina</option>
+        </select>
+        <div class="subtle" style="margin-top:6px">
+          Solo adapta el alias del avatar.
+          El elemento conservará siempre su nombre químico correcto.
+        </div>
       </div>
 
     </div>
@@ -3472,10 +3670,23 @@ function newStudent(){
     const code=
       document.getElementById('newStCode').value.trim();
 
+    const aliasStyle=
+      document.getElementById('newStAliasStyle').value||'n';
+
     if(!first || !last){
-      toast('Nombre y apellidos son obligatorios.',true);
+      toast(
+        'Nombre y apellidos son obligatorios.',
+        true
+      );
       return;
     }
+
+    const styleLabel=
+      aliasStyle==='f'
+        ?'Femenina'
+        :aliasStyle==='m'
+          ?'Masculina'
+          :'Neutra';
 
     confirmModal({
       title:'Confirmar nuevo alumno',
@@ -3488,9 +3699,12 @@ function newStudent(){
         Grupo: ${esc(group||'grupo del curso')}
         <br>
         Código: ${esc(code||'generado automáticamente')}
+        <br>
+        Alias CENQAL: <b>${esc(styleLabel)}</b>
         <br><br>
-        Se creará una identidad nueva y se matriculará
-        en el curso seleccionado.
+        Se creará el alumno, se matriculará y después
+        CENQAL le asignará automáticamente un elemento
+        disponible, su alias y los colores de su avatar.
       `,
 
       phrase:'CREAR ALUMNO',
@@ -3513,6 +3727,47 @@ function newStudent(){
           }
         );
 
+        const finalCode=
+          result?.student_code||
+          code||
+          '—';
+
+        let identity=null;
+        let identityError=null;
+
+        try{
+
+          const studentId=
+            await v70FindCreatedStudentId(
+              result,
+              finalCode
+            );
+
+          if(!studentId){
+            throw new Error(
+              'El alumno se creó, pero no se pudo localizar su ID para asignarle identidad.'
+            );
+          }
+
+          identity=await rpc(
+            'cenqal_control_assign_identity_v70',
+            {
+              p_token:TOKEN,
+              p_student_id:studentId,
+              p_alias_style:aliasStyle
+            }
+          );
+
+        }catch(e){
+          identityError=
+            e?.message||
+            String(e);
+          console.error(
+            'CENQAL v70 identidad:',
+            e
+          );
+        }
+
         state.students=[];
         state.progress=null;
         state.deliveries=null;
@@ -3520,8 +3775,83 @@ function newStudent(){
         await refreshSnapshot();
         await loadStudents(true);
 
+        if(!identity){
+
+          modal(`
+            <h3>✅ Alumno creado</h3>
+
+            <div class="note">
+              Código CENQAL:
+              <b>${esc(finalCode)}</b>
+            </div>
+
+            <div class="note danger" style="margin-top:12px">
+              El alta se ha realizado, pero la identidad química
+              no pudo asignarse todavía.
+              <br><br>
+              ${esc(identityError||'Error desconocido')}
+            </div>
+
+            <div class="modalFooter">
+              <button class="btn primary" onclick="closeModal()">
+                Cerrar
+              </button>
+            </div>
+          `);
+
+          return;
+        }
+
+        modal(`
+          <h3>⚛️ Identidad CENQAL creada</h3>
+
+          <div class="note">
+            Alumno:
+            <b>${esc(first)} ${esc(last)}</b>
+            <br>
+            Código:
+            <b>${esc(finalCode)}</b>
+          </div>
+
+          ${v70IdentityCardHTML(identity)}
+
+          <div class="v70IdentityMeta">
+            <div class="v70MetaBox">
+              <b>Familia química</b>
+              ${esc(identity.family||'—')}
+            </div>
+
+            <div class="v70MetaBox">
+              <b>Estado</b>
+              ${esc(identity.state||'—')}
+            </div>
+          </div>
+
+          <div class="note" style="margin-top:10px">
+            <b>🧪 Propiedad</b><br>
+            ${esc(identity.fact||'—')}
+          </div>
+
+          <div class="note" style="margin-top:10px">
+            <b>✨ Curiosidad</b><br>
+            ${esc(identity.curiosity||'—')}
+          </div>
+
+          <div class="note good" style="margin-top:10px">
+            Cuando el alumno entre en Berilio deberá escribir:
+            <br><br>
+            <b>/registrarme ${esc(finalCode)}</b>
+          </div>
+
+          <div class="modalFooter">
+            <button class="btn primary" onclick="closeModal()">
+              Perfecto
+            </button>
+          </div>
+        `);
+
         toast(
-          `Alumno creado · código ${result.student_code}`
+          `Alumno creado · ${finalCode} · ${identity.alias} · ${identity.symbol}`
         );
       }
     });
@@ -3576,7 +3906,7 @@ function v69Spearman(xs,ys){
   return {rho:dx&&dy?num/Math.sqrt(dx*dy):null,n:pairs.length};
 }
 
-async async function loadInitialAssessmentV692(force=false){
+async function loadInitialAssessmentV692(force=false){
   if(state.initialAssessment&&!force)return state.initialAssessment;
   try{
     const d=await rpc('cenqal_control_initial_assessment',{p_token:TOKEN,p_course_id:v69CourseId()});
