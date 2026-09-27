@@ -4,6 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>CENQAL Control</title>
+<meta name="CENQAL_CONTROL_BUILD" content="v70.3">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#0c3f82">
 <link rel="apple-touch-icon" href="./cenqal-apple-touch-icon.png">
@@ -365,6 +366,40 @@ details.card>.detailBody{padding:0 16px 16px}
   .v70IdentityMeta{grid-template-columns:1fr}
 }
 
+
+/* =========================================================
+   CENQAL v70.3 · AGENDA DOCENTE
+========================================================= */
+.teacherAgendaHome{margin-bottom:14px;border-left:5px solid #e9a23b}
+.teacherAgendaTop{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.teacherAgendaCount{font-size:34px;font-weight:950;color:var(--navy)}
+.teacherAgendaList{display:grid;gap:9px;margin-top:12px}
+.teacherTask{
+  display:grid;grid-template-columns:12px 1fr auto;gap:10px;align-items:center;
+  border:1px solid var(--line);border-radius:13px;padding:11px 12px;background:#fff
+}
+.teacherTaskDot{width:10px;height:10px;border-radius:50%;background:#94a3b8}
+.teacherTask.urgent .teacherTaskDot{background:#dc2626}
+.teacherTask.high .teacherTaskDot{background:#f59e0b}
+.teacherTask.normal .teacherTaskDot{background:#0ea5e9}
+.teacherTask.low .teacherTaskDot{background:#94a3b8}
+.teacherTask.overdue{border-color:#f1aaaa;background:#fff8f8}
+.teacherTaskTitle{font-weight:850;color:var(--navy)}
+.teacherTaskMeta{font-size:12px;color:#6b7f95;margin-top:3px}
+.teacherTaskActions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.teacherAgendaFilters{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.teacherAgendaFilters button.active{background:var(--navy);color:#fff}
+.teacherAgendaEmpty{padding:22px;text-align:center;color:#6b7f95}
+.teacherAutoBadge,.teacherManualBadge{
+  display:inline-flex;align-items:center;border-radius:999px;padding:3px 8px;font-size:11px;font-weight:800;margin-left:6px
+}
+.teacherAutoBadge{background:#e8f4ff;color:#1260a8}
+.teacherManualBadge{background:#f2eafe;color:#6d35a6}
+@media(max-width:700px){
+  .teacherTask{grid-template-columns:10px 1fr}
+  .teacherTaskActions{grid-column:2;justify-content:flex-start}
+}
+
 </style>
 </head>
 
@@ -411,12 +446,13 @@ details.card>.detailBody{padding:0 16px 16px}
       <div class="brandmark"></div>
       <div>
         <h1>CENQAL Control</h1>
-        <small>Panel docente seguro · v69.0</small>
+        <small>Panel docente seguro · v70.3</small>
       </div>
     </div>
 
     <nav class="nav" id="nav">
       <button data-view="home" class="active">🏠 Inicio</button>
+      <button data-view="agenda">📌 Mis pendientes</button>
       <button data-view="course">🎓 Curso</button>
       <button data-view="students">👥 Alumnos</button>
       <button data-view="progress">📈 Progreso</button>
@@ -458,6 +494,22 @@ details.card>.detailBody{padding:0 16px 16px}
 
     <section class="view active" id="view-home">
 
+      <div class="card teacherAgendaHome">
+        <div class="teacherAgendaTop">
+          <div>
+            <div class="subtle">👩‍🏫 HOY EN CENQAL</div>
+            <div><span class="teacherAgendaCount" id="teacherAgendaHomeCount">—</span> <b>acciones pendientes</b></div>
+          </div>
+          <div class="actions">
+            <button class="btn primary" onclick="go('agenda')">📌 Ver pendientes</button>
+            <button class="btn" onclick="newTeacherTask()">＋ Nueva tarea</button>
+          </div>
+        </div>
+        <div id="teacherAgendaHomeList" class="teacherAgendaList">
+          <div class="subtle"><span class="loader"></span> Revisando pendientes…</div>
+        </div>
+      </div>
+
       <div class="metrics grid" id="metrics">
         <div class="card">
           <span class="loader"></span> Cargando…
@@ -498,6 +550,41 @@ details.card>.detailBody{padding:0 16px 16px}
       </div>
 
     </section>
+
+    <section class="view" id="view-agenda">
+      <div class="viewHeader">
+        <div>
+          <h2>📌 Agenda docente · Mis pendientes</h2>
+          <p>Reúne automáticamente correcciones, revisiones y próximos hitos, junto con tus propias tareas.</p>
+        </div>
+        <div class="actions">
+          <button class="btn primary" onclick="newTeacherTask()">＋ Nueva tarea</button>
+          <button class="btn" onclick="loadTeacherAgenda(true)">↻ Actualizar</button>
+        </div>
+      </div>
+
+      <div class="note" style="margin-bottom:14px">
+        Los pendientes automáticos desaparecen cuando resuelves su origen: por ejemplo, al validar una aportación o corregir un portfolio.
+        Las tareas creadas por ti se marcan manualmente como hechas.
+      </div>
+
+      <div class="metrics grid" id="teacherAgendaMetrics"></div>
+
+      <div class="teacherAgendaFilters">
+        <button class="btn active" data-agenda-filter="open" onclick="setTeacherAgendaFilter('open',this)">Pendientes</button>
+        <button class="btn" data-agenda-filter="today" onclick="setTeacherAgendaFilter('today',this)">Hoy / vencidas</button>
+        <button class="btn" data-agenda-filter="week" onclick="setTeacherAgendaFilter('week',this)">Esta semana</button>
+        <button class="btn" data-agenda-filter="all" onclick="setTeacherAgendaFilter('all',this)">Todas</button>
+        <button class="btn" data-agenda-filter="done" onclick="setTeacherAgendaFilter('done',this)">Completadas</button>
+      </div>
+
+      <div class="card">
+        <div id="teacherAgendaList" class="teacherAgendaList">
+          <div class="teacherAgendaEmpty"><span class="loader"></span> Revisando tareas…</div>
+        </div>
+      </div>
+    </section>
+
         <section class="view" id="view-course">
       <div class="viewHeader"><div><h2>🎓 Configuración del curso</h2><p>Datos que pueden cambiar de un curso a otro.</p></div></div>
       <div class="card"><form id="courseForm" class="formgrid">
@@ -792,6 +879,9 @@ let state={
   selectedCourseId:null,
   progress:null,
   deliveries:null,
+  teacherTasks:null,
+  teacherAgenda:null,
+  teacherAgendaFilter:'open',
   learning:null,
   learningExport:null,
   studentLearning:null,
@@ -1220,6 +1310,7 @@ function go(name){
     `.nav button[data-view="${name}"]`
   )?.classList.add('active');
 
+  if(name==='agenda')loadTeacherAgenda();
   if(name==='students')loadStudents();
   if(name==='progress')loadProgress();
   if(name==='learning')loadLearning();
@@ -1375,6 +1466,8 @@ function clearCourseScopedState(){
   state.selectedCourseId=null;
   state.progress=null;
   state.deliveries=null;
+  state.teacherTasks=null;
+  state.teacherAgenda=null;
   state.learning=null;
   state.learningExport=null;
   state.studentLearning=null;
@@ -2209,6 +2302,423 @@ function exportDeliveriesCSV(){
   d.weekly.forEach(x=>{let a=x.participation||{},ch=x.challenge||{};rows.push(['reto',a.created_at,studentName(x._student),x._student?.student_code,ch.title,a.status,a.preliminary_score])});
   let blob=new Blob(['\ufeff'+rows.map(r=>r.map(csvCell).join(';')).join('\n')],{type:'text/csv;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='cenqal_entregas.csv';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
+
+
+/* =========================================================
+   CENQAL v70.3 · AGENDA DOCENTE
+========================================================= */
+
+function v702CourseId(){
+  return Number(state.selectedCourseId||state.snapshot?.course?.id||0)||null;
+}
+
+function v702PriorityRank(p){
+  return ({urgent:0,high:1,normal:2,low:3})[p] ?? 2;
+}
+
+function v702TaskDate(t){
+  const raw=t.due_at||t.created_at||null;
+  if(!raw)return null;
+  const d=new Date(raw);
+  return isNaN(d)?null:d;
+}
+
+function v702AgePriority(created){
+  const d=created?new Date(created):null;
+  if(!d||isNaN(d))return 'high';
+  const days=(Date.now()-d.getTime())/86400000;
+  if(days>=4)return 'urgent';
+  if(days>=2)return 'high';
+  return 'normal';
+}
+
+function v702AutoTasks(){
+  const out=[];
+  const d=state.deliveries||{contributions:[],portfolios:[],weekly:[]};
+
+  (d.contributions||[]).forEach(x=>{
+    if(deliveryGroup(x.status)!=='pending')return;
+    const name=x.full_name||x.student_name||x.contributor_alias||x.student_code||'Alumno';
+    out.push({
+      key:'contribution:'+x.id,
+      kind:'auto',
+      source:'Aportación',
+      title:`Revisar aportación de ${name}`,
+      note:x.title||x.primary_topic||x.topic||'Aportación pendiente de revisión',
+      created_at:x.created_at||null,
+      due_at:null,
+      priority:v702AgePriority(x.created_at),
+      status:'open',
+      view:'deliveries'
+    });
+  });
+
+  (d.portfolios||[]).forEach(x=>{
+    if(deliveryGroup(x.status)!=='pending')return;
+    const name=x.full_name||x.student_name||x.student_code||'Alumno';
+    out.push({
+      key:'portfolio:'+x.id,
+      kind:'auto',
+      source:'Portfolio',
+      title:`Corregir portfolio de ${name}`,
+      note:x.challenge_title||x.challenge_code||x.file_name||'Portfolio pendiente de revisión',
+      created_at:x.created_at||null,
+      due_at:null,
+      priority:v702AgePriority(x.created_at),
+      status:'open',
+      view:'deliveries'
+    });
+  });
+
+  (d.weekly||[]).forEach(x=>{
+    const p=x.participation||x;
+    const c=x.challenge||{};
+    if(deliveryGroup(p.status)!=='pending')return;
+    const name=p.full_name||p.student_name||p.student_code||'Alumno';
+    out.push({
+      key:'weekly:'+(p.id||x.id||Math.random()),
+      kind:'auto',
+      source:'Reto',
+      title:`Revisar reto de ${name}`,
+      note:c.title||p.challenge_title||p.challenge_code||'Respuesta pendiente',
+      created_at:p.created_at||x.created_at||null,
+      due_at:null,
+      priority:v702AgePriority(p.created_at||x.created_at),
+      status:'open',
+      view:'deliveries'
+    });
+  });
+
+  const now=new Date();
+  const limit=new Date(now.getTime()+7*86400000);
+  (state.calendar||[]).forEach(e=>{
+    if(e.active===false||!e.starts_at)return;
+    const dte=new Date(e.starts_at);
+    if(isNaN(dte)||dte<now||dte>limit)return;
+    const hours=(dte-now)/3600000;
+    const type=String(e.event_type||'').toLowerCase();
+    const actionable=['exam','challenge','deadline','special','practice','practica','reto','examen'].some(k=>type.includes(k));
+    if(!actionable)return;
+    out.push({
+      key:'calendar:'+e.id,
+      kind:'auto',
+      source:'Calendario',
+      title:`Próximo: ${e.title||e.event_type||'hito'}`,
+      note:`${e.event_type||'Evento'} · ${fmtDate(e.starts_at)}`,
+      created_at:null,
+      due_at:e.starts_at,
+      priority:hours<=48?'high':'normal',
+      status:'open',
+      view:'calendar'
+    });
+  });
+
+  return out;
+}
+
+async function loadTeacherTasksV702(force=false){
+  if(state.teacherTasks && !force)return state.teacherTasks;
+  const d=await rpc('cenqal_control_teacher_tasks_v702',{
+    p_token:TOKEN,
+    p_course_id:v702CourseId()
+  });
+  state.teacherTasks=Array.isArray(d?.rows)?d.rows:[];
+  return state.teacherTasks;
+}
+
+async function loadTeacherAgenda(force=false){
+  const list=document.getElementById('teacherAgendaList');
+  if(list)list.innerHTML='<div class="teacherAgendaEmpty"><span class="loader"></span> Revisando pendientes…</div>';
+
+  try{
+    await Promise.allSettled([
+      loadTeacherTasksV702(force),
+      loadDeliveries(force),
+      loadCalendar(force)
+    ]);
+
+    const manual=(state.teacherTasks||[]).map(x=>({
+      ...x,
+      key:'manual:'+x.id,
+      kind:'manual',
+      source:'Tarea propia',
+      view:null
+    }));
+
+    state.teacherAgenda=[...v702AutoTasks(),...manual];
+
+    renderTeacherAgenda();
+    renderTeacherAgendaHome();
+    return state.teacherAgenda;
+  }catch(e){
+    if(list)list.innerHTML=`<div class="note danger">${esc(e.message||e)}</div>`;
+    const home=document.getElementById('teacherAgendaHomeList');
+    if(home)home.innerHTML=`<div class="note danger">No se pudo cargar la agenda: ${esc(e.message||e)}</div>`;
+    throw e;
+  }
+}
+
+function v702IsOverdue(t){
+  const d=v702TaskDate(t);
+  return !!(d && t.status==='open' && d.getTime()<Date.now());
+}
+
+function v702DueLabel(t){
+  const d=v702TaskDate(t);
+  if(!d)return t.created_at?`Recibida ${fmtDate(t.created_at)}`:'Sin fecha';
+  const delta=d.getTime()-Date.now();
+  const day=Math.round(delta/86400000);
+  if(delta<0)return `⚠️ Vencida · ${fmtDate(d.toISOString())}`;
+  if(day===0)return `Hoy · ${fmtDate(d.toISOString())}`;
+  if(day===1)return `Mañana · ${fmtDate(d.toISOString())}`;
+  return fmtDate(d.toISOString());
+}
+
+function v702TaskHTML(t,home=false){
+  const cls=`teacherTask ${esc(t.priority||'normal')} ${v702IsOverdue(t)?'overdue':''}`;
+  const badge=t.kind==='manual'
+    ?'<span class="teacherManualBadge">manual</span>'
+    :'<span class="teacherAutoBadge">automática</span>';
+
+  let actions='';
+  if(!home){
+    if(t.kind==='manual' && t.status==='open'){
+      actions+=`<button class="btn primary" onclick="completeTeacherTask(${Number(t.id)})">✓ Hecho</button>`;
+      actions+=`<button class="btn" onclick="postponeTeacherTask(${Number(t.id)},1)">⏰ +1 día</button>`;
+      actions+=`<button class="btn" onclick="editTeacherTask(${Number(t.id)})">Editar</button>`;
+    }
+    if(t.kind==='manual' && t.status==='done'){
+      actions+=`<button class="btn" onclick="reopenTeacherTask(${Number(t.id)})">Reabrir</button>`;
+    }
+    if(t.kind==='auto' && t.view){
+      actions+=`<button class="btn primary" onclick="go('${esc(t.view)}')">Abrir</button>`;
+    }
+  }else if(t.view){
+    actions=`<button class="btn" onclick="go('${esc(t.view)}')">Abrir</button>`;
+  }
+
+  return `<div class="${cls}">
+    <div class="teacherTaskDot"></div>
+    <div>
+      <div class="teacherTaskTitle">${esc(t.title||'Tarea')}${badge}</div>
+      <div class="teacherTaskMeta">${esc(t.source||'')} · ${esc(v702DueLabel(t))}${t.note?' · '+esc(t.note):''}</div>
+    </div>
+    <div class="teacherTaskActions">${actions}</div>
+  </div>`;
+}
+
+function teacherAgendaOpenRows(){
+  return (state.teacherAgenda||[])
+    .filter(x=>x.status==='open')
+    .sort((a,b)=>{
+      const oa=v702IsOverdue(a)?0:1,ob=v702IsOverdue(b)?0:1;
+      if(oa!==ob)return oa-ob;
+      const p=v702PriorityRank(a.priority)-v702PriorityRank(b.priority);
+      if(p!==0)return p;
+      const da=v702TaskDate(a)?.getTime()??Number.MAX_SAFE_INTEGER;
+      const db=v702TaskDate(b)?.getTime()??Number.MAX_SAFE_INTEGER;
+      return da-db;
+    });
+}
+
+function renderTeacherAgendaHome(){
+  const count=document.getElementById('teacherAgendaHomeCount');
+  const box=document.getElementById('teacherAgendaHomeList');
+  if(!count||!box)return;
+
+  const rows=teacherAgendaOpenRows();
+  count.textContent=rows.length;
+
+  box.innerHTML=rows.length
+    ?rows.slice(0,5).map(x=>v702TaskHTML(x,true)).join('')
+      +(rows.length>5?`<button class="btn" onclick="go('agenda')">Ver ${rows.length-5} pendientes más</button>`:'')
+    :'<div class="note good">✅ No tienes acciones pendientes detectadas.</div>';
+}
+
+function setTeacherAgendaFilter(name,btn){
+  state.teacherAgendaFilter=name;
+  document.querySelectorAll('[data-agenda-filter]').forEach(x=>x.classList.remove('active'));
+  btn?.classList.add('active');
+  renderTeacherAgenda();
+}
+
+function renderTeacherAgenda(){
+  const box=document.getElementById('teacherAgendaList');
+  const metrics=document.getElementById('teacherAgendaMetrics');
+  if(!box||!metrics)return;
+
+  const all=state.teacherAgenda||[];
+  const open=all.filter(x=>x.status==='open');
+  const overdue=open.filter(v702IsOverdue);
+  const manual=open.filter(x=>x.kind==='manual');
+  const automatic=open.filter(x=>x.kind==='auto');
+
+  metrics.innerHTML=[
+    metric('📌 Pendientes',open.length,'acciones abiertas'),
+    metric('🔴 Vencidas',overdue.length,'requieren atención'),
+    metric('🤖 Automáticas',automatic.length,'desaparecen al resolverlas'),
+    metric('📝 Propias',manual.length,'creadas por ti')
+  ].join('');
+
+  const now=new Date();
+  const todayEnd=new Date(now);todayEnd.setHours(23,59,59,999);
+  const weekEnd=new Date(now.getTime()+7*86400000);
+  const filter=state.teacherAgendaFilter||'open';
+
+  let rows=all.filter(t=>{
+    const d=v702TaskDate(t);
+    if(filter==='done')return t.status==='done';
+    if(filter==='all')return t.status!=='dismissed';
+    if(t.status!=='open')return false;
+    if(filter==='today')return !d || d<=todayEnd;
+    if(filter==='week')return !d || d<=weekEnd;
+    return true;
+  });
+
+  rows.sort((a,b)=>{
+    const oa=v702IsOverdue(a)?0:1,ob=v702IsOverdue(b)?0:1;
+    if(oa!==ob)return oa-ob;
+    const p=v702PriorityRank(a.priority)-v702PriorityRank(b.priority);
+    if(p!==0)return p;
+    const da=v702TaskDate(a)?.getTime()??Number.MAX_SAFE_INTEGER;
+    const db=v702TaskDate(b)?.getTime()??Number.MAX_SAFE_INTEGER;
+    return da-db;
+  });
+
+  box.innerHTML=rows.length
+    ?rows.map(x=>v702TaskHTML(x,false)).join('')
+    :'<div class="teacherAgendaEmpty">✅ No hay tareas en esta vista.</div>';
+
+  renderTeacherAgendaHome();
+}
+
+function v702LocalInputValue(iso){
+  if(!iso)return '';
+  const d=new Date(iso);
+  if(isNaN(d))return '';
+  const pad=n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function newTeacherTask(){
+  modal(`
+    <h3>＋ Nueva tarea docente</h3>
+    <div class="formgrid">
+      <div class="field full"><label>Tarea *</label><input id="ttTitle" placeholder="Ej. Corregir portfolios T2"></div>
+      <div class="field"><label>Fecha / hora</label><input id="ttDue" type="datetime-local"></div>
+      <div class="field"><label>Prioridad</label>
+        <select id="ttPriority">
+          <option value="normal">Normal</option>
+          <option value="high">Alta</option>
+          <option value="urgent">Urgente</option>
+          <option value="low">Baja</option>
+        </select>
+      </div>
+      <div class="field full"><label>Nota</label><textarea id="ttNote" rows="4" placeholder="Información que quieras recordar"></textarea></div>
+    </div>
+    <div class="modalFooter">
+      <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn primary" id="ttCreateBtn">Guardar tarea</button>
+    </div>
+  `);
+
+  document.getElementById('ttCreateBtn').onclick=async()=>{
+    const title=document.getElementById('ttTitle').value.trim();
+    if(!title)return toast('Escribe el título de la tarea.',true);
+    const due=document.getElementById('ttDue').value;
+    const data={
+      title,
+      note:document.getElementById('ttNote').value.trim()||null,
+      priority:document.getElementById('ttPriority').value,
+      due_at:due?new Date(due).toISOString():null
+    };
+    try{
+      await rpc('cenqal_control_teacher_task_create_v702',{
+        p_token:TOKEN,p_course_id:v702CourseId(),p_data:data
+      });
+      closeModal();
+      state.teacherTasks=null;
+      await loadTeacherAgenda(true);
+      toast('Tarea añadida.');
+    }catch(e){toast(e.message||'No se pudo guardar.',true)}
+  };
+}
+
+function editTeacherTask(id){
+  const t=(state.teacherTasks||[]).find(x=>Number(x.id)===Number(id));
+  if(!t)return toast('No encuentro esa tarea.',true);
+
+  modal(`
+    <h3>✏️ Editar tarea</h3>
+    <div class="formgrid">
+      <div class="field full"><label>Tarea *</label><input id="ttEditTitle" value="${esc(t.title||'')}"></div>
+      <div class="field"><label>Fecha / hora</label><input id="ttEditDue" type="datetime-local" value="${esc(v702LocalInputValue(t.due_at))}"></div>
+      <div class="field"><label>Prioridad</label>
+        <select id="ttEditPriority">
+          <option value="low" ${t.priority==='low'?'selected':''}>Baja</option>
+          <option value="normal" ${t.priority==='normal'?'selected':''}>Normal</option>
+          <option value="high" ${t.priority==='high'?'selected':''}>Alta</option>
+          <option value="urgent" ${t.priority==='urgent'?'selected':''}>Urgente</option>
+        </select>
+      </div>
+      <div class="field full"><label>Nota</label><textarea id="ttEditNote" rows="4">${esc(t.note||'')}</textarea></div>
+    </div>
+    <div class="modalFooter">
+      <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn danger" id="ttDismissBtn">Archivar</button>
+      <button class="btn primary" id="ttSaveBtn">Guardar</button>
+    </div>
+  `);
+
+  document.getElementById('ttSaveBtn').onclick=async()=>{
+    const title=document.getElementById('ttEditTitle').value.trim();
+    if(!title)return toast('La tarea necesita título.',true);
+    const due=document.getElementById('ttEditDue').value;
+    const patch={
+      title,
+      note:document.getElementById('ttEditNote').value.trim(),
+      priority:document.getElementById('ttEditPriority').value
+    };
+    if(due)patch.due_at=new Date(due).toISOString();
+    else patch.clear_due=true;
+    await updateTeacherTaskV702(id,patch,'Tarea actualizada.');
+    closeModal();
+  };
+
+  document.getElementById('ttDismissBtn').onclick=async()=>{
+    await updateTeacherTaskV702(id,{status:'dismissed'},'Tarea archivada.');
+    closeModal();
+  };
+}
+
+async function updateTeacherTaskV702(id,patch,msg){
+  try{
+    await rpc('cenqal_control_teacher_task_update_v702',{
+      p_token:TOKEN,p_id:Number(id),p_patch:patch
+    });
+    state.teacherTasks=null;
+    await loadTeacherAgenda(true);
+    if(msg)toast(msg);
+  }catch(e){toast(e.message||'No se pudo actualizar.',true)}
+}
+
+async function completeTeacherTask(id){
+  await updateTeacherTaskV702(id,{status:'done'},'Tarea completada.');
+}
+
+async function reopenTeacherTask(id){
+  await updateTeacherTaskV702(id,{status:'open'},'Tarea reabierta.');
+}
+
+async function postponeTeacherTask(id,days=1){
+  const t=(state.teacherTasks||[]).find(x=>Number(x.id)===Number(id));
+  if(!t)return;
+  let d=t.due_at?new Date(t.due_at):new Date();
+  if(isNaN(d))d=new Date();
+  d=new Date(d.getTime()+Number(days||1)*86400000);
+  await updateTeacherTaskV702(id,{due_at:d.toISOString()},`Tarea pospuesta ${days} día${days===1?'':'s'}.`);
+}
+
 
 async function loadCalendar(force=false){if(state.calendar.length&&!force){renderCalendar();return state.calendar}let d=await rpc('cenqal_control_calendar',{p_token:TOKEN});state.calendar=d.rows||[];renderCalendar();return state.calendar}
 
@@ -3098,6 +3608,15 @@ async function startPanel(){
     }catch(e){
       console.warn(
         'Progress:',
+        e
+      );
+    }
+
+    try{
+      await loadTeacherAgenda();
+    }catch(e){
+      console.warn(
+        'Teacher agenda:',
         e
       );
     }
