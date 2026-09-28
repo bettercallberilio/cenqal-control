@@ -1216,14 +1216,20 @@ function botPayload(payload){
     return;
   }
 
-  let url=
+  const url=
     `https://t.me/${BOT}?start=${encodeURIComponent(payload)}`;
 
   try{
-    Telegram.WebApp.openTelegramLink(url);
-  }catch(e){
-    window.open(url,'_blank');
-  }
+    const tg=window.Telegram?.WebApp;
+    if(tg && tg.initData){
+      tg.openTelegramLink(url);
+      return;
+    }
+  }catch(e){}
+
+  // Control también puede ejecutarse como PWA o en un navegador normal.
+  // En ese caso abrimos el deep-link directamente en la misma navegación.
+  window.location.href=url;
 }
 
 function statusClass(v){
