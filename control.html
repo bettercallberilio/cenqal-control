@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>CENQAL Control</title>
-<meta name="CENQAL_CONTROL_BUILD" content="v70.3">
+<meta name="CENQAL_CONTROL_BUILD" content="v70.3.3">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#0c3f82">
 <link rel="apple-touch-icon" href="./cenqal-apple-touch-icon.png">
@@ -861,7 +861,13 @@ const PUBLIC_SUPABASE_KEY='sb_publishable_UsEwh-LJbvhXFcX1snjLWw_YlnH9A6T';
 let SBURL=(qs.get('sburl')||PUBLIC_SUPABASE_URL).replace(/\/$/,'');
 let SBKEY=qs.get('sbkey')||PUBLIC_SUPABASE_KEY;
 let TOKEN=qs.get('token')||'';
-let BOT=(qs.get('bot')||localStorage.getItem('cenqal_bot')||'').replace(/^@/,'');
+// Username real de Berilio confirmado por la profesora.
+// El parámetro ?bot= sigue teniendo prioridad, pero si falta usamos
+// directamente el bot oficial. Así Control funciona también como PWA/navegador
+// y no depende de un valor antiguo guardado en localStorage.
+const BOT_FALLBACK='foodchemboot';
+let BOT=(qs.get('bot')||BOT_FALLBACK).replace(/^@/,'');
+localStorage.setItem('cenqal_bot',BOT);
 const TELEGRAM_MODE=Boolean(qs.get('token'));
 
 let supabaseClient=null;
