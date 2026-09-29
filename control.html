@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>CENQAL Control</title>
-<meta name="CENQAL_CONTROL_BUILD" content="v73.7.1">
+<meta name="CENQAL_CONTROL_BUILD" content="v73.8">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#0c3f82">
 <link rel="apple-touch-icon" href="./cenqal-apple-touch-icon.png">
@@ -426,6 +426,21 @@ details.card>.detailBody{padding:0 16px 16px}
   }
 </style>
 
+
+<style id="v738-anonymous-gym-mobile">
+  #anonymousGymHistoryBlock .table td{
+    white-space:normal;
+    overflow-wrap:anywhere;
+    vertical-align:top;
+  }
+  @media(max-width:720px){
+    #anonymousGymHistoryBlock .analyticsGrid,
+    #anonymousGymHistoryBlock .grid.two{
+      grid-template-columns:1fr;
+    }
+  }
+</style>
+
 </head>
 
 <body>
@@ -471,7 +486,7 @@ details.card>.detailBody{padding:0 16px 16px}
       <div class="brandmark"></div>
       <div>
         <h1>CENQAL Control</h1>
-        <small>Panel docente seguro · v73.7.1</small>
+        <small>Panel docente seguro · v73.8</small>
       </div>
     </div>
 
@@ -728,6 +743,62 @@ details.card>.detailBody{padding:0 16px 16px}
 
         <div class="note" id="strategyMethodNote" style="margin-top:12px">
           Las señales se generan con reglas descriptivas del propio grupo. “Práctica alta” se define respecto a la mediana de minutos de actividad del grupo; no implica causalidad ni sustituye la revisión docente.
+        </div>
+      </div>
+
+
+      <div class="card" style="margin-bottom:14px" id="anonymousGymHistoryBlock">
+        <div class="sectionTitle">
+          <div>
+            <h3>🕰️ Actividad histórica anónima del Gym</h3>
+            <p>Actividad real registrada antes de la identificación individual del acceso al Gym.</p>
+          </div>
+          <span class="subtle">agregado · no atribuible a alumnos</span>
+        </div>
+
+        <div class="note warn" style="margin:10px 0 14px">
+          Este bloque conserva únicamente el histórico anónimo anterior al 29/09/2026 17:56 (Europe/Madrid).
+          Sirve para analizar uso, aciertos y dificultades del grupo, pero no se incorpora al progreso ni a las métricas individuales.
+        </div>
+
+        <div class="metrics grid analyticsKpis" id="anonymousGymMetrics">
+          <div class="card"><span class="loader"></span> Cargando histórico anónimo…</div>
+        </div>
+
+        <div class="analyticsGrid" style="margin-top:14px">
+          <div class="card analyticsChart analyticsWide">
+            <div class="sectionTitle">
+              <h3>📅 Actividad por fecha</h3>
+              <span class="subtle">respuestas y sesiones</span>
+            </div>
+            <canvas id="anonymousGymDateChart"></canvas>
+          </div>
+
+          <div class="card analyticsChart analyticsWide">
+            <div class="sectionTitle">
+              <h3>🧩 Conceptos con mayor dificultad</h3>
+              <span class="subtle">histórico anónimo</span>
+            </div>
+            <canvas id="anonymousGymConceptChart"></canvas>
+          </div>
+        </div>
+
+        <div class="grid two" style="margin-top:14px">
+          <div class="card">
+            <div class="sectionTitle">
+              <h3>❓ Preguntas más difíciles</h3>
+              <span class="subtle">mínimo 2 respuestas</span>
+            </div>
+            <div id="anonymousGymQuestions"></div>
+          </div>
+
+          <div class="card">
+            <div class="sectionTitle">
+              <h3>🧾 Sesiones observadas</h3>
+              <span class="subtle">sin identidad individual</span>
+            </div>
+            <div id="anonymousGymSessions"></div>
+          </div>
         </div>
       </div>
 
@@ -1112,6 +1183,7 @@ let state={
   learningExport:null,
   strategyRaw:null,
   gymAdvanced:null,
+  anonymousGymHistory:null,
   playAnalytics:null,
   studentLearning:null,
   studentGymAdvanced:null,
@@ -1709,6 +1781,7 @@ function clearCourseScopedState(){
   state.learningExport=null;
   state.strategyRaw=null;
   state.gymAdvanced=null;
+  state.anonymousGymHistory=null;
   state.playAnalytics=null;
   state.studentLearning=null;
   state.studentGymAdvanced=null;
@@ -4045,6 +4118,7 @@ async function refreshAll(){
   state.learningExport=null;
   state.strategyRaw=null;
   state.gymAdvanced=null;
+  state.anonymousGymHistory=null;
   state.playAnalytics=null;
   state.studentLearning=null;
   state.studentGymAdvanced=null;
@@ -5883,18 +5957,128 @@ function renderStudentGymAdvancedV737(){
 }
 
 
+
+async function loadAnonymousGymHistoryV738(force=false){
+  if(state.anonymousGymHistory&&!force){
+    return state.anonymousGymHistory;
+  }
+  const box=document.getElementById('anonymousGymMetrics');
+  if(box)box.innerHTML='<div class="card"><span class="loader"></span> Cargando histórico anónimo…</div>';
+  try{
+    const d=await rpc('cenqal_control_gym_anonymous_history_v738',{p_token:TOKEN});
+    state.anonymousGymHistory=d;
+    return d;
+  }catch(e){
+    state.anonymousGymHistory={_error:e.message};
+    return state.anonymousGymHistory;
+  }
+}
+
+function renderAnonymousGymHistoryV738(){
+  const box=document.getElementById('anonymousGymMetrics');
+  if(!box)return;
+
+  const d=state.anonymousGymHistory||{};
+  if(d._error){
+    box.innerHTML=`<div class="card note warn">Histórico anónimo todavía no disponible: ${esc(d._error)}</div>`;
+    const q=document.getElementById('anonymousGymQuestions');
+    const s=document.getElementById('anonymousGymSessions');
+    if(q)q.innerHTML='<div class="empty">Ejecuta primero el SQL v73.8.</div>';
+    if(s)s.innerHTML='<div class="empty">Sin datos.</div>';
+    return;
+  }
+
+  const sum=d.summary||{};
+  const dates=d.by_date||[];
+  const concepts=d.hardest_concepts||[];
+  const questions=d.hardest_questions||[];
+  const sessions=d.sessions_detail||[];
+
+  box.innerHTML=[
+    metric('🧠 Respuestas históricas',sum.responses||0,`${sum.sessions||0} sesiones anónimas`),
+    metric('✅ Acierto global',sum.accuracy_pct==null?'—':`${v69Num(sum.accuracy_pct,1)}%`,`${sum.correct||0} aciertos · ${sum.wrong||0} errores`),
+    metric('⏱ Mediana respuesta',sum.median_response_seconds==null?'—':`${v69Num(sum.median_response_seconds,1)} s`,'más robusta que la media'),
+    metric('📆 Primera actividad',sum.first_activity?fmtDate(sum.first_activity):'—','histórico conservado'),
+    metric('🕒 Última actividad',sum.last_activity?fmtDate(sum.last_activity):'—','antes de identificación individual')
+  ].join('');
+
+  v69Chart('anonymousGymDate','anonymousGymDateChart',{
+    type:'bar',
+    data:{
+      labels:dates.map(x=>String(x.date||'')),
+      datasets:[
+        {label:'Respuestas',data:dates.map(x=>Number(x.responses||0)),yAxisID:'y'},
+        {label:'Sesiones',data:dates.map(x=>Number(x.sessions||0)),type:'line',yAxisID:'y2',tension:.25}
+      ]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      scales:{
+        y:{beginAtZero:true,title:{display:true,text:'Respuestas'}},
+        y2:{beginAtZero:true,position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Sesiones'}}
+      }
+    }
+  });
+
+  const cshow=concepts.slice(0,10).reverse();
+  v69Chart('anonymousGymConcept','anonymousGymConceptChart',{
+    type:'bar',
+    data:{
+      labels:cshow.map(x=>x.concept||'Sin concepto'),
+      datasets:[{label:'Acierto (%)',data:cshow.map(x=>v69Num(x.accuracy_pct))}]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      indexAxis:'y',
+      scales:{x:{beginAtZero:true,max:100,title:{display:true,text:'Acierto (%)'}}}
+    }
+  });
+
+  document.getElementById('anonymousGymQuestions').innerHTML=questions.length
+    ?tableHTML(
+      ['Pregunta','Tema','Concepto','Resp.','Acierto'],
+      questions.slice(0,12).map(x=>[
+        `${x.question_id||'—'} · ${v737Short(x.question_text||'',72)}`,
+        `T${x.topic_number||'—'}`,
+        x.concept||'—',
+        x.responses||0,
+        x.accuracy_pct==null?'—':`${v69Num(x.accuracy_pct,1)}%`
+      ])
+    )
+    :'<div class="empty">Sin preguntas suficientes para ordenar dificultad.</div>';
+
+  document.getElementById('anonymousGymSessions').innerHTML=sessions.length
+    ?tableHTML(
+      ['Inicio','Modo','Tema','Resp.','Acierto'],
+      sessions.slice(0,15).map(x=>[
+        x.first_answer_at?fmtDate(x.first_answer_at):'—',
+        x.mode||'—',
+        x.topic_list||'—',
+        x.responses||0,
+        x.accuracy_pct==null?'—':`${v69Num(x.accuracy_pct,1)}%`
+      ])
+    )
+    :'<div class="empty">Sin sesiones históricas.</div>';
+}
+
+
 async function loadLearning(force=false){
   if(state.learning&&!force){
     await Promise.all([
       loadInitialAssessmentV692(false),
       loadPlayAnalyticsV735(false),
       loadGymAdvancedV737(false),
+      loadAnonymousGymHistoryV738(false),
       loadStrategyRawV736(false)
     ]);
     renderLearning();
     renderInitialAssessmentV692();
     renderPlayAnalyticsV735();
     renderGymAdvancedV737();
+    renderAnonymousGymHistoryV738();
     renderStrategyV736();
     return state.learning;
   }
@@ -5907,12 +6091,14 @@ async function loadLearning(force=false){
       loadInitialAssessmentV692(force),
       loadPlayAnalyticsV735(force),
       loadGymAdvancedV737(force),
+      loadAnonymousGymHistoryV738(force),
       loadStrategyRawV736(force)
     ]);
     renderLearning();
     renderInitialAssessmentV692();
     renderPlayAnalyticsV735();
     renderGymAdvancedV737();
+    renderAnonymousGymHistoryV738();
     renderStrategyV736();
     return d;
   }catch(e){
