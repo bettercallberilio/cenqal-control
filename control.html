@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>CENQAL Control</title>
-<meta name="CENQAL_CONTROL_BUILD" content="v73.3">
+<meta name="CENQAL_CONTROL_BUILD" content="v73.4">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#0c3f82">
 <link rel="apple-touch-icon" href="./cenqal-apple-touch-icon.png">
@@ -458,7 +458,7 @@ details.card>.detailBody{padding:0 16px 16px}
       <div class="brandmark"></div>
       <div>
         <h1>CENQAL Control</h1>
-        <small>Panel docente seguro · v73.3</small>
+        <small>Panel docente seguro · v73.4</small>
       </div>
     </div>
 
@@ -743,7 +743,7 @@ details.card>.detailBody{padding:0 16px 16px}
 
     <section class="view" id="view-deliveries">
       <div class="viewHeader">
-        <div><h2>📥 Entregas y revisión</h2><p>Consulta centralizada de aportaciones, rúbricas, portfolios y retos. La concesión de PP y Og se confirma exclusivamente en Berilio.</p></div>
+        <div><h2>📥 Entregas y revisión</h2><p>Consulta centralizada de aportaciones, rúbricas, portfolios, Gran Atlas y retos. Las preevaluaciones automáticas son orientativas y la validación final sigue siendo docente.</p></div>
         <div class="actions"><button class="btn primary" onclick="botPayload('cg_course')">📄 Informe del curso</button><button class="btn" onclick="exportDeliveriesCSV()">⬇ CSV</button><button class="btn" onclick="loadDeliveries(true)">↻ Actualizar</button></div>
       </div>
       <div class="note warn" style="margin-bottom:14px">Las preevaluaciones son orientativas. Ver una entrega aquí no concede puntos: usa <b>Revisar en Berilio</b> para validar, devolver o rechazar.</div>
@@ -751,6 +751,7 @@ details.card>.detailBody{padding:0 16px 16px}
       <div class="searchrow"><input id="deliverySearch" placeholder="Buscar alumno, título o tema" oninput="renderDeliveries()"><select id="deliveryStatus" onchange="renderDeliveries()"><option value="">Todos los estados</option><option value="pending">Pendientes</option><option value="validated">Validadas</option><option value="rejected">Rechazadas/devueltas</option></select></div>
       <div class="card"><h3>🧪 Aportaciones a CENQAL</h3><div id="contributionsInbox"></div></div>
       <div class="card" style="margin-top:14px"><h3>📄 Portfolios</h3><div id="portfoliosInbox"></div></div>
+      <div class="card" style="margin-top:14px"><h3>🗺️ Gran Atlas · entregas de equipo</h3><div id="atlasInbox"></div></div>
       <div class="card" style="margin-top:14px"><h3>🏆 Retos y respuestas</h3><div id="challengesInbox"></div></div>
     </section>
 
@@ -2265,6 +2266,182 @@ function deliveryGroup(status){
   return status;
 }
 
+
+function atlasDeliveryGroup(status){
+  status=String(status||'').toLowerCase();
+  if(['ready_review','reviewed'].includes(status))return 'pending';
+  if(status==='final')return 'validated';
+  if(['in_progress','returned','needs_changes','rejected'].includes(status))return 'rejected';
+  return status;
+}
+
+async function loadAtlasDeliveriesV734(){
+  try{
+    const d=await rpc('cenqal_control_atlas_deliveries_v734',{p_token:TOKEN});
+    return {rows:Array.isArray(d?.rows)?d.rows:[],failed:0};
+  }catch(e){
+    console.warn('CENQAL Atlas v73.4 no disponible:',e);
+    return {rows:[],failed:1};
+  }
+}
+
+function atlasMembersText(x){
+  const ms=Array.isArray(x?.members)?x.members:[];
+  if(!ms.length)return `Equipo ${x?.group_code||'—'}`;
+  return ms.map(m=>m.full_name||m.student_code||m.telegram_user_id).filter(Boolean).join(' · ');
+}
+
+function atlasById(id){
+  return (state.deliveries?.atlas||[]).find(x=>String(x.id)===String(id));
+}
+
+function atlasRubricHTML(ev){
+  if(!ev || typeof ev!=='object')return '<div class="empty">Preevaluación automática todavía no disponible.</div>';
+  const criteria=ev.criteria&&typeof ev.criteria==='object'?Object.values(ev.criteria):[];
+  let html=`<div class="miniList">
+    <div class="miniRow"><span>Puntuación IA</span><b>${esc(ev.total??'—')}/100</b></div>
+    <div class="miniRow"><span>Rúbrica</span><b>${esc(ev.rubric_version||'CENQAL Atlas')}</b></div>
+  </div>`;
+  if(criteria.length){
+    html+=`<div class="tablewrap" style="margin-top:10px"><table class="table">
+      <thead><tr><th>Criterio</th><th>Puntos</th><th>Feedback IA</th></tr></thead>
+      <tbody>${criteria.map(c=>`<tr>
+        <td>${esc(c.label||'Criterio')}</td>
+        <td>${esc(c.score??0)}/${esc(c.max_points??'—')}</td>
+        <td class="wrap">${esc(c.feedback||'—')}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+  }
+  if(ev.summary)html+=`<div class="note" style="margin-top:10px"><b>Resumen:</b><br>${esc(ev.summary)}</div>`;
+  if(Array.isArray(ev.strengths)&&ev.strengths.length)html+=`<div class="note" style="margin-top:10px"><b>Fortalezas:</b><br>${ev.strengths.map(esc).join('<br>')}</div>`;
+  if(Array.isArray(ev.improvements)&&ev.improvements.length)html+=`<div class="note warn" style="margin-top:10px"><b>A mejorar:</b><br>${ev.improvements.map(esc).join('<br>')}</div>`;
+  if(Array.isArray(ev.evidence_warnings)&&ev.evidence_warnings.length)html+=`<div class="note warn" style="margin-top:10px"><b>Alertas de evidencia:</b><br>${ev.evidence_warnings.map(esc).join('<br>')}</div>`;
+  if(Array.isArray(ev.manual_checks)&&ev.manual_checks.length)html+=`<div class="note warn" style="margin-top:10px"><b>Comprobación docente:</b><br>${ev.manual_checks.map(esc).join('<br>')}</div>`;
+  return html;
+}
+
+function showAtlasDetail(id){
+  const x=atlasById(id);
+  if(!x)return toast('No se ha encontrado la entrega del Gran Atlas.',true);
+
+  const sections=[
+    ['01 · Identidad',x.identity_text],
+    ['02 · Matriz y composición',x.matrix_text],
+    ['03 · Moléculas protagonistas',x.molecules_text],
+    ['04 · Procesado',x.processing_text],
+    ['05 · Transformaciones químicas',x.transformations_text],
+    ['06 · Agua / aᵥ',x.water_aw_text],
+    ['07 · Química → percepción',x.sensory_text],
+    ['08 · Estabilidad',x.stability_text],
+    ['09 · Control tecnológico',x.industry_text],
+    ['10 · Esquema integrador',x.scheme_text],
+    ['11 · Conclusión crítica',x.conclusion_text],
+    ['12 · Dato que sorprende',x.surprising_fact_text],
+    ['13 · Evidencia científica',x.sources_text]
+  ];
+
+  const defaultScore=x.teacher_score??x.ai_score??'';
+  modal(`
+    <div class="sectionTitle">
+      <h3>🗺️ Gran Atlas · ${esc(x.food_name||x.food_code||'Ficha')}</h3>
+      <button class="btn" onclick="closeModal()">Cerrar</button>
+    </div>
+
+    <div class="miniList">
+      <div class="miniRow"><span>Equipo</span><b>${esc(x.group_code||'—')}</b></div>
+      <div class="miniRow"><span>Integrantes</span><b>${esc(atlasMembersText(x))}</b></div>
+      <div class="miniRow"><span>Estado</span><b><span class="status ${statusClass(x.status)}">${esc(x.status||'—')}</span></b></div>
+      <div class="miniRow"><span>Progreso</span><b>${esc(x.progress_percent??0)}%</b></div>
+      <div class="miniRow"><span>Entrega</span><b>${esc(fmtDate(x.submitted_at||x.updated_at))}</b></div>
+      <div class="miniRow"><span>Preevaluación IA</span><b>${x.ai_score==null?'Pendiente':esc(x.ai_score)+'/100'}</b></div>
+      <div class="miniRow"><span>Nota docente</span><b>${x.teacher_score==null?'—':esc(x.teacher_score)+'/100'}</b></div>
+    </div>
+
+    <div class="field" style="margin-top:12px">
+      <label>Pregunta de investigación</label>
+      <div class="note">${esc(x.research_question||'—')}</div>
+    </div>
+
+    ${x.poster_url?`<div class="actions" style="margin-top:12px">
+      <a class="btn" href="${esc(x.poster_url)}" target="_blank" rel="noopener">↗ Abrir póster</a>
+    </div>`:''}
+
+    <details class="card" open style="margin-top:12px">
+      <summary>🧪 Preevaluación automática por rúbrica</summary>
+      <div class="detailBody">${atlasRubricHTML(x.ai_evaluation)}</div>
+    </details>
+
+    <details class="card" style="margin-top:12px">
+      <summary>📚 Contenido entregado</summary>
+      <div class="detailBody">
+        ${sections.map(([k,v])=>`<div class="reviewBox"><b>${esc(k)}</b><p style="white-space:pre-wrap">${esc(v||'—')}</p></div>`).join('')}
+      </div>
+    </details>
+
+    <div class="card" style="margin-top:12px">
+      <h3>👩‍🏫 Validación docente</h3>
+      <div class="note warn">La IA propone. Tú validas o modificas. Comprueba manualmente el póster, las figuras y la trazabilidad real de las fuentes.</div>
+      <div class="formgrid" style="margin-top:12px">
+        <div class="field">
+          <label>Nota final /100</label>
+          <input id="atlasTeacherScore" type="number" min="0" max="100" step="1" value="${esc(defaultScore)}">
+        </div>
+        <div class="field full">
+          <label>Feedback docente</label>
+          <textarea id="atlasTeacherFeedback">${esc(x.teacher_feedback||'')}</textarea>
+        </div>
+      </div>
+      <div class="actions" style="margin-top:12px">
+        <button class="btn danger" onclick="reviewAtlasV734('${x.id}','in_progress')">↩️ Devolver a trabajo</button>
+        <button class="btn" onclick="reviewAtlasV734('${x.id}','reviewed')">✅ Marcar revisado</button>
+        <button class="btn primary" onclick="reviewAtlasV734('${x.id}','final')">🏁 Validar como final</button>
+      </div>
+    </div>
+  `);
+}
+
+async function reviewAtlasV734(id,status){
+  const x=atlasById(id);
+  if(!x)return toast('No se ha encontrado la ficha.',true);
+
+  const feedback=document.getElementById('atlasTeacherFeedback')?.value||'';
+  const raw=document.getElementById('atlasTeacherScore')?.value;
+  let score=raw===''?null:Number(raw);
+
+  if(score!=null && (!Number.isFinite(score)||score<0||score>100)){
+    return toast('La nota debe estar entre 0 y 100.',true);
+  }
+  if(status==='final' && score==null){
+    return toast('Para validar como final indica una nota.',true);
+  }
+
+  try{
+    await rpc('cenqal_control_atlas_review_v734',{
+      p_token:TOKEN,
+      p_group_code:x.group_code,
+      p_food_code:x.food_code,
+      p_status:status,
+      p_feedback:feedback||null,
+      p_score:score
+    });
+    closeModal();
+    state.deliveries=null;
+    await loadDeliveries(true);
+    state.teacherAgenda=null;
+    await loadTeacherAgenda(true);
+    toast(
+      status==='final'
+        ?'✅ Gran Atlas validado como final.'
+        :status==='in_progress'
+          ?'↩️ Ficha devuelta al equipo.'
+          :'✅ Revisión docente guardada.'
+    );
+  }catch(e){
+    toast(e.message||String(e),true);
+  }
+}
+
+
 async function loadDeliveries(force=false){
   if(state.deliveries&&!force){renderDeliveries();return state.deliveries}
   document.getElementById('deliveryMetrics').innerHTML='<div class="card"><span class="loader"></span> Reuniendo las fichas del curso…</div>';
@@ -2272,11 +2449,13 @@ async function loadDeliveries(force=false){
     const direct=await rpc('cenqal_control_deliveries_v67',{p_token:TOKEN});
     if(direct&&direct.ok!==false){
       let newest=(a,b)=>new Date(b.created_at||b.participation?.created_at||0)-new Date(a.created_at||a.participation?.created_at||0);
+      const atlasPack=await loadAtlasDeliveriesV734();
       state.deliveries={
         contributions:(direct.contributions||[]).sort(newest),
         portfolios:(direct.portfolios||[]).sort(newest),
         weekly:(direct.weekly||[]).sort(newest),
-        failed:0
+        atlas:(atlasPack.rows||[]).sort((a,b)=>new Date(b.submitted_at||b.updated_at||0)-new Date(a.submitted_at||a.updated_at||0)),
+        failed:atlasPack.failed||0
       };
       renderDeliveries();
       return state.deliveries;
@@ -2298,7 +2477,14 @@ async function loadDeliveries(force=false){
   let contributions=[],portfolios=[],weekly=[];
   settled.forEach(r=>{if(r.status!=='fulfilled')return;let {s,d}=r.value;(d.contributions||[]).forEach(x=>contributions.push({...x,_student:s}));(d.portfolio_submissions||[]).forEach(x=>portfolios.push({...x,_student:s}));(d.weekly||[]).forEach(x=>weekly.push({...x,_student:s}))});
   let newest=(a,b)=>new Date(b.created_at||b.participation?.created_at||0)-new Date(a.created_at||a.participation?.created_at||0);
-  state.deliveries={contributions:contributions.sort(newest),portfolios:portfolios.sort(newest),weekly:weekly.sort(newest),failed:settled.filter(x=>x.status==='rejected').length};
+  const atlasPack=await loadAtlasDeliveriesV734();
+  state.deliveries={
+    contributions:contributions.sort(newest),
+    portfolios:portfolios.sort(newest),
+    weekly:weekly.sort(newest),
+    atlas:(atlasPack.rows||[]).sort((a,b)=>new Date(b.submitted_at||b.updated_at||0)-new Date(a.submitted_at||a.updated_at||0)),
+    failed:settled.filter(x=>x.status==='rejected').length+(atlasPack.failed||0)
+  };
   renderDeliveries();return state.deliveries;
 }
 
@@ -2313,11 +2499,39 @@ function deliveryMatches(x,q,status,type){
 function renderDeliveries(){
   let d=state.deliveries;if(!d)return;
   let q=(document.getElementById('deliverySearch')?.value||'').trim().toLowerCase(),st=document.getElementById('deliveryStatus')?.value||'';
-  let c=d.contributions.filter(x=>deliveryMatches(x,q,st,'contribution')),p=d.portfolios.filter(x=>deliveryMatches(x,q,st,'portfolio')),w=d.weekly.filter(x=>deliveryMatches(x,q,st,'weekly'));
-  let pendingC=d.contributions.filter(x=>deliveryGroup(x.status)==='pending').length,pendingP=d.portfolios.filter(x=>deliveryGroup(x.status)==='pending').length;
-  document.getElementById('deliveryMetrics').innerHTML=[metric('🧪 Aportaciones',d.contributions.length,`${pendingC} pendientes`),metric('📄 Portfolios',d.portfolios.length,`${pendingP} pendientes`),metric('🏆 Respuestas a retos',d.weekly.length,'registradas'),metric('⚠️ Fichas no cargadas',d.failed||0,d.failed?'Reintenta la actualización':'Todo correcto')].join('');
+  let c=d.contributions.filter(x=>deliveryMatches(x,q,st,'contribution')),
+      p=d.portfolios.filter(x=>deliveryMatches(x,q,st,'portfolio')),
+      w=d.weekly.filter(x=>deliveryMatches(x,q,st,'weekly')),
+      a=(d.atlas||[]).filter(x=>{
+        if(st&&atlasDeliveryGroup(x.status)!==st)return false;
+        const text=[x.group_code,x.food_code,x.food_name,atlasMembersText(x),x.research_question].join(' ').toLowerCase();
+        return !q||text.includes(q);
+      });
+  let pendingC=d.contributions.filter(x=>deliveryGroup(x.status)==='pending').length,
+      pendingP=d.portfolios.filter(x=>deliveryGroup(x.status)==='pending').length,
+      pendingA=(d.atlas||[]).filter(x=>atlasDeliveryGroup(x.status)==='pending').length;
+  document.getElementById('deliveryMetrics').innerHTML=[
+    metric('🧪 Aportaciones',d.contributions.length,`${pendingC} pendientes`),
+    metric('📄 Portfolios',d.portfolios.length,`${pendingP} pendientes`),
+    metric('🗺️ Gran Atlas',(d.atlas||[]).length,`${pendingA} pendientes`),
+    metric('🏆 Respuestas a retos',d.weekly.length,'registradas'),
+    metric('⚠️ Fichas no cargadas',d.failed||0,d.failed?'Reintenta la actualización':'Todo correcto')
+  ].join('');
   document.getElementById('contributionsInbox').innerHTML=c.length?tableHTML(['Fecha','Alumno','Título / tema','Estado','Preeval.','Acciones'],c.map(x=>[fmtDate(x.created_at),studentName(x._student),x.title||x.primary_topic||x.topic||'—',x.status||'—',x.preliminary_score??'—',`<div class="actions"><button class="btn" onclick="showContributionDetail('${x.id}')">Ver respuestas y rúbrica</button>${contributionControlAction(x,true)}</div>`]),'html'):'<div class="empty">No hay aportaciones con estos filtros.</div>';
   document.getElementById('portfoliosInbox').innerHTML=p.length?tableHTML(['Fecha','Alumno','Reto / archivo','Estado','Nota','Acciones'],p.map(x=>[fmtDate(x.created_at),studentName(x._student),x.challenge_code||x.file_name||'—',x.status||'—',x.teacher_evaluation?.score??'—',`<button class="btn" onclick="showPortfolioDetail('${x.id}')">Ver evaluación</button>`]),'html'):'<div class="empty">No hay portfolios con estos filtros.</div>';
+  document.getElementById('atlasInbox').innerHTML=a.length?tableHTML(
+    ['Entrega','Equipo','Alimento','Estado','IA','Docente','Acción'],
+    a.map(x=>[
+      fmtDate(x.submitted_at||x.updated_at),
+      `${x.group_code||'—'} · ${atlasMembersText(x)}`,
+      x.food_name||x.food_code||'—',
+      x.status||'—',
+      x.ai_score==null?'Pendiente':`${x.ai_score}/100`,
+      x.teacher_score==null?'—':`${x.teacher_score}/100`,
+      `<button class="btn primary" onclick="showAtlasDetail('${x.id}')">Revisar entrega</button>`
+    ]),
+    'html'
+  ):'<div class="empty">No hay entregas del Gran Atlas con estos filtros.</div>';
   document.getElementById('challengesInbox').innerHTML=w.length?tableHTML(['Fecha','Alumno','Reto','Estado','Preeval.','Respuesta'],w.map(x=>{let a=x.participation||{},ch=x.challenge||{};return[fmtDate(a.created_at),studentName(x._student),ch.title||`Tema ${ch.topic_number||'—'}`,a.status||'—',a.preliminary_score??'—',a.response_text||'—']}),'last'):'<div class="empty">No hay respuestas a retos con estos filtros.</div>';
 }
 
@@ -2328,6 +2542,7 @@ function exportDeliveriesCSV(){
   d.contributions.forEach(x=>rows.push(['aportacion',x.created_at,studentName(x._student),x._student?.student_code,x.title||x.primary_topic,x.status,x.preliminary_score]));
   d.portfolios.forEach(x=>rows.push(['portfolio',x.created_at,studentName(x._student),x._student?.student_code,x.challenge_code||x.file_name,x.status,x.teacher_evaluation?.score]));
   d.weekly.forEach(x=>{let a=x.participation||{},ch=x.challenge||{};rows.push(['reto',a.created_at,studentName(x._student),x._student?.student_code,ch.title,a.status,a.preliminary_score])});
+  (d.atlas||[]).forEach(x=>rows.push(['gran_atlas',x.submitted_at||x.updated_at,atlasMembersText(x),x.group_code,x.food_name||x.food_code,x.status,x.teacher_score??x.ai_score]));
   let blob=new Blob(['\ufeff'+rows.map(r=>r.map(csvCell).join(';')).join('\n')],{type:'text/csv;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='cenqal_entregas.csv';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
 
@@ -2362,7 +2577,7 @@ function v702AgePriority(created){
 
 function v702AutoTasks(){
   const out=[];
-  const d=state.deliveries||{contributions:[],portfolios:[],weekly:[]};
+  const d=state.deliveries||{contributions:[],portfolios:[],weekly:[],atlas:[]};
 
   (d.contributions||[]).forEach(x=>{
     if(deliveryGroup(x.status)!=='pending')return;
@@ -2393,6 +2608,22 @@ function v702AutoTasks(){
       created_at:x.created_at||null,
       due_at:null,
       priority:v702AgePriority(x.created_at),
+      status:'open',
+      view:'deliveries'
+    });
+  });
+
+  (d.atlas||[]).forEach(x=>{
+    if(atlasDeliveryGroup(x.status)!=='pending')return;
+    out.push({
+      key:'atlas:'+x.id,
+      kind:'auto',
+      source:'Gran Atlas',
+      title:`Revisar Gran Atlas · Equipo ${x.group_code||'—'}`,
+      note:`${x.food_name||x.food_code||'Ficha'} · IA ${x.ai_score==null?'pendiente':x.ai_score+'/100'}`,
+      created_at:x.submitted_at||x.updated_at||null,
+      due_at:null,
+      priority:v702AgePriority(x.submitted_at||x.updated_at),
       status:'open',
       view:'deliveries'
     });
