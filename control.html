@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>CENQAL Control</title>
-<meta name="CENQAL_CONTROL_BUILD" content="v73.7">
+<meta name="CENQAL_CONTROL_BUILD" content="v73.7.1">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#0c3f82">
 <link rel="apple-touch-icon" href="./cenqal-apple-touch-icon.png">
@@ -413,6 +413,19 @@ details.card>.detailBody{padding:0 16px 16px}
 @keyframes livePulse{0%{box-shadow:0 0 0 0 rgba(24,166,106,.35)}70%{box-shadow:0 0 0 7px rgba(24,166,106,0)}100%{box-shadow:0 0 0 0 rgba(24,166,106,0)}}
 
 </style>
+
+<style id="v7371-mobile-table-fix">
+  #strategyAlerts .table td,
+  #gymStudentConsolidation .table td,
+  #gymHardQuestions .table td,
+  #studentGymAdvancedDetail .table td{
+    white-space:normal;
+    overflow-wrap:anywhere;
+    word-break:normal;
+    vertical-align:top;
+  }
+</style>
+
 </head>
 
 <body>
@@ -458,7 +471,7 @@ details.card>.detailBody{padding:0 16px 16px}
       <div class="brandmark"></div>
       <div>
         <h1>CENQAL Control</h1>
-        <small>Panel docente seguro · v73.7</small>
+        <small>Panel docente seguro · v73.7.1</small>
       </div>
     </div>
 
@@ -5527,12 +5540,11 @@ function renderStrategyV736(){
     ?tableHTML(
       ['Alumno','Señal','Práctica','Examen'],
       alerts.rows.slice(0,15).map(x=>[
-        `<b>${esc(x.full_name)}</b>${x.student_code?`<div class="subtle">${esc(x.student_code)}</div>`:''}`,
-        `<b>${priLabel(x.priority)}</b><div class="subtle">${x.signals.map(esc).join('<br>')}</div>`,
+        `${x.full_name||'Alumno'}${x.student_code?` · ${x.student_code}`:''}`,
+        `${priLabel(x.priority)} · ${(x.signals||[]).join(' · ')}`,
         `${v69Num(x.practice_minutes,0)} min`,
         x.exam_average==null?'—':`${v69Num(x.exam_average,2)}/10`
-      ]),
-      'html'
+      ])
     )
     :'<div class="empty">No se generan señales con los datos actuales.</div>';
 
@@ -5706,14 +5718,13 @@ function renderGymAdvancedV737(){
     ?tableHTML(
       ['Pregunta','Tema','Concepto','Resp.','Acierto','Recuperación'],
       qshow.map(x=>[
-        `<span title="${esc(x.question_text||'')}"><b>${esc(x.question_code||x.question_id||'—')}</b><div class="subtle">${esc(v737Short(x.question_text||'',80))}</div></span>`,
+        `${x.question_code||x.question_id||'—'} · ${v737Short(x.question_text||'',80)}`,
         `T${x.topic_number||'—'}`,
-        esc(x.concept||'—'),
+        x.concept||'—',
         x.responses||0,
         x.accuracy_pct==null?'—':`${v69Num(x.accuracy_pct,1)}%`,
         x.recovery_rate_pct==null?'—':`${v69Num(x.recovery_rate_pct,1)}%`
-      ]),
-      'html'
+      ])
     )
     :'<div class="empty">Todavía no hay suficientes respuestas por pregunta.</div>';
 
@@ -5728,15 +5739,14 @@ function renderGymAdvancedV737(){
         })
         .slice(0,20)
         .map(x=>[
-          `<b>${esc(x.full_name||x.student_code||'—')}</b><div class="subtle">${esc(x.student_code||'')}</div>`,
+          `${x.full_name||x.student_code||'—'}${x.student_code?` · ${x.student_code}`:''}`,
           x.responses||0,
           x.first_accuracy_pct==null?'—':`${v69Num(x.first_accuracy_pct,1)}%`,
           x.latest_accuracy_pct==null?'—':`${v69Num(x.latest_accuracy_pct,1)}%`,
           x.improvement_pp==null?'—':`${Number(x.improvement_pp)>=0?'+':''}${v69Num(x.improvement_pp,1)}`,
           x.recovery_rate_pct==null?'—':`${v69Num(x.recovery_rate_pct,1)}%`,
           x.persistent_errors||0
-        ]),
-      'html'
+        ])
     )
     :'<div class="empty">Todavía no hay actividad Gym identificada.</div>';
 
@@ -5846,12 +5856,11 @@ function renderStudentGymAdvancedV737(){
         ${difficult.length?tableHTML(
           ['Pregunta','Tema','Intentos','Aciertos/errores'],
           difficult.map(x=>[
-            `<span title="${esc(x.question_text||'')}"><b>${esc(x.question_code||x.question_id||'—')}</b><div class="subtle">${esc(v737Short(x.question_text||'',65))}</div></span>`,
+            `${x.question_code||x.question_id||'—'} · ${v737Short(x.question_text||'',65)}`,
             `T${x.topic_number||'—'}`,
             x.attempts||0,
             `${x.correct_count||0}/${x.wrong_count||0}`
-          ]),
-          'html'
+          ])
         ):'<div class="empty">No quedan preguntas con último intento incorrecto entre las practicadas.</div>'}
       </div>
     </div>
