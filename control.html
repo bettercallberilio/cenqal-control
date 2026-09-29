@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>CENQAL Control</title>
-<meta name="CENQAL_CONTROL_BUILD" content="v73.6">
+<meta name="CENQAL_CONTROL_BUILD" content="v73.7">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#0c3f82">
 <link rel="apple-touch-icon" href="./cenqal-apple-touch-icon.png">
@@ -458,7 +458,7 @@ details.card>.detailBody{padding:0 16px 16px}
       <div class="brandmark"></div>
       <div>
         <h1>CENQAL Control</h1>
-        <small>Panel docente seguro · v73.6</small>
+        <small>Panel docente seguro · v73.7</small>
       </div>
     </div>
 
@@ -718,6 +718,86 @@ details.card>.detailBody{padding:0 16px 16px}
         </div>
       </div>
 
+      <div class="card" style="margin-bottom:14px" id="gymAdvancedBlock">
+        <div class="sectionTitle">
+          <div>
+            <h3>🏋️ Diagnóstico avanzado del Gym</h3>
+            <p>Consolidación, recuperación de errores, conceptos problemáticos, dificultad y finalización de sesiones.</p>
+          </div>
+          <span class="subtle">primer intento ↔ último intento · descriptivo</span>
+        </div>
+
+        <div class="metrics grid analyticsKpis" id="gymAdvancedMetrics">
+          <div class="card"><span class="loader"></span> Analizando Gym…</div>
+        </div>
+
+        <div class="analyticsGrid" style="margin-top:14px">
+          <div class="card analyticsChart analyticsWide">
+            <div class="sectionTitle">
+              <h3>🧩 Conceptos con mayor dificultad</h3>
+              <span class="subtle">precisión acumulada</span>
+            </div>
+            <canvas id="gymConceptAdvancedChart"></canvas>
+            <div class="analyticsHint">Se muestran primero los conceptos con menor porcentaje de acierto. Conviene interpretar junto con el número de respuestas.</div>
+          </div>
+
+          <div class="card analyticsChart">
+            <div class="sectionTitle">
+              <h3>🎚️ Rendimiento por dificultad</h3>
+              <span class="subtle">banco Gym</span>
+            </div>
+            <canvas id="gymDifficultyAdvancedChart"></canvas>
+          </div>
+
+          <div class="card analyticsChart">
+            <div class="sectionTitle">
+              <h3>📈 Consolidación del grupo</h3>
+              <span class="subtle">primer ↔ último intento</span>
+            </div>
+            <canvas id="gymConsolidationChart"></canvas>
+          </div>
+        </div>
+
+        <div class="grid two" style="margin-top:14px">
+          <div class="card">
+            <div class="sectionTitle">
+              <h3>❓ Preguntas que más cuestan</h3>
+              <span class="subtle">error observado y recuperación</span>
+            </div>
+            <div id="gymHardQuestions"></div>
+          </div>
+
+          <div class="card">
+            <div class="sectionTitle">
+              <h3>🔁 Recuperación y consolidación</h3>
+              <span class="subtle">por alumno</span>
+            </div>
+            <div id="gymStudentConsolidation"></div>
+          </div>
+        </div>
+
+        <div class="grid two" style="margin-top:14px">
+          <div class="card">
+            <div class="sectionTitle">
+              <h3>✅ Estado de sesiones</h3>
+              <span class="subtle">completadas, pausadas y abiertas</span>
+            </div>
+            <div id="gymSessionStatus"></div>
+          </div>
+          <div class="card">
+            <div class="sectionTitle">
+              <h3>🎯 Tipo de entrenamiento</h3>
+              <span class="subtle">completo · fallos · no dominadas</span>
+            </div>
+            <div id="gymSessionModes"></div>
+          </div>
+        </div>
+
+        <div class="note" style="margin-top:12px">
+          La mejora se calcula comparando, para cada alumno y pregunta trabajada, su primera respuesta con la última. “Recuperada” significa que la primera fue incorrecta y la última correcta. No es una calificación oficial.
+        </div>
+      </div>
+
       <div class="card initialAssessmentCard">
         <div class="sectionTitle">
           <div>
@@ -877,6 +957,11 @@ details.card>.detailBody{padding:0 16px 16px}
         </div>
         <div id="studentLearningDetail"></div>
         <div class="card" style="margin-top:14px">
+          <div class="sectionTitle"><h3>🏋️ Diagnóstico Gym individual</h3><span class="subtle">consolidación y recuperación de errores</span></div>
+          <div id="studentGymAdvancedDetail"><div class="empty">Sin actividad Gym registrada.</div></div>
+        </div>
+
+        <div class="card" style="margin-top:14px">
           <div class="sectionTitle"><h3>🎮 CENQAL Play individual</h3><span class="subtle">juego, transferencia y conceptos</span></div>
           <div id="studentPlayDetail"><div class="empty">Sin actividad Play registrada.</div></div>
         </div>
@@ -1013,8 +1098,10 @@ let state={
   learning:null,
   learningExport:null,
   strategyRaw:null,
+  gymAdvanced:null,
   playAnalytics:null,
   studentLearning:null,
+  studentGymAdvanced:null,
   studentPlay:null,
   currentStudentId:null,
   studentDetail:null
@@ -1608,8 +1695,10 @@ function clearCourseScopedState(){
   state.learning=null;
   state.learningExport=null;
   state.strategyRaw=null;
+  state.gymAdvanced=null;
   state.playAnalytics=null;
   state.studentLearning=null;
+  state.studentGymAdvanced=null;
   state.studentPlay=null;
   state.studentDetail=null;
   state.currentStudentId=null;
@@ -3942,8 +4031,10 @@ async function refreshAll(){
   state.learning=null;
   state.learningExport=null;
   state.strategyRaw=null;
+  state.gymAdvanced=null;
   state.playAnalytics=null;
   state.studentLearning=null;
+  state.studentGymAdvanced=null;
   state.studentPlay=null;
   state.studentDetail=null;
 
@@ -5179,11 +5270,19 @@ function v736StrategicAlerts(rows){
   const examVals=rows.map(x=>v736Num(x.exam_average)).filter(x=>x!=null);
   const practiceMedian=v736Median(activeMinutes);
   const examMedian=v736Median(examVals);
+  const advancedMap=new Map();
+  (state.gymAdvanced?.students||[]).forEach(x=>{
+    if(x?.student_id!=null)advancedMap.set('id:'+String(x.student_id),x);
+    if(x?.student_code)advancedMap.set('code:'+String(x.student_code).toLowerCase(),x);
+  });
   const out=[];
 
   for(const x of rows){
     const signals=[];
     let priority=0;
+    const ga=advancedMap.get('id:'+String(x.student_id||''))
+      ||advancedMap.get('code:'+String(x.student_code||'').toLowerCase())
+      ||{};
     const practice=x.total_practice_minutes||0;
     const highPractice=practiceMedian!=null && practice>=practiceMedian && practice>0;
     const exam=v736Num(x.exam_average);
@@ -5214,6 +5313,21 @@ function v736StrategicAlerts(rows){
       signals.push(`Dominio Gym bajo pese a ${answers} respuestas: ${v69Num(mastery,1)}%`);
     }
 
+    const gymImprovement=v736Num(ga.improvement_pp);
+    const gymRecovery=v736Num(ga.recovery_rate_pct);
+    const gymInitiallyWrong=Number(ga.initially_wrong||0);
+    const gymResponses=Number(ga.responses||0);
+
+    if(gymResponses>=15 && gymImprovement!=null && gymImprovement<=0){
+      priority=Math.max(priority,3);
+      signals.push(`Practica en Gym pero no consolida: primer→último intento ${gymImprovement>=0?'+':''}${v69Num(gymImprovement,1)} pp`);
+    }
+
+    if(gymInitiallyWrong>=3 && gymRecovery!=null && gymRecovery<35){
+      priority=Math.max(priority,2);
+      signals.push(`Recuperación de errores Gym baja: ${v69Num(gymRecovery,1)}% (${ga.recovered||0}/${gymInitiallyWrong})`);
+    }
+
     if(practice===0 && exam!=null && exam<5){
       priority=Math.max(priority,1);
       signals.push(`Sin práctica digital registrada y media de examen ${v69Num(exam,2)}/10`);
@@ -5241,19 +5355,38 @@ function v736StrategicAlerts(rows){
 
 function v736DifficultyRows(){
   const out=[];
-  for(const t of state.learning?.topics||[]){
-    const acc=v736Num(t.gym_accuracy_pct);
-    const n=Number(t.gym_attempts||0);
-    if(acc!=null&&n>0){
-      out.push({
-        source:'Gym',
-        concept:`Tema ${t.topic_number}`,
-        accuracy:acc,
-        n,
-        detail:`Dominio ${t.mastery_pct==null?'—':v69Num(t.mastery_pct,1)+'%'}`
-      });
+  const gymConcepts=state.gymAdvanced?.concepts||[];
+
+  if(gymConcepts.length){
+    for(const c of gymConcepts){
+      const acc=v736Num(c.accuracy_pct);
+      const n=Number(c.responses||0);
+      if(acc!=null&&n>0){
+        out.push({
+          source:'Gym · concepto',
+          concept:c.concept||'—',
+          accuracy:acc,
+          n,
+          detail:`Recuperación ${c.recovery_rate_pct==null?'—':v69Num(c.recovery_rate_pct,1)+'%'}`
+        });
+      }
+    }
+  }else{
+    for(const t of state.learning?.topics||[]){
+      const acc=v736Num(t.gym_accuracy_pct);
+      const n=Number(t.gym_attempts||0);
+      if(acc!=null&&n>0){
+        out.push({
+          source:'Gym',
+          concept:`Tema ${t.topic_number}`,
+          accuracy:acc,
+          n,
+          detail:`Dominio ${t.mastery_pct==null?'—':v69Num(t.mastery_pct,1)+'%'}`
+        });
+      }
     }
   }
+
   for(const c of state.playAnalytics?.concepts||[]){
     const acc=v736Num(c.accuracy_pct);
     const n=Number(c.responses||0);
@@ -5440,16 +5573,319 @@ function renderStrategyV736(){
 }
 
 
+
+async function loadGymAdvancedV737(force=false){
+  if(state.gymAdvanced&&!force)return state.gymAdvanced;
+  try{
+    const d=await rpc('cenqal_control_gym_advanced_v737',{
+      p_token:TOKEN,
+      p_course_id:v69CourseId()
+    });
+    state.gymAdvanced=d;
+    return d;
+  }catch(e){
+    state.gymAdvanced={
+      _error:e.message||String(e),
+      summary:{},questions:[],concepts:[],difficulties:[],students:[],
+      sessions:{by_status:[],by_mode:[]}
+    };
+    return state.gymAdvanced;
+  }
+}
+
+function v737Short(s,n=95){
+  const x=String(s||'').trim();
+  return x.length>n?x.slice(0,n-1)+'…':x;
+}
+
+function v737DifficultyLabel(x){
+  const v=String(x||'').toLowerCase();
+  if(v==='easy'||v==='fácil'||v==='facil')return 'Fácil';
+  if(v==='medium'||v==='media')return 'Media';
+  if(v==='hard'||v==='difícil'||v==='dificil')return 'Difícil';
+  return x||'Sin clasificar';
+}
+
+function renderGymAdvancedV737(){
+  const box=document.getElementById('gymAdvancedMetrics');
+  if(!box)return;
+
+  const d=state.gymAdvanced||{};
+  if(d._error){
+    box.innerHTML=`<div class="card note warn">Gym avanzado todavía no puede cargarse: ${esc(d._error)}</div>`;
+    ['gymHardQuestions','gymStudentConsolidation','gymSessionStatus','gymSessionModes'].forEach(id=>{
+      const el=document.getElementById(id);
+      if(el)el.innerHTML='<div class="empty">Sin datos.</div>';
+    });
+    return;
+  }
+
+  const s=d.summary||{};
+  const questions=d.questions||[];
+  const concepts=d.concepts||[];
+  const diffs=d.difficulties||[];
+  const students=d.students||[];
+  const sess=d.sessions||{};
+
+  const imp=s.improvement_pp==null?'—':`${Number(s.improvement_pp)>=0?'+':''}${v69Num(s.improvement_pp,1)} pp`;
+
+  box.innerHTML=[
+    metric('🧠 Primer intento',s.first_accuracy_pct==null?'—':`${v69Num(s.first_accuracy_pct,1)}%`,'sobre cada pregunta trabajada'),
+    metric('📈 Último intento',s.latest_accuracy_pct==null?'—':`${v69Num(s.latest_accuracy_pct,1)}%`,imp==='—'?'sin comparación':`cambio ${imp}`),
+    metric('🔁 Errores recuperados',s.recovery_rate_pct==null?'—':`${v69Num(s.recovery_rate_pct,1)}%`,`${s.recovered_questions||0}/${s.initially_wrong||0} errores iniciales`),
+    metric('⚠️ Persistentes',s.persistent_errors||0,`${s.relapses||0} recaídas`),
+    metric('✅ Sesiones completas',s.completion_rate_pct==null?'—':`${v69Num(s.completion_rate_pct,1)}%`,`${s.completed_sessions||0}/${s.sessions||0}`),
+    metric('🎯 Repaso dirigido',s.review_sessions||0,'fallos / no dominadas')
+  ].join('');
+
+  const conceptRows=concepts
+    .filter(x=>x.accuracy_pct!=null)
+    .slice(0,12);
+
+  v69Chart('gymConceptAdvanced','gymConceptAdvancedChart',{
+    type:'bar',
+    data:{
+      labels:conceptRows.map(x=>x.concept),
+      datasets:[{
+        label:'Acierto (%)',
+        data:conceptRows.map(x=>x.accuracy_pct)
+      }]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      indexAxis:'y',
+      plugins:{legend:{display:false}},
+      scales:{x:{beginAtZero:true,max:100}}
+    }
+  });
+
+  v69Chart('gymDifficultyAdvanced','gymDifficultyAdvancedChart',{
+    type:'bar',
+    data:{
+      labels:diffs.map(x=>v737DifficultyLabel(x.difficulty)),
+      datasets:[{
+        label:'Acierto (%)',
+        data:diffs.map(x=>x.accuracy_pct)
+      }]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{y:{beginAtZero:true,max:100}}
+    }
+  });
+
+  const consolidated=students
+    .filter(x=>x.first_accuracy_pct!=null||x.latest_accuracy_pct!=null)
+    .sort((a,b)=>String(a.full_name||'').localeCompare(String(b.full_name||''),'es'));
+
+  v69Chart('gymConsolidation','gymConsolidationChart',{
+    type:'bar',
+    data:{
+      labels:consolidated.map(x=>x.full_name||x.student_code||'Alumno'),
+      datasets:[
+        {label:'Primer intento (%)',data:consolidated.map(x=>x.first_accuracy_pct)},
+        {label:'Último intento (%)',data:consolidated.map(x=>x.latest_accuracy_pct)}
+      ]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      indexAxis:'y',
+      scales:{x:{beginAtZero:true,max:100}}
+    }
+  });
+
+  const qshow=questions
+    .filter(x=>Number(x.responses||0)>=2)
+    .slice(0,15);
+
+  document.getElementById('gymHardQuestions').innerHTML=qshow.length
+    ?tableHTML(
+      ['Pregunta','Tema','Concepto','Resp.','Acierto','Recuperación'],
+      qshow.map(x=>[
+        `<span title="${esc(x.question_text||'')}"><b>${esc(x.question_code||x.question_id||'—')}</b><div class="subtle">${esc(v737Short(x.question_text||'',80))}</div></span>`,
+        `T${x.topic_number||'—'}`,
+        esc(x.concept||'—'),
+        x.responses||0,
+        x.accuracy_pct==null?'—':`${v69Num(x.accuracy_pct,1)}%`,
+        x.recovery_rate_pct==null?'—':`${v69Num(x.recovery_rate_pct,1)}%`
+      ]),
+      'html'
+    )
+    :'<div class="empty">Todavía no hay suficientes respuestas por pregunta.</div>';
+
+  document.getElementById('gymStudentConsolidation').innerHTML=students.length
+    ?tableHTML(
+      ['Alumno','Resp.','1.º','Último','Δ','Recupera','Persisten'],
+      [...students]
+        .sort((a,b)=>{
+          const ai=a.improvement_pp==null?999:Number(a.improvement_pp);
+          const bi=b.improvement_pp==null?999:Number(b.improvement_pp);
+          return ai-bi;
+        })
+        .slice(0,20)
+        .map(x=>[
+          `<b>${esc(x.full_name||x.student_code||'—')}</b><div class="subtle">${esc(x.student_code||'')}</div>`,
+          x.responses||0,
+          x.first_accuracy_pct==null?'—':`${v69Num(x.first_accuracy_pct,1)}%`,
+          x.latest_accuracy_pct==null?'—':`${v69Num(x.latest_accuracy_pct,1)}%`,
+          x.improvement_pp==null?'—':`${Number(x.improvement_pp)>=0?'+':''}${v69Num(x.improvement_pp,1)}`,
+          x.recovery_rate_pct==null?'—':`${v69Num(x.recovery_rate_pct,1)}%`,
+          x.persistent_errors||0
+        ]),
+      'html'
+    )
+    :'<div class="empty">Todavía no hay actividad Gym identificada.</div>';
+
+  const status=sess.by_status||[];
+  document.getElementById('gymSessionStatus').innerHTML=status.length
+    ?tableHTML(
+      ['Estado','Sesiones','Alumnos'],
+      status.map(x=>[
+        x.status||'—',
+        x.sessions||0,
+        x.students||0
+      ])
+    )
+    :'<div class="empty">Sin sesiones.</div>';
+
+  const modes=sess.by_mode||[];
+  document.getElementById('gymSessionModes').innerHTML=modes.length
+    ?tableHTML(
+      ['Modo','Sesiones','Alumnos','Acierto'],
+      modes.map(x=>[
+        x.mode==='full'?'Completo':x.mode==='wrong'?'Repasar fallos':x.mode==='unmastered'?'No dominadas':x.mode||'—',
+        x.sessions||0,
+        x.students||0,
+        x.accuracy_pct==null?'—':`${v69Num(x.accuracy_pct,1)}%`
+      ])
+    )
+    :'<div class="empty">Sin sesiones.</div>';
+}
+
+async function loadStudentGymAdvancedV737(sid,force=false){
+  if(
+    state.studentGymAdvanced &&
+    !force &&
+    String(state.studentGymAdvanced?.student?.student_id||'')===String(sid)
+  ){
+    return state.studentGymAdvanced;
+  }
+
+  try{
+    const d=await rpc('cenqal_control_student_gym_advanced_v737',{
+      p_token:TOKEN,
+      p_student_id:sid,
+      p_course_id:v69CourseId()
+    });
+    state.studentGymAdvanced=d;
+    return d;
+  }catch(e){
+    state.studentGymAdvanced={
+      _error:e.message||String(e),
+      summary:{},questions:[],concepts:[],sessions:[]
+    };
+    return state.studentGymAdvanced;
+  }
+}
+
+function renderStudentGymAdvancedV737(){
+  const box=document.getElementById('studentGymAdvancedDetail');
+  if(!box)return;
+
+  const d=state.studentGymAdvanced||{};
+  if(d._error){
+    box.innerHTML=`<div class="note warn">${esc(d._error)}</div>`;
+    return;
+  }
+
+  const s=d.summary||{};
+  const concepts=d.concepts||[];
+  const questions=d.questions||[];
+  const sessions=d.sessions||[];
+
+  if(!(s.responses||0)){
+    box.innerHTML='<div class="empty">Este alumno todavía no tiene actividad Gym identificada.</div>';
+    return;
+  }
+
+  const difficult=questions
+    .filter(x=>x.latest_correct===false)
+    .slice(0,10);
+
+  box.innerHTML=`
+    <div class="metrics grid" style="margin:10px 0">
+      ${metric('🧠 Primer intento',s.first_accuracy_pct==null?'—':v69Num(s.first_accuracy_pct,1)+'%','preguntas trabajadas')}
+      ${metric('📈 Último intento',s.latest_accuracy_pct==null?'—':v69Num(s.latest_accuracy_pct,1)+'%',s.improvement_pp==null?'sin comparación':`${Number(s.improvement_pp)>=0?'+':''}${v69Num(s.improvement_pp,1)} pp`)}
+      ${metric('🔁 Recuperación',s.recovery_rate_pct==null?'—':v69Num(s.recovery_rate_pct,1)+'%',`${s.recovered||0}/${s.initially_wrong||0} errores iniciales`)}
+      ${metric('⚠️ Persistentes',s.persistent_errors||0,`${s.relapses||0} recaídas`)}
+      ${metric('✅ Sesiones',`${s.completed_sessions||0}/${s.sessions||0}`,'completadas')}
+      ${metric('📆 Regularidad',`${s.active_weeks||0} sem.`,`${s.active_days||0} días activos`)}
+    </div>
+
+    <div class="grid two">
+      <div>
+        <h4>🧩 Conceptos</h4>
+        ${concepts.length?tableHTML(
+          ['Concepto','Resp.','Acierto','1.º→último','Persisten'],
+          concepts.slice(0,12).map(x=>[
+            x.concept||'—',
+            x.responses||0,
+            x.accuracy_pct==null?'—':v69Num(x.accuracy_pct,1)+'%',
+            `${x.first_accuracy_pct==null?'—':v69Num(x.first_accuracy_pct,0)+'%'} → ${x.latest_accuracy_pct==null?'—':v69Num(x.latest_accuracy_pct,0)+'%'}`,
+            x.persistent_errors||0
+          ])
+        ):'<div class="empty">Sin datos por concepto.</div>'}
+      </div>
+
+      <div>
+        <h4>❌ Preguntas todavía no consolidadas</h4>
+        ${difficult.length?tableHTML(
+          ['Pregunta','Tema','Intentos','Aciertos/errores'],
+          difficult.map(x=>[
+            `<span title="${esc(x.question_text||'')}"><b>${esc(x.question_code||x.question_id||'—')}</b><div class="subtle">${esc(v737Short(x.question_text||'',65))}</div></span>`,
+            `T${x.topic_number||'—'}`,
+            x.attempts||0,
+            `${x.correct_count||0}/${x.wrong_count||0}`
+          ]),
+          'html'
+        ):'<div class="empty">No quedan preguntas con último intento incorrecto entre las practicadas.</div>'}
+      </div>
+    </div>
+
+    <div style="margin-top:12px">
+      <h4>🎯 Últimas sesiones</h4>
+      ${sessions.length?tableHTML(
+        ['Fecha','Tema','Modo','Estado','Acierto','Tiempo'],
+        sessions.slice(0,10).map(x=>[
+          x.started_at?fmtDate(x.started_at):'—',
+          `T${x.topic_number||'—'}`,
+          x.mode==='full'?'Completo':x.mode==='wrong'?'Fallos':x.mode==='unmastered'?'No dominadas':x.mode||'—',
+          x.status||'—',
+          x.accuracy_pct==null?'—':v69Num(x.accuracy_pct,1)+'%',
+          v69Minutes(x.active_minutes||0)
+        ])
+      ):'<div class="empty">Sin sesiones.</div>'}
+    </div>
+  `;
+}
+
+
 async function loadLearning(force=false){
   if(state.learning&&!force){
     await Promise.all([
       loadInitialAssessmentV692(false),
       loadPlayAnalyticsV735(false),
+      loadGymAdvancedV737(false),
       loadStrategyRawV736(false)
     ]);
     renderLearning();
     renderInitialAssessmentV692();
     renderPlayAnalyticsV735();
+    renderGymAdvancedV737();
     renderStrategyV736();
     return state.learning;
   }
@@ -5461,11 +5897,13 @@ async function loadLearning(force=false){
     await Promise.all([
       loadInitialAssessmentV692(force),
       loadPlayAnalyticsV735(force),
+      loadGymAdvancedV737(force),
       loadStrategyRawV736(force)
     ]);
     renderLearning();
     renderInitialAssessmentV692();
     renderPlayAnalyticsV735();
+    renderGymAdvancedV737();
     renderStrategyV736();
     return d;
   }catch(e){
@@ -5700,10 +6138,12 @@ async function loadStudentLearningAnalytics(sid){
   try{
     const [d]=await Promise.all([
       rpc('cenqal_control_student_learning_v69',{p_token:TOKEN,p_student_id:sid,p_course_id:v69CourseId()}),
+      loadStudentGymAdvancedV737(sid,true),
       loadStudentPlayV735(sid)
     ]);
     state.studentLearning=d;
     renderStudentLearningAnalytics();
+    renderStudentGymAdvancedV737();
     renderStudentPlayV735();
   }
   catch(e){document.getElementById('studentLearningMetrics').innerHTML=`<div class="note danger">${esc(e.message)}</div>`}
@@ -5759,7 +6199,14 @@ function v69Dictionary(){return [
   {variable:'play_perceived_learning',descripcion:'Aprendizaje percibido por el alumno, escala 1–4.'},
   {variable:'total_practice_minutes',descripcion:'Suma de minutos activos estimados en Gym y minutos registrados en Play. Se usa solo como indicador descriptivo.'},
   {variable:'strategy_alert',descripcion:'Señal automática docente basada en práctica, dominio, transferencia y rendimiento. No es una calificación ni demuestra causalidad.'},
-  {variable:'difficulty_accuracy',descripcion:'Porcentaje de acierto observado en un tema Gym o concepto Play; se ordena de menor a mayor para priorizar revisión.'}
+  {variable:'difficulty_accuracy',descripcion:'Porcentaje de acierto observado en un tema Gym o concepto Play; se ordena de menor a mayor para priorizar revisión.'},
+  {variable:'gym_first_accuracy_pct',descripcion:'Porcentaje de preguntas trabajadas cuya primera respuesta del alumno fue correcta.'},
+  {variable:'gym_latest_accuracy_pct',descripcion:'Porcentaje de preguntas trabajadas cuya respuesta más reciente fue correcta.'},
+  {variable:'gym_improvement_pp',descripcion:'Diferencia en puntos porcentuales entre último y primer intento sobre las mismas preguntas trabajadas.'},
+  {variable:'gym_recovery_rate_pct',descripcion:'Porcentaje de preguntas inicialmente falladas cuya respuesta más reciente es correcta.'},
+  {variable:'gym_persistent_errors',descripcion:'Preguntas cuya primera respuesta fue incorrecta y cuya respuesta más reciente continúa siendo incorrecta.'},
+  {variable:'gym_relapses',descripcion:'Preguntas cuya primera respuesta fue correcta pero cuya respuesta más reciente es incorrecta.'},
+  {variable:'gym_completion_rate_pct',descripcion:'Sesiones Gym completadas / sesiones Gym iniciadas en el periodo del curso.'}
 ]}
 function v69AlertRows(alerts){const a=Array.isArray(alerts?.students)?alerts.students:[];return a.map(x=>({student_code:x.student_code,full_name:x.full_name,group_name:x.group_name,alert_status:x.alert_status,signals:(x.alert_signals||x.signals||[]).map(s=>s.detail||s.title||s.code).filter(Boolean).join(' | ')}))}
 
@@ -5781,7 +6228,13 @@ async function exportLearningExcel(anonymized=false){
       {indicador:'Minutos Play',valor:state.playAnalytics?.summary?.active_minutes||0},
       {indicador:'Media juego Play (%)',valor:state.playAnalytics?.summary?.game_average??''},
       {indicador:'Media transferencia Play (%)',valor:state.playAnalytics?.summary?.transfer_average??''},
-      {indicador:'Satisfacción Play /4',valor:state.playAnalytics?.feedback?.satisfaction_average??''}
+      {indicador:'Satisfacción Play /4',valor:state.playAnalytics?.feedback?.satisfaction_average??''},
+      {indicador:'Gym primer intento (%)',valor:state.gymAdvanced?.summary?.first_accuracy_pct??''},
+      {indicador:'Gym último intento (%)',valor:state.gymAdvanced?.summary?.latest_accuracy_pct??''},
+      {indicador:'Gym mejora primer→último (pp)',valor:state.gymAdvanced?.summary?.improvement_pp??''},
+      {indicador:'Gym recuperación de errores (%)',valor:state.gymAdvanced?.summary?.recovery_rate_pct??''},
+      {indicador:'Gym errores persistentes',valor:state.gymAdvanced?.summary?.persistent_errors||0},
+      {indicador:'Gym finalización sesiones (%)',valor:state.gymAdvanced?.summary?.completion_rate_pct??''}
     ];
     v69AddSheet(wb,'RESUMEN_GRUPO',summary,[34,24]);
     v69AddSheet(wb,'ALUMNOS',clean(students),Array(30).fill(16));
@@ -5790,6 +6243,13 @@ async function exportLearningExcel(anonymized=false){
     v69AddSheet(wb,'GYM_DOMINIO',clean(raw.gym_mastery||[]),Array(18).fill(16));
     v69AddSheet(wb,'GYM_HORARIOS',state.learning?.heatmap||[],Array(10).fill(15));
     v69AddSheet(wb,'GYM_TEMAS',state.learning?.topics||[],Array(12).fill(16));
+    const gymAdv=state.gymAdvanced||{};
+    v69AddSheet(wb,'GYM_PREGUNTAS_AV',gymAdv.questions||[],Array(22).fill(18));
+    v69AddSheet(wb,'GYM_CONCEPTOS_AV',gymAdv.concepts||[],Array(16).fill(18));
+    v69AddSheet(wb,'GYM_DIFICULTAD_AV',gymAdv.difficulties||[],Array(10).fill(18));
+    v69AddSheet(wb,'GYM_CONSOLIDACION',clean(gymAdv.students||[]),Array(22).fill(18));
+    v69AddSheet(wb,'GYM_SESIONES_ESTADO',gymAdv.sessions?.by_status||[],Array(10).fill(18));
+    v69AddSheet(wb,'GYM_SESIONES_MODO',gymAdv.sessions?.by_mode||[],Array(12).fill(18));
     v69AddSheet(wb,'EXAMENES',clean(raw.exams||[]),Array(20).fill(16));
     v69AddSheet(wb,'GYM_EXAMEN',clean(state.learning?.exam_gym||[]),Array(20).fill(18));
     v69AddSheet(wb,'PRE_POST',clean(raw.pre_post||[]),Array(26).fill(17));
@@ -5817,6 +6277,10 @@ function exportStudentLearningExcel(){
     const d=state.studentLearning;if(!d)return toast('Carga primero la ficha analítica.',true);const wb=v69Workbook(),s=d.student||{},sum=d.summary||{};
     v69AddSheet(wb,'RESUMEN',[{alumno:s.full_name,codigo:s.student_code,grupo:s.group_name,...sum}],[26,22,18,...Array(30).fill(16)]);
     v69AddSheet(wb,'TEMAS',d.topics||[],Array(12).fill(17));v69AddSheet(wb,'SESIONES_GYM',d.sessions||[],Array(22).fill(17));v69AddSheet(wb,'EXAMENES',d.exams||[],Array(18).fill(17));v69AddSheet(wb,'PRE_POST',[d.pre_post||{}],Array(24).fill(18));
+    const gymAdv=state.studentGymAdvanced||{};
+    v69AddSheet(wb,'GYM_AV_RESUMEN',[gymAdv.summary||{}],Array(18).fill(18));
+    v69AddSheet(wb,'GYM_AV_CONCEPTOS',gymAdv.concepts||[],Array(14).fill(18));
+    v69AddSheet(wb,'GYM_AV_PREGUNTAS',gymAdv.questions||[],Array(20).fill(18));
     const play=state.studentPlay||{};
     v69AddSheet(wb,'PLAY_RESUMEN',[play.summary||{}],Array(14).fill(18));
     v69AddSheet(wb,'PLAY_INTENTOS',play.attempts||[],Array(16).fill(18));
@@ -5883,7 +6347,7 @@ async function v733RefreshStudentInline(){
   const sid=studentUuid(state.currentStudentId);
   if(!sid)return;
 
-  const [workspace,learning,play]=await Promise.allSettled([
+  const [workspace,learning,gymAdvanced,play]=await Promise.allSettled([
     rpc('cenqal_control_student_workspace',{
       p_token:TOKEN,
       p_student_id:sid
@@ -5893,6 +6357,7 @@ async function v733RefreshStudentInline(){
       p_student_id:sid,
       p_course_id:v69CourseId()
     }),
+    loadStudentGymAdvancedV737(sid,true),
     loadStudentPlayV735(sid)
   ]);
 
@@ -5908,8 +6373,21 @@ async function v733RefreshStudentInline(){
     renderStudentLearningAnalytics();
   }
 
-  if(workspace.status==='rejected' && learning.status==='rejected'){
-    throw workspace.reason||learning.reason||new Error('No se pudo actualizar la ficha del alumno.');
+  if(gymAdvanced.status==='fulfilled'){
+    renderStudentGymAdvancedV737();
+  }
+
+  if(play.status==='fulfilled'){
+    renderStudentPlayV735();
+  }
+
+  if(
+    workspace.status==='rejected' &&
+    learning.status==='rejected' &&
+    gymAdvanced.status==='rejected' &&
+    play.status==='rejected'
+  ){
+    throw workspace.reason||learning.reason||gymAdvanced.reason||play.reason||new Error('No se pudo actualizar la ficha del alumno.');
   }
 }
 
