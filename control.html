@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>CENQAL Control</title>
-<meta name="CENQAL_CONTROL_BUILD" content="v73.5">
+<meta name="CENQAL_CONTROL_BUILD" content="v73.6">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#0c3f82">
 <link rel="apple-touch-icon" href="./cenqal-apple-touch-icon.png">
@@ -458,7 +458,7 @@ details.card>.detailBody{padding:0 16px 16px}
       <div class="brandmark"></div>
       <div>
         <h1>CENQAL Control</h1>
-        <small>Panel docente seguro · v73.5</small>
+        <small>Panel docente seguro · v73.6</small>
       </div>
     </div>
 
@@ -651,7 +651,7 @@ details.card>.detailBody{padding:0 16px 16px}
       <div class="viewHeader">
         <div>
           <h2>📊 CENQAL Learning Analytics</h2>
-          <p>Rendimiento, semáforo, Gym, CENQAL Play, hábitos de estudio, PRE↔POST y relación práctica–examen. Uso exclusivamente docente · actualización automática de la vista.</p>
+          <p>Rendimiento, evolución semanal, Gym, CENQAL Play, alertas formativas, PRE↔POST y relación práctica–examen. Uso exclusivamente docente · actualización automática de la vista.</p>
         </div>
         <div class="analyticsToolbar">
           <button class="btn primary" onclick="exportLearningExcel(false)">⬇ Excel completo</button>
@@ -661,6 +661,62 @@ details.card>.detailBody{padding:0 16px 16px}
       </div>
       <div class="note warn" style="margin-bottom:14px">Las asociaciones entre uso del Gym/Play y resultados son descriptivas: ayudan a observar patrones, pero no demuestran causalidad. En Gym el tiempo activo es una estimación; en Play se registra la duración de cada intento.</div>
       <div class="metrics grid analyticsKpis" id="learningMetrics"><div class="card"><span class="loader"></span> Calculando analítica…</div></div>
+
+      <div class="card" style="margin-bottom:14px">
+        <div class="sectionTitle">
+          <div>
+            <h3>🧭 Vista estratégica del aprendizaje</h3>
+            <p>Evolución temporal, comparación Gym–Play–examen, dificultades observadas y señales automáticas para revisión docente.</p>
+          </div>
+          <span class="subtle">Auto · se recalcula con los datos vivos</span>
+        </div>
+
+        <div class="metrics grid analyticsKpis" id="strategyMetrics">
+          <div class="card"><span class="loader"></span> Preparando vista estratégica…</div>
+        </div>
+
+        <div class="analyticsGrid" style="margin-top:14px">
+          <div class="card analyticsChart analyticsWide">
+            <div class="sectionTitle">
+              <h3>📆 Evolución por semanas</h3>
+              <span class="subtle">Gym · Play · exámenes</span>
+            </div>
+            <canvas id="strategyWeeklyChart"></canvas>
+            <div id="strategyWeeklyText" class="analyticsHint"></div>
+          </div>
+
+          <div class="card analyticsChart analyticsWide">
+            <div class="sectionTitle">
+              <h3>⚖️ Gym vs Play vs examen</h3>
+              <span class="subtle">comparativa por alumno · escala 0–100</span>
+            </div>
+            <canvas id="strategyCompareChart"></canvas>
+            <div class="analyticsHint">Gym = dominio observado; Play = transferencia; examen = media transformada a porcentaje. La ausencia de datos no se interpreta como cero.</div>
+          </div>
+        </div>
+
+        <div class="grid two" style="margin-top:14px">
+          <div class="card">
+            <div class="sectionTitle">
+              <h3>🚨 Señales automáticas para revisión</h3>
+              <span class="subtle">no son diagnósticos ni calificaciones</span>
+            </div>
+            <div id="strategyAlerts"></div>
+          </div>
+
+          <div class="card">
+            <div class="sectionTitle">
+              <h3>🎯 Mapa de dificultades</h3>
+              <span class="subtle">menor acierto observado</span>
+            </div>
+            <div id="strategyDifficulties"></div>
+          </div>
+        </div>
+
+        <div class="note" id="strategyMethodNote" style="margin-top:12px">
+          Las señales se generan con reglas descriptivas del propio grupo. “Práctica alta” se define respecto a la mediana de minutos de actividad del grupo; no implica causalidad ni sustituye la revisión docente.
+        </div>
+      </div>
 
       <div class="card initialAssessmentCard">
         <div class="sectionTitle">
@@ -956,6 +1012,7 @@ let state={
   teacherAgendaFilter:'open',
   learning:null,
   learningExport:null,
+  strategyRaw:null,
   playAnalytics:null,
   studentLearning:null,
   studentPlay:null,
@@ -1550,7 +1607,10 @@ function clearCourseScopedState(){
   state.teacherAgenda=null;
   state.learning=null;
   state.learningExport=null;
+  state.strategyRaw=null;
+  state.playAnalytics=null;
   state.studentLearning=null;
+  state.studentPlay=null;
   state.studentDetail=null;
   state.currentStudentId=null;
 }
@@ -3881,7 +3941,10 @@ async function refreshAll(){
   state.deliveries=null;
   state.learning=null;
   state.learningExport=null;
+  state.strategyRaw=null;
+  state.playAnalytics=null;
   state.studentLearning=null;
+  state.studentPlay=null;
   state.studentDetail=null;
 
   await refreshSnapshot();
@@ -4751,14 +4814,22 @@ async function loadInitialAssessmentV692(force=false){
 async function loadPlayAnalyticsV735(force=false){
   if(state.playAnalytics&&!force)return state.playAnalytics;
   try{
-    const d=await rpc('cenqal_control_play_analytics_v735',{
-      p_token:TOKEN,
-      p_course_id:v69CourseId()
-    });
+    let d;
+    try{
+      d=await rpc('cenqal_control_play_analytics_v736',{
+        p_token:TOKEN,
+        p_course_id:v69CourseId()
+      });
+    }catch(v736e){
+      d=await rpc('cenqal_control_play_analytics_v735',{
+        p_token:TOKEN,
+        p_course_id:v69CourseId()
+      });
+    }
     state.playAnalytics=d;
     return d;
   }catch(e){
-    state.playAnalytics={_error:e.message||String(e),summary:{},activities:[],concepts:[],students:[],feedback:{}};
+    state.playAnalytics={_error:e.message||String(e),summary:{},activities:[],concepts:[],students:[],feedback:{},weekly:[]};
     return state.playAnalytics;
   }
 }
@@ -4960,15 +5031,426 @@ function renderStudentPlayV735(){
 }
 
 
+
+let v736StrategyRawLoadedAt=0;
+
+async function loadStrategyRawV736(force=false){
+  const now=Date.now();
+  // El export bruto es más pesado que los KPIs; no se vuelve a pedir cada 20 s.
+  if(state.strategyRaw && (!force || now-v736StrategyRawLoadedAt<60000)){
+    return state.strategyRaw;
+  }
+  try{
+    const d=await rpc('cenqal_control_learning_export_v69',{
+      p_token:TOKEN,
+      p_course_id:v69CourseId()
+    });
+    state.strategyRaw=d||{};
+    v736StrategyRawLoadedAt=now;
+    return state.strategyRaw;
+  }catch(e){
+    console.warn('CENQAL v73.6 strategy raw:',e);
+    state.strategyRaw=state.strategyRaw||{gym_sessions:[],exams:[]};
+    return state.strategyRaw;
+  }
+}
+
+function v736Num(v){
+  const n=Number(v);
+  return Number.isFinite(n)?n:null;
+}
+
+function v736Median(values){
+  const a=(values||[]).map(Number).filter(Number.isFinite).sort((x,y)=>x-y);
+  if(!a.length)return null;
+  const m=Math.floor(a.length/2);
+  return a.length%2?a[m]:(a[m-1]+a[m])/2;
+}
+
+function v736RowDate(row,candidates=[]){
+  if(!row||typeof row!=='object')return null;
+  const preferred=[
+    ...candidates,
+    'started_at','start_at','session_started_at','opened_at',
+    'completed_at','finished_at','ended_at','closed_at',
+    'submitted_at','created_at','updated_at','date','exam_date'
+  ];
+  const used=new Set();
+  for(const k of preferred){
+    if(used.has(k))continue; used.add(k);
+    const v=row[k];
+    if(v==null||v==='')continue;
+    const d=new Date(v);
+    if(!Number.isNaN(d.getTime()))return d;
+  }
+  for(const [k,v] of Object.entries(row)){
+    if(v==null||v==='')continue;
+    if(!(/(_at|date|day)$/i.test(k)))continue;
+    const d=new Date(v);
+    if(!Number.isNaN(d.getTime()))return d;
+  }
+  return null;
+}
+
+function v736WeekStart(d){
+  if(!(d instanceof Date)||Number.isNaN(d.getTime()))return null;
+  const x=new Date(d.getFullYear(),d.getMonth(),d.getDate());
+  const day=x.getDay()||7;
+  x.setDate(x.getDate()-day+1);
+  return `${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,'0')}-${String(x.getDate()).padStart(2,'0')}`;
+}
+
+function v736WeekLabel(key){
+  if(!key)return '—';
+  const d=new Date(key+'T12:00:00');
+  if(Number.isNaN(d.getTime()))return key;
+  return d.toLocaleDateString('es-ES',{day:'2-digit',month:'short'});
+}
+
+function v736ExamScore(row){
+  if(!row||typeof row!=='object')return null;
+  const keys=['score','exam_score','grade','final_score','score_10','result','nota','mark'];
+  for(const k of keys){
+    const n=v736Num(row[k]);
+    if(n==null)continue;
+    if(n>=0&&n<=10)return n;
+    if(n>10&&n<=100)return n/10;
+  }
+  return null;
+}
+
+function v736StudentKey(x){
+  if(!x)return '';
+  if(x.student_id!=null)return 'id:'+String(x.student_id);
+  if(x.student_code)return 'code:'+String(x.student_code).toLowerCase();
+  return '';
+}
+
+function v736MergedStudents(){
+  const learning=state.learning?.students||[];
+  const play=state.playAnalytics?.students||[];
+  const map=new Map();
+
+  for(const x of learning){
+    const key=v736StudentKey(x)||('code:'+String(x.student_code||'').toLowerCase());
+    if(!key)continue;
+    map.set(key,{...x,_learning:x});
+  }
+
+  for(const p of play){
+    let key=v736StudentKey(p);
+    if(!key&&p.student_code)key='code:'+String(p.student_code).toLowerCase();
+
+    let row=key?map.get(key):null;
+    if(!row&&p.student_code){
+      const code='code:'+String(p.student_code).toLowerCase();
+      row=map.get(code);
+      key=code;
+    }
+    if(!row){
+      row={
+        student_id:p.student_id,
+        student_code:p.student_code,
+        full_name:p.full_name
+      };
+    }
+    row._play=p;
+    if(key)map.set(key,row);
+  }
+
+  return [...map.values()].map(x=>{
+    const p=x._play||{};
+    const gymMinutes=v736Num(x.gym_active_minutes)||0;
+    const playMinutes=v736Num(p.active_minutes)||0;
+    return {
+      ...x,
+      play:p,
+      gym_minutes:gymMinutes,
+      play_minutes:playMinutes,
+      total_practice_minutes:gymMinutes+playMinutes,
+      play_transfer:v736Num(p.transfer_average),
+      play_game:v736Num(p.game_average)
+    };
+  });
+}
+
+function v736StrategicAlerts(rows){
+  const activeMinutes=rows.map(x=>x.total_practice_minutes).filter(x=>Number.isFinite(x)&&x>0);
+  const examVals=rows.map(x=>v736Num(x.exam_average)).filter(x=>x!=null);
+  const practiceMedian=v736Median(activeMinutes);
+  const examMedian=v736Median(examVals);
+  const out=[];
+
+  for(const x of rows){
+    const signals=[];
+    let priority=0;
+    const practice=x.total_practice_minutes||0;
+    const highPractice=practiceMedian!=null && practice>=practiceMedian && practice>0;
+    const exam=v736Num(x.exam_average);
+    const gain=v736Num(x.knowledge_gain);
+    const transfer=v736Num(x.play_transfer);
+    const completed=Number(x.play?.completed||0);
+    const mastery=v736Num(x.gym_mastery_pct);
+    const answers=Number(x.gym_answers||0);
+
+    if(highPractice && gain!=null && gain<=0){
+      priority=Math.max(priority,3);
+      signals.push(`Práctica ≥ mediana (${v69Num(practice,0)} min) pero PRE→POST ${gain>=0?'+':''}${v69Num(gain,1)} puntos`);
+    }else if(highPractice && exam!=null && exam<5){
+      priority=Math.max(priority,3);
+      signals.push(`Práctica ≥ mediana (${v69Num(practice,0)} min) y media de examen ${v69Num(exam,2)}/10`);
+    }else if(highPractice && exam!=null && examMedian!=null && exam<examMedian-0.75){
+      priority=Math.max(priority,2);
+      signals.push(`Práctica ≥ mediana, pero examen por debajo de la mediana del grupo (${v69Num(exam,2)} vs ${v69Num(examMedian,2)})`);
+    }
+
+    if(completed>=2 && transfer!=null && transfer<60){
+      priority=Math.max(priority,2);
+      signals.push(`Transferencia Play baja: ${v69Num(transfer,1)}% en ${completed} intentos completados`);
+    }
+
+    if(answers>=15 && mastery!=null && mastery<60){
+      priority=Math.max(priority,2);
+      signals.push(`Dominio Gym bajo pese a ${answers} respuestas: ${v69Num(mastery,1)}%`);
+    }
+
+    if(practice===0 && exam!=null && exam<5){
+      priority=Math.max(priority,1);
+      signals.push(`Sin práctica digital registrada y media de examen ${v69Num(exam,2)}/10`);
+    }
+
+    if(signals.length){
+      out.push({
+        student_id:x.student_id,
+        student_code:x.student_code,
+        full_name:x.full_name||x.student_code||'Alumno',
+        priority,
+        practice_minutes:practice,
+        exam_average:exam,
+        signals
+      });
+    }
+  }
+
+  return {
+    practiceMedian,
+    examMedian,
+    rows:out.sort((a,b)=>b.priority-a.priority||b.practice_minutes-a.practice_minutes)
+  };
+}
+
+function v736DifficultyRows(){
+  const out=[];
+  for(const t of state.learning?.topics||[]){
+    const acc=v736Num(t.gym_accuracy_pct);
+    const n=Number(t.gym_attempts||0);
+    if(acc!=null&&n>0){
+      out.push({
+        source:'Gym',
+        concept:`Tema ${t.topic_number}`,
+        accuracy:acc,
+        n,
+        detail:`Dominio ${t.mastery_pct==null?'—':v69Num(t.mastery_pct,1)+'%'}`
+      });
+    }
+  }
+  for(const c of state.playAnalytics?.concepts||[]){
+    const acc=v736Num(c.accuracy_pct);
+    const n=Number(c.responses||0);
+    if(acc!=null&&n>0){
+      out.push({
+        source:'Play',
+        concept:c.concept_key||'Concepto',
+        accuracy:acc,
+        n,
+        detail:c.avg_response_ms==null?'—':`${v69Num(Number(c.avg_response_ms)/1000,1)} s/resp.`
+      });
+    }
+  }
+  return out.sort((a,b)=>a.accuracy-b.accuracy||b.n-a.n);
+}
+
+function v736WeeklyRows(){
+  const raw=state.strategyRaw||{};
+  const weeks=new Map();
+  const ensure=k=>{
+    if(!weeks.has(k))weeks.set(k,{
+      week_start:k,
+      gym_sessions:0,
+      play_attempts:0,
+      play_students:0,
+      exam_scores:[]
+    });
+    return weeks.get(k);
+  };
+
+  for(const s of raw.gym_sessions||[]){
+    const d=v736RowDate(s);
+    const k=v736WeekStart(d);
+    if(!k)continue;
+    ensure(k).gym_sessions++;
+  }
+
+  for(const w of state.playAnalytics?.weekly||[]){
+    const k=String(w.week_start||'').slice(0,10);
+    if(!k)continue;
+    const r=ensure(k);
+    r.play_attempts=Number(w.attempts||0);
+    r.play_students=Number(w.students||0);
+  }
+
+  for(const e of raw.exams||[]){
+    const d=v736RowDate(e,['taken_at','submitted_at','completed_at','opened_at']);
+    const k=v736WeekStart(d);
+    const score=v736ExamScore(e);
+    if(!k||score==null)continue;
+    ensure(k).exam_scores.push(score);
+  }
+
+  return [...weeks.values()]
+    .sort((a,b)=>a.week_start.localeCompare(b.week_start))
+    .map(x=>({
+      ...x,
+      exam_average:x.exam_scores.length
+        ?x.exam_scores.reduce((a,b)=>a+b,0)/x.exam_scores.length
+        :null
+    }))
+    .slice(-12);
+}
+
+function renderStrategyV736(){
+  const metrics=document.getElementById('strategyMetrics');
+  if(!metrics)return;
+
+  const rows=v736MergedStudents();
+  const alerts=v736StrategicAlerts(rows);
+  const difficulties=v736DifficultyRows();
+  const weekly=v736WeeklyRows();
+
+  const total=Number(state.learning?.summary?.students||rows.length||0);
+  const digitalUsers=rows.filter(x=>(x.total_practice_minutes||0)>0).length;
+  const both=rows.filter(x=>(x.gym_minutes||0)>0&&(x.play_minutes||0)>0).length;
+  const highPriority=alerts.rows.filter(x=>x.priority>=3).length;
+
+  metrics.innerHTML=[
+    metric('📲 Uso digital',digitalUsers,total?`${Math.round(100*digitalUsers/total)}% del grupo`:'alumnos con actividad'),
+    metric('🔁 Gym + Play',both,total?`${Math.round(100*both/total)}% del grupo`:'usan ambos recursos'),
+    metric('🚨 Revisión prioritaria',highPriority,`${alerts.rows.length} señales totales`),
+    metric('🎯 Dificultad principal',difficulties[0]?`${v69Num(difficulties[0].accuracy,1)}%`:'—',difficulties[0]?`${difficulties[0].source} · ${difficulties[0].concept}`:'sin datos')
+  ].join('');
+
+  v69Chart('strategyWeekly','strategyWeeklyChart',{
+    type:'line',
+    data:{
+      labels:weekly.map(x=>v736WeekLabel(x.week_start)),
+      datasets:[
+        {label:'Sesiones Gym',data:weekly.map(x=>x.gym_sessions),yAxisID:'y',tension:.25},
+        {label:'Intentos Play',data:weekly.map(x=>x.play_attempts),yAxisID:'y',tension:.25},
+        {label:'Media examen /10',data:weekly.map(x=>x.exam_average),yAxisID:'y2',tension:.25}
+      ]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      scales:{
+        y:{beginAtZero:true,title:{display:true,text:'Sesiones / intentos'}},
+        y2:{beginAtZero:true,max:10,position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Examen /10'}}
+      }
+    }
+  });
+
+  const last=weekly[weekly.length-1];
+  const prev=weekly[weekly.length-2];
+  document.getElementById('strategyWeeklyText').innerHTML=
+    !last
+      ?'Todavía no hay suficientes fechas de actividad para mostrar evolución semanal.'
+      :`Última semana con datos: <b>${esc(v736WeekLabel(last.week_start))}</b> · Gym ${last.gym_sessions} sesiones · Play ${last.play_attempts} intentos${last.exam_average==null?'':` · examen ${v69Num(last.exam_average,2)}/10`}${prev?` · semana anterior: Gym ${prev.gym_sessions}, Play ${prev.play_attempts}`:''}.`;
+
+  const compare=rows
+    .filter(x=>v736Num(x.gym_mastery_pct)!=null||x.play_transfer!=null||v736Num(x.exam_average)!=null)
+    .sort((a,b)=>String(a.full_name||a.student_code).localeCompare(String(b.full_name||b.student_code),'es'));
+
+  v69Chart('strategyCompare','strategyCompareChart',{
+    type:'bar',
+    data:{
+      labels:compare.map(x=>x.full_name||x.student_code||'Alumno'),
+      datasets:[
+        {label:'Dominio Gym (%)',data:compare.map(x=>v736Num(x.gym_mastery_pct))},
+        {label:'Transferencia Play (%)',data:compare.map(x=>x.play_transfer)},
+        {label:'Examen (%)',data:compare.map(x=>{const n=v736Num(x.exam_average);return n==null?null:n*10})}
+      ]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      indexAxis:'y',
+      scales:{x:{beginAtZero:true,max:100,title:{display:true,text:'Escala 0–100'}}}
+    }
+  });
+
+  const priLabel=p=>p>=3?'🔴 Prioridad':p===2?'🟡 Atención':'🔵 Observar';
+  document.getElementById('strategyAlerts').innerHTML=alerts.rows.length
+    ?tableHTML(
+      ['Alumno','Señal','Práctica','Examen'],
+      alerts.rows.slice(0,15).map(x=>[
+        `<b>${esc(x.full_name)}</b>${x.student_code?`<div class="subtle">${esc(x.student_code)}</div>`:''}`,
+        `<b>${priLabel(x.priority)}</b><div class="subtle">${x.signals.map(esc).join('<br>')}</div>`,
+        `${v69Num(x.practice_minutes,0)} min`,
+        x.exam_average==null?'—':`${v69Num(x.exam_average,2)}/10`
+      ]),
+      'html'
+    )
+    :'<div class="empty">No se generan señales con los datos actuales.</div>';
+
+  document.getElementById('strategyDifficulties').innerHTML=difficulties.length
+    ?tableHTML(
+      ['#','Fuente','Concepto / tema','Acierto','n','Contexto'],
+      difficulties.slice(0,15).map((x,i)=>[
+        i+1,
+        x.source,
+        x.concept,
+        `${v69Num(x.accuracy,1)}%`,
+        x.n,
+        x.detail
+      ])
+    )
+    :'<div class="empty">Aún no hay respuestas suficientes para ordenar dificultades.</div>';
+
+  document.getElementById('strategyMethodNote').innerHTML=
+    `Reglas descriptivas: mediana de práctica del grupo = <b>${alerts.practiceMedian==null?'—':v69Num(alerts.practiceMedian,0)+' min'}</b>${alerts.examMedian==null?'':` · mediana de examen = <b>${v69Num(alerts.examMedian,2)}/10</b>`}. `+
+    `La comparación combina tiempo Gym estimado y duración Play registrada. Las señales sirven para priorizar revisión docente; no demuestran que practicar más o menos cause un resultado académico.`;
+
+  state.strategyComputed={
+    weekly,
+    alerts:alerts.rows,
+    difficulties,
+    students:rows.map(x=>({
+      student_code:x.student_code,
+      full_name:x.full_name,
+      gym_minutes:x.gym_minutes,
+      play_minutes:x.play_minutes,
+      total_practice_minutes:x.total_practice_minutes,
+      gym_mastery_pct:x.gym_mastery_pct,
+      play_transfer_pct:x.play_transfer,
+      exam_average:x.exam_average,
+      knowledge_gain:x.knowledge_gain
+    }))
+  };
+}
+
+
 async function loadLearning(force=false){
   if(state.learning&&!force){
     await Promise.all([
       loadInitialAssessmentV692(false),
-      loadPlayAnalyticsV735(false)
+      loadPlayAnalyticsV735(false),
+      loadStrategyRawV736(false)
     ]);
     renderLearning();
     renderInitialAssessmentV692();
     renderPlayAnalyticsV735();
+    renderStrategyV736();
     return state.learning;
   }
   const box=document.getElementById('learningMetrics');
@@ -4978,11 +5460,13 @@ async function loadLearning(force=false){
     state.learning=d;
     await Promise.all([
       loadInitialAssessmentV692(force),
-      loadPlayAnalyticsV735(force)
+      loadPlayAnalyticsV735(force),
+      loadStrategyRawV736(force)
     ]);
     renderLearning();
     renderInitialAssessmentV692();
     renderPlayAnalyticsV735();
+    renderStrategyV736();
     return d;
   }catch(e){
     if(box)box.innerHTML=`<div class="card note danger">${esc(e.message)}</div>`;
@@ -5272,7 +5756,10 @@ function v69Dictionary(){return [
   {variable:'play_transfer_average',descripcion:'Puntuación media de transferencia: aplicación del concepto a una situación diferente.'},
   {variable:'play_active_minutes',descripcion:'Duración registrada de los intentos de CENQAL Play.'},
   {variable:'play_satisfaction',descripcion:'Satisfacción declarada al terminar la actividad, escala 1–4.'},
-  {variable:'play_perceived_learning',descripcion:'Aprendizaje percibido por el alumno, escala 1–4.'}
+  {variable:'play_perceived_learning',descripcion:'Aprendizaje percibido por el alumno, escala 1–4.'},
+  {variable:'total_practice_minutes',descripcion:'Suma de minutos activos estimados en Gym y minutos registrados en Play. Se usa solo como indicador descriptivo.'},
+  {variable:'strategy_alert',descripcion:'Señal automática docente basada en práctica, dominio, transferencia y rendimiento. No es una calificación ni demuestra causalidad.'},
+  {variable:'difficulty_accuracy',descripcion:'Porcentaje de acierto observado en un tema Gym o concepto Play; se ordena de menor a mayor para priorizar revisión.'}
 ]}
 function v69AlertRows(alerts){const a=Array.isArray(alerts?.students)?alerts.students:[];return a.map(x=>({student_code:x.student_code,full_name:x.full_name,group_name:x.group_name,alert_status:x.alert_status,signals:(x.alert_signals||x.signals||[]).map(s=>s.detail||s.title||s.code).filter(Boolean).join(' | ')}))}
 
@@ -5313,6 +5800,12 @@ async function exportLearningExcel(anonymized=false){
     v69AddSheet(wb,'PLAY_CONCEPTOS',play.concepts||[],Array(10).fill(18));
     v69AddSheet(wb,'PLAY_ALUMNOS',clean(play.students||[]),Array(16).fill(18));
     v69AddSheet(wb,'PLAY_FEEDBACK',[play.feedback||{}],Array(10).fill(18));
+    if(!state.strategyComputed)renderStrategyV736();
+    const strat=state.strategyComputed||{};
+    v69AddSheet(wb,'EVOLUCION_SEMANAL',strat.weekly||[],Array(12).fill(18));
+    v69AddSheet(wb,'ALERTAS_ESTRATEGICAS',clean(strat.alerts||[]),Array(14).fill(20));
+    v69AddSheet(wb,'DIFICULTADES',strat.difficulties||[],Array(12).fill(18));
+    v69AddSheet(wb,'GYM_PLAY_EXAMEN',clean(strat.students||[]),Array(14).fill(18));
     v69AddSheet(wb,'DICCIONARIO',v69Dictionary(),[24,70]);
     const year=String(raw.course?.academic_year||'curso').replace(/[^0-9A-Za-z_-]+/g,'_');XLSX.writeFile(wb,`CENQAL_Learning_Analytics_${year}${anonymized?'_ANON':''}.xlsx`);
     toast('Excel generado.');
@@ -5390,7 +5883,7 @@ async function v733RefreshStudentInline(){
   const sid=studentUuid(state.currentStudentId);
   if(!sid)return;
 
-  const [workspace,learning]=await Promise.allSettled([
+  const [workspace,learning,play]=await Promise.allSettled([
     rpc('cenqal_control_student_workspace',{
       p_token:TOKEN,
       p_student_id:sid
@@ -5399,7 +5892,8 @@ async function v733RefreshStudentInline(){
       p_token:TOKEN,
       p_student_id:sid,
       p_course_id:v69CourseId()
-    })
+    }),
+    loadStudentPlayV735(sid)
   ]);
 
   if(workspace.status==='fulfilled'){
