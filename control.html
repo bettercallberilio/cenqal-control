@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>CENQAL Control</title>
-<meta name="CENQAL_CONTROL_BUILD" content="v70.3.3">
+<meta name="CENQAL_CONTROL_BUILD" content="v73.3">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#0c3f82">
 <link rel="apple-touch-icon" href="./cenqal-apple-touch-icon.png">
@@ -400,6 +400,18 @@ details.card>.detailBody{padding:0 16px 16px}
   .teacherTaskActions{grid-column:2;justify-content:flex-start}
 }
 
+
+/* =========================================================
+   CENQAL v73.3 · ACTUALIZACIÓN AUTOMÁTICA DE DATOS
+========================================================= */
+.session{display:flex;gap:7px;align-items:center;justify-content:flex-end;flex-wrap:wrap}
+.liveRefreshPill{background:#f0fbf6;border-color:#bfe8d3;color:#267352;font-weight:800}
+.livePulse{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 0 0 rgba(24,166,106,.35);animation:livePulse 1.8s infinite}
+.liveRefreshPill.loading .livePulse{background:var(--amber)}
+.liveRefreshPill.error{background:#fff0f0;border-color:#f0b7b7;color:#a62525}
+.liveRefreshPill.error .livePulse{background:var(--red);animation:none}
+@keyframes livePulse{0%{box-shadow:0 0 0 0 rgba(24,166,106,.35)}70%{box-shadow:0 0 0 7px rgba(24,166,106,0)}100%{box-shadow:0 0 0 0 rgba(24,166,106,0)}}
+
 </style>
 </head>
 
@@ -446,7 +458,7 @@ details.card>.detailBody{padding:0 16px 16px}
       <div class="brandmark"></div>
       <div>
         <h1>CENQAL Control</h1>
-        <small>Panel docente seguro · v70.3</small>
+        <small>Panel docente seguro · v73.3</small>
       </div>
     </div>
 
@@ -485,6 +497,10 @@ details.card>.detailBody{padding:0 16px 16px}
       </div>
 
       <div class="session">
+        <span class="pill liveRefreshPill" title="La vista abierta se actualiza automáticamente cada 20 segundos">
+          <span class="livePulse"></span>
+          <span id="liveRefreshText">Auto · 20 s</span>
+        </span>
         <span class="pill">
           <span class="dot"></span>
           <span id="sessionText">Sesión segura</span>
@@ -635,7 +651,7 @@ details.card>.detailBody{padding:0 16px 16px}
       <div class="viewHeader">
         <div>
           <h2>📊 CENQAL Learning Analytics</h2>
-          <p>Rendimiento, semáforo, Gym, hábitos de estudio, PRE↔POST y relación práctica–examen. Uso exclusivamente docente.</p>
+          <p>Rendimiento, semáforo, Gym, hábitos de estudio, PRE↔POST y relación práctica–examen. Uso exclusivamente docente · actualización automática de la vista.</p>
         </div>
         <div class="analyticsToolbar">
           <button class="btn primary" onclick="exportLearningExcel(false)">⬇ Excel completo</button>
@@ -4774,6 +4790,255 @@ function exportStudentLearningExcel(){
     XLSX.writeFile(wb,`CENQAL_${String(s.student_code||'alumno').replace(/[^0-9A-Za-z_-]+/g,'_')}_Learning_Analytics.xlsx`);
   }catch(e){toast(e.message||'No se pudo exportar el alumno.',true)}
 }
+
+
+
+/* =========================================================
+   CENQAL v73.3 · LIVE DATA
+   - Actualiza SOLO la vista que está abierta.
+   - Intervalo: 20 s.
+   - Fuerza recarga al volver a la pestaña o cambiar de vista.
+   - Evita solicitudes simultáneas.
+========================================================= */
+
+const V733_LIVE_REFRESH_MS=20000;
+let v733LiveTimer=null;
+let v733LiveBusy=false;
+let v733LastRefreshAt=null;
+
+function v733ActiveView(){
+  const el=document.querySelector('.view.active');
+  return el?.id ? el.id.replace(/^view-/,'') : 'home';
+}
+
+function v733LivePill(){
+  return document.querySelector('.liveRefreshPill');
+}
+
+function v733SetLiveState(kind='ok',message=''){
+  const pill=v733LivePill();
+  const label=document.getElementById('liveRefreshText');
+  if(!pill||!label)return;
+
+  pill.classList.remove('loading','error');
+
+  if(kind==='loading'){
+    pill.classList.add('loading');
+    label.textContent='Actualizando…';
+    return;
+  }
+
+  if(kind==='error'){
+    pill.classList.add('error');
+    label.textContent='Revisar conexión';
+    pill.title=message||'No se pudo actualizar la vista.';
+    return;
+  }
+
+  const when=v733LastRefreshAt
+    ?v733LastRefreshAt.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit',second:'2-digit'})
+    :'—';
+
+  label.textContent=`Auto · 20 s · ${when}`;
+  pill.title='Última actualización de la vista abierta: '+when;
+}
+
+async function v733RefreshStudentInline(){
+  const sid=studentUuid(state.currentStudentId);
+  if(!sid)return;
+
+  const [workspace,learning]=await Promise.allSettled([
+    rpc('cenqal_control_student_workspace',{
+      p_token:TOKEN,
+      p_student_id:sid
+    }),
+    rpc('cenqal_control_student_learning_v69',{
+      p_token:TOKEN,
+      p_student_id:sid,
+      p_course_id:v69CourseId()
+    })
+  ]);
+
+  if(workspace.status==='fulfilled'){
+    state.studentDetail=workspace.value;
+    renderStudentDetail();
+  }
+
+  if(learning.status==='fulfilled'){
+    state.studentLearning=learning.value;
+    const card=document.getElementById('studentLearningCard');
+    if(card)card.style.display='block';
+    renderStudentLearningAnalytics();
+  }
+
+  if(workspace.status==='rejected' && learning.status==='rejected'){
+    throw workspace.reason||learning.reason||new Error('No se pudo actualizar la ficha del alumno.');
+  }
+}
+
+async function v733RefreshActiveView(force=true){
+  if(v733LiveBusy || !TOKEN || document.visibilityState==='hidden')return;
+
+  const shell=document.getElementById('appShell');
+  if(!shell || shell.classList.contains('appHidden'))return;
+
+  v733LiveBusy=true;
+  v733SetLiveState('loading');
+
+  try{
+    const view=v733ActiveView();
+
+    switch(view){
+      case 'home':
+        await Promise.allSettled([
+          refreshSnapshot(),
+          loadTeacherAgenda(true)
+        ]);
+        break;
+
+      case 'agenda':
+        await loadTeacherAgenda(true);
+        break;
+
+      case 'course':
+        await refreshSnapshot();
+        break;
+
+      case 'students':
+        await loadStudents(true);
+        break;
+
+      case 'progress':
+        await Promise.allSettled([
+          loadStudents(true),
+          loadProgress(true)
+        ]);
+        break;
+
+      case 'learning':
+        // Learning Analytics vuelve a consultar los datos del Gym,
+        // sesiones, respuestas, dominio, PRE/POST y exámenes.
+        await loadLearning(true);
+        break;
+
+      case 'deliveries':
+        // Aportaciones, porfolios y retos semanales.
+        await loadDeliveries(true);
+        break;
+
+      case 'student':
+        await v733RefreshStudentInline();
+        break;
+
+      case 'calendar':
+        await loadCalendar(true);
+        break;
+
+      case 'challenges':
+        await loadChallenges(true);
+        break;
+
+      case 'weekly-grade':
+        await loadWeeklyGrades(true);
+        break;
+
+      case 'exams':
+        await loadExams(true);
+        break;
+
+      case 'groups':
+        await loadStudents(true);
+        renderGroups();
+        break;
+
+      case 'game':
+        // Ranking, PP y Oganesones: fuerza también progreso y alumnos.
+        await loadGame(true);
+        break;
+
+      case 'evidence':
+        await loadEvidence(true);
+        break;
+
+      case 'audit':
+        await loadAudit(true);
+        break;
+
+      case 'system':
+        await refreshSnapshot();
+        renderSystem();
+        break;
+
+      case 'reset':
+        await loadCourses(true);
+        break;
+
+      default:
+        await refreshSnapshot();
+        break;
+    }
+
+    v733LastRefreshAt=new Date();
+    v733SetLiveState('ok');
+
+  }catch(e){
+    console.warn('CENQAL v73.3 live refresh:',e);
+    v733SetLiveState('error',e?.message||String(e));
+
+  }finally{
+    v733LiveBusy=false;
+  }
+}
+
+function v733StartLiveRefresh(){
+  if(v733LiveTimer)clearInterval(v733LiveTimer);
+
+  v733LastRefreshAt=new Date();
+  v733SetLiveState('ok');
+
+  v733LiveTimer=setInterval(
+    ()=>v733RefreshActiveView(true),
+    V733_LIVE_REFRESH_MS
+  );
+}
+
+function v733StopLiveRefresh(){
+  if(v733LiveTimer){
+    clearInterval(v733LiveTimer);
+    v733LiveTimer=null;
+  }
+}
+
+/* Al entrar en otra pantalla se consulta inmediatamente su estado real. */
+const v733GoBase=go;
+go=function(name){
+  v733GoBase(name);
+  setTimeout(()=>v733RefreshActiveView(true),80);
+};
+
+/* Al volver a la app no esperamos al siguiente intervalo. */
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible'){
+    v733RefreshActiveView(true);
+  }
+});
+
+window.addEventListener('focus',()=>{
+  v733RefreshActiveView(true);
+});
+
+/* Arranca el refresco después de una conexión válida del panel. */
+const v733StartPanelBase=startPanel;
+startPanel=async function(){
+  await v733StartPanelBase();
+  const shell=document.getElementById('appShell');
+  if(TOKEN && shell && !shell.classList.contains('appHidden')){
+    v733StartLiveRefresh();
+  }
+};
+
+/* Evita dejar el temporizador vivo al cerrar la página. */
+window.addEventListener('pagehide',v733StopLiveRefresh);
 
 
 /* =========================================================
