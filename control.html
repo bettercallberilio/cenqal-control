@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>CENQAL Control</title>
-<meta name="CENQAL_CONTROL_BUILD" content="v73.4">
+<meta name="CENQAL_CONTROL_BUILD" content="v73.5">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#0c3f82">
 <link rel="apple-touch-icon" href="./cenqal-apple-touch-icon.png">
@@ -458,7 +458,7 @@ details.card>.detailBody{padding:0 16px 16px}
       <div class="brandmark"></div>
       <div>
         <h1>CENQAL Control</h1>
-        <small>Panel docente seguro · v73.4</small>
+        <small>Panel docente seguro · v73.5</small>
       </div>
     </div>
 
@@ -651,7 +651,7 @@ details.card>.detailBody{padding:0 16px 16px}
       <div class="viewHeader">
         <div>
           <h2>📊 CENQAL Learning Analytics</h2>
-          <p>Rendimiento, semáforo, Gym, hábitos de estudio, PRE↔POST y relación práctica–examen. Uso exclusivamente docente · actualización automática de la vista.</p>
+          <p>Rendimiento, semáforo, Gym, CENQAL Play, hábitos de estudio, PRE↔POST y relación práctica–examen. Uso exclusivamente docente · actualización automática de la vista.</p>
         </div>
         <div class="analyticsToolbar">
           <button class="btn primary" onclick="exportLearningExcel(false)">⬇ Excel completo</button>
@@ -659,7 +659,7 @@ details.card>.detailBody{padding:0 16px 16px}
           <button class="btn" onclick="loadLearning(true)">↻ Actualizar</button>
         </div>
       </div>
-      <div class="note warn" style="margin-bottom:14px">Las asociaciones entre uso del Gym y resultados son descriptivas: ayudan a observar patrones, pero no demuestran causalidad. El tiempo activo es una estimación basada en los intervalos entre respuestas.</div>
+      <div class="note warn" style="margin-bottom:14px">Las asociaciones entre uso del Gym/Play y resultados son descriptivas: ayudan a observar patrones, pero no demuestran causalidad. En Gym el tiempo activo es una estimación; en Play se registra la duración de cada intento.</div>
       <div class="metrics grid analyticsKpis" id="learningMetrics"><div class="card"><span class="loader"></span> Calculando analítica…</div></div>
 
       <div class="card initialAssessmentCard">
@@ -729,6 +729,51 @@ details.card>.detailBody{padding:0 16px 16px}
       </div>
 
       <div class="card" style="margin-bottom:14px">
+        <div class="sectionTitle">
+          <div>
+            <h3>🎮 CENQAL Play · analítica de juegos</h3>
+            <p>Intentos, transferencia, conceptos, tiempo y experiencia percibida.</p>
+          </div>
+          <span class="subtle">telemetría formativa · no concede PP/Og</span>
+        </div>
+
+        <div class="metrics grid analyticsKpis" id="playMetrics">
+          <div class="card"><span class="loader"></span> Cargando CENQAL Play…</div>
+        </div>
+
+        <div class="analyticsGrid" style="margin-top:14px">
+          <div class="card analyticsChart analyticsWide">
+            <div class="sectionTitle"><h3>🕹 Juego → transferencia</h3><span class="subtle">media por actividad</span></div>
+            <canvas id="playActivityChart"></canvas>
+            <div class="analyticsHint">Compara la ejecución durante el juego con la capacidad de aplicar el concepto a una situación nueva.</div>
+          </div>
+
+          <div class="card analyticsChart analyticsWide">
+            <div class="sectionTitle"><h3>🎮 Uso de Play ↔ examen</h3><span class="subtle">minutos jugados frente a media de examen</span></div>
+            <canvas id="playEffectChart"></canvas>
+            <div id="playEffectText" class="analyticsHint"></div>
+          </div>
+        </div>
+
+        <div class="grid two" style="margin-top:14px">
+          <div>
+            <div class="sectionTitle"><h3>🧩 Conceptos a reforzar</h3><span class="subtle">ordenados por precisión</span></div>
+            <div id="playConcepts"></div>
+          </div>
+          <div>
+            <div class="sectionTitle"><h3>😊 Experiencia del alumnado</h3><span class="subtle">feedback al finalizar</span></div>
+            <div id="playFeedbackSummary" class="miniList"></div>
+          </div>
+        </div>
+
+        <div class="sectionTitle" style="margin-top:16px">
+          <h3>👥 Play por alumno</h3>
+          <span class="subtle">actividad completada y transferencia</span>
+        </div>
+        <div id="playStudents"></div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px">
         <div class="sectionTitle"><h3>🧪 Rendimiento por tema</h3><span class="subtle">T1–T8</span></div>
         <div id="learningTopics"></div>
       </div>
@@ -775,6 +820,10 @@ details.card>.detailBody{padding:0 16px 16px}
           <div class="analyticsChart"><h3>📅 Patrón semanal de estudio</h3><canvas id="studentHabitChart"></canvas></div>
         </div>
         <div id="studentLearningDetail"></div>
+        <div class="card" style="margin-top:14px">
+          <div class="sectionTitle"><h3>🎮 CENQAL Play individual</h3><span class="subtle">juego, transferencia y conceptos</span></div>
+          <div id="studentPlayDetail"><div class="empty">Sin actividad Play registrada.</div></div>
+        </div>
       </div>
       <div class="grid" style="margin-top:14px" id="studentSections"></div>
     </section>
@@ -907,7 +956,9 @@ let state={
   teacherAgendaFilter:'open',
   learning:null,
   learningExport:null,
+  playAnalytics:null,
   studentLearning:null,
+  studentPlay:null,
   currentStudentId:null,
   studentDetail:null
 };
@@ -4696,11 +4747,228 @@ async function loadInitialAssessmentV692(force=false){
   }
 }
 
+
+async function loadPlayAnalyticsV735(force=false){
+  if(state.playAnalytics&&!force)return state.playAnalytics;
+  try{
+    const d=await rpc('cenqal_control_play_analytics_v735',{
+      p_token:TOKEN,
+      p_course_id:v69CourseId()
+    });
+    state.playAnalytics=d;
+    return d;
+  }catch(e){
+    state.playAnalytics={_error:e.message||String(e),summary:{},activities:[],concepts:[],students:[],feedback:{}};
+    return state.playAnalytics;
+  }
+}
+
+function playStudentMapV735(){
+  const m=new Map();
+  (state.playAnalytics?.students||[]).forEach(x=>{
+    if(x?.student_id!=null)m.set(String(x.student_id),x);
+    if(x?.student_code)m.set('code:'+String(x.student_code).toLowerCase(),x);
+  });
+  return m;
+}
+
+function renderPlayAnalyticsV735(){
+  const box=document.getElementById('playMetrics');
+  if(!box)return;
+
+  const d=state.playAnalytics||{};
+  if(d._error){
+    box.innerHTML=`<div class="card note warn">CENQAL Play todavía no puede cargarse en Control: ${esc(d._error)}</div>`;
+    document.getElementById('playConcepts').innerHTML='<div class="empty">Sin datos Play.</div>';
+    document.getElementById('playStudents').innerHTML='<div class="empty">Sin datos Play.</div>';
+    document.getElementById('playFeedbackSummary').innerHTML='<div class="empty">Sin feedback Play.</div>';
+    document.getElementById('playEffectText').textContent='Sin datos suficientes.';
+    return;
+  }
+
+  const s=d.summary||{}, f=d.feedback||{}, acts=d.activities||[], concepts=d.concepts||[], students=d.students||[];
+
+  box.innerHTML=[
+    metric('👥 Usuarios Play',s.students||0,`${s.completed||0} intentos completados`),
+    metric('🕹 Intentos',s.attempts||0,`${s.active_minutes||0} min registrados`),
+    metric('🧠 Juego',s.game_average==null?'—':`${v69Num(s.game_average,1)}%`,'media de actividades completadas'),
+    metric('🔬 Transferencia',s.transfer_average==null?'—':`${v69Num(s.transfer_average,1)}%`,'aplicación a situación nueva'),
+    metric('🙂 Satisfacción',f.satisfaction_average==null?'—':`${v69Num(f.satisfaction_average,2)}/4`,`${f.responses||0} valoraciones`),
+    metric('✨ Aprendizaje percibido',f.perceived_learning_average==null?'—':`${v69Num(f.perceived_learning_average,2)}/4`,'autopercepción del alumnado')
+  ].join('');
+
+  v69Chart('playActivity','playActivityChart',{
+    type:'bar',
+    data:{
+      labels:acts.map(x=>x.title||x.activity_code),
+      datasets:[
+        {label:'Juego (%)',data:acts.map(x=>x.game_average)},
+        {label:'Transferencia (%)',data:acts.map(x=>x.transfer_average)}
+      ]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      scales:{y:{beginAtZero:true,max:100,title:{display:true,text:'Puntuación (%)'}}}
+    }
+  });
+
+  const learningById=new Map();
+  (state.learning?.students||[]).forEach(x=>{
+    if(x?.student_id!=null)learningById.set(String(x.student_id),x);
+    if(x?.student_code)learningById.set('code:'+String(x.student_code).toLowerCase(),x);
+  });
+
+  const scatter=[];
+  students.forEach(p=>{
+    const l=learningById.get(String(p.student_id))
+      ||learningById.get('code:'+String(p.student_code||'').toLowerCase());
+    const x=Number(p.active_minutes), y=Number(l?.exam_average);
+    if(Number.isFinite(x)&&Number.isFinite(y))scatter.push({x,y,name:p.full_name||p.student_code||'Alumno'});
+  });
+
+  v69Chart('playEffect','playEffectChart',{
+    type:'scatter',
+    data:{datasets:[{
+      label:'Alumnos',
+      data:scatter,
+      parsing:false
+    }]},
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      scales:{
+        x:{beginAtZero:true,title:{display:true,text:'Minutos CENQAL Play'}},
+        y:{beginAtZero:true,max:10,title:{display:true,text:'Media examen /10'}}
+      },
+      plugins:{
+        tooltip:{callbacks:{
+          label:c=>`${c.raw.name}: ${v69Num(c.raw.x,1)} min · ${v69Num(c.raw.y,2)}/10`
+        }}
+      }
+    }
+  });
+
+  const sp=v69Spearman(scatter.map(x=>x.x),scatter.map(x=>x.y));
+  document.getElementById('playEffectText').innerHTML=
+    sp.rho==null
+      ?`No hay suficientes pares para estimar asociación (n=${sp.n}).`
+      :`ρ de Spearman = <b>${sp.rho.toFixed(2)}</b> (n=${sp.n}). Asociación descriptiva, no causal.`;
+
+  document.getElementById('playConcepts').innerHTML=concepts.length
+    ?tableHTML(
+      ['Concepto','Respuestas','Aciertos','Precisión','Tiempo resp.'],
+      concepts.slice(0,20).map(x=>[
+        x.concept_key||'—',
+        x.responses||0,
+        x.correct||0,
+        x.accuracy_pct==null?'—':`${v69Num(x.accuracy_pct,1)}%`,
+        x.avg_response_ms==null?'—':`${v69Num(Number(x.avg_response_ms)/1000,1)} s`
+      ])
+    )
+    :'<div class="empty">Aún no hay respuestas registradas en Play.</div>';
+
+  document.getElementById('playFeedbackSummary').innerHTML=[
+    `<div class="miniRow"><span>Respuestas de feedback</span><b>${esc(f.responses||0)}</b></div>`,
+    `<div class="miniRow"><span>Satisfacción</span><b>${f.satisfaction_average==null?'—':esc(v69Num(f.satisfaction_average,2))+'/4'}</b></div>`,
+    `<div class="miniRow"><span>Aprendizaje percibido</span><b>${f.perceived_learning_average==null?'—':esc(v69Num(f.perceived_learning_average,2))+'/4'}</b></div>`,
+    `<div class="miniRow"><span>Entiende mejor</span><b>${f.understand_better_average==null?'—':esc(v69Num(f.understand_better_average,2))+'/2'}</b></div>`
+  ].join('');
+
+  document.getElementById('playStudents').innerHTML=students.length
+    ?tableHTML(
+      ['Alumno','Completadas','Intentos','Tiempo','Juego','Transferencia','Última actividad'],
+      students.map(x=>[
+        `${x.full_name||x.student_code||'—'}${x.student_code?` · ${x.student_code}`:''}`,
+        x.activities_completed||0,
+        x.attempts||0,
+        v69Minutes(x.active_minutes||0),
+        x.game_average==null?'—':`${v69Num(x.game_average,1)}%`,
+        x.transfer_average==null?'—':`${v69Num(x.transfer_average,1)}%`,
+        x.last_activity_at?fmtDate(x.last_activity_at):'—'
+      ])
+    )
+    :'<div class="empty">Aún no hay actividad de alumnos en CENQAL Play.</div>';
+}
+
+async function loadStudentPlayV735(sid){
+  try{
+    const d=await rpc('cenqal_control_student_play_v735',{
+      p_token:TOKEN,
+      p_student_id:String(sid),
+      p_course_id:v69CourseId()
+    });
+    state.studentPlay=d;
+    return d;
+  }catch(e){
+    state.studentPlay={_error:e.message||String(e),summary:{},attempts:[],concepts:[],feedback:{}};
+    return state.studentPlay;
+  }
+}
+
+function renderStudentPlayV735(){
+  const box=document.getElementById('studentPlayDetail');
+  if(!box)return;
+  const d=state.studentPlay||{};
+  if(d._error){
+    box.innerHTML=`<div class="note warn">${esc(d._error)}</div>`;
+    return;
+  }
+  const s=d.summary||{}, attempts=d.attempts||[], concepts=d.concepts||[], f=d.feedback||{};
+  if(!(s.attempts||0)){
+    box.innerHTML='<div class="empty">Este alumno todavía no ha registrado actividad en CENQAL Play.</div>';
+    return;
+  }
+
+  box.innerHTML=`
+    <div class="metrics grid" style="margin:10px 0">
+      ${metric('🕹 Intentos',s.attempts||0,`${s.completed||0} completados`)}
+      ${metric('🎮 Actividades',s.activities_completed||0,'distintas completadas')}
+      ${metric('🧠 Juego',s.game_average==null?'—':v69Num(s.game_average,1)+'%','media')}
+      ${metric('🔬 Transferencia',s.transfer_average==null?'—':v69Num(s.transfer_average,1)+'%','media')}
+      ${metric('⏱ Tiempo',v69Minutes(s.active_minutes||0),'registrado en Play')}
+      ${metric('🙂 Satisfacción',f.satisfaction_average==null?'—':v69Num(f.satisfaction_average,2)+'/4',`${f.responses||0} valoraciones`)}
+    </div>
+    <div class="grid two">
+      <div>
+        <h4>Últimos intentos</h4>
+        ${attempts.length?tableHTML(
+          ['Actividad','Estado','Juego','Transfer.','Tiempo'],
+          attempts.slice(0,12).map(x=>[
+            x.activity_title||x.activity_code||'—',
+            x.status||'—',
+            x.game_score==null?'—':v69Num(x.game_score,0)+'%',
+            x.transfer_score==null?'—':v69Num(x.transfer_score,0)+'%',
+            v69Minutes(x.duration_minutes||0)
+          ])
+        ):'<div class="empty">Sin intentos.</div>'}
+      </div>
+      <div>
+        <h4>Conceptos</h4>
+        ${concepts.length?tableHTML(
+          ['Concepto','Resp.','Precisión'],
+          concepts.slice(0,12).map(x=>[
+            x.concept_key||'—',
+            x.responses||0,
+            x.accuracy_pct==null?'—':v69Num(x.accuracy_pct,1)+'%'
+          ])
+        ):'<div class="empty">Sin respuestas por concepto.</div>'}
+      </div>
+    </div>
+  `;
+}
+
+
 async function loadLearning(force=false){
   if(state.learning&&!force){
-    await loadInitialAssessmentV692(false);
+    await Promise.all([
+      loadInitialAssessmentV692(false),
+      loadPlayAnalyticsV735(false)
+    ]);
     renderLearning();
     renderInitialAssessmentV692();
+    renderPlayAnalyticsV735();
     return state.learning;
   }
   const box=document.getElementById('learningMetrics');
@@ -4708,9 +4976,13 @@ async function loadLearning(force=false){
   try{
     const d=await rpc('cenqal_control_learning_analytics_v69',{p_token:TOKEN,p_course_id:v69CourseId()});
     state.learning=d;
-    await loadInitialAssessmentV692(force);
+    await Promise.all([
+      loadInitialAssessmentV692(force),
+      loadPlayAnalyticsV735(force)
+    ]);
     renderLearning();
     renderInitialAssessmentV692();
+    renderPlayAnalyticsV735();
     return d;
   }catch(e){
     if(box)box.innerHTML=`<div class="card note danger">${esc(e.message)}</div>`;
@@ -4732,11 +5004,14 @@ function renderLearning(){
   const avg=a=>a.length?a.reduce((s,v)=>s+v,0)/a.length:null;
   const preMeanAll=avg(preVals),postMeanAll=avg(postVals);
   const paired=d.pre_post_summary?.paired_count||0;
+  const ps=state.playAnalytics?.summary||{};
   document.getElementById('learningMetrics').innerHTML=[
     metric('👥 Alumnos',sum.students??students.length,'activos analizados'),
     metric('🏋️ Usuarios Gym',sum.gym_users??0,`${sum.students?Math.round(100*(sum.gym_users||0)/sum.students):0}% del grupo`),
     metric('🧠 Respuestas Gym',sum.gym_answers??0,`${sum.gym_sessions??0} sesiones`),
-    metric('⏱ Tiempo activo',v69Minutes(sum.gym_active_minutes||0),`mediana sesión ${v69Num(sum.median_session_active_minutes,0)} min`),
+    metric('⏱ Tiempo Gym',v69Minutes(sum.gym_active_minutes||0),`mediana sesión ${v69Num(sum.median_session_active_minutes,0)} min`),
+    metric('🎮 Usuarios Play',ps.students??0,`${ps.completed??0} intentos completados`),
+    metric('🔬 Transferencia Play',ps.transfer_average==null?'—':`${v69Num(ps.transfer_average,1)}%`,'media de actividades completadas'),
     metric('🎓 Media examen',sum.exam_average==null?'—':`${v69Num(sum.exam_average,2)}/10`,'T1–T8 con resultado'),
     metric('🧭 PRE / POST',`${preVals.length} / ${postVals.length}`,paired?`${paired} alumnos emparejados`:'línea base PRE disponible')
   ].join('');
@@ -4938,15 +5213,29 @@ function renderLearningStudents(){
 async function loadStudentLearningAnalytics(sid){
   const card=document.getElementById('studentLearningCard');if(!card)return;
   card.style.display='block';document.getElementById('studentLearningMetrics').innerHTML='<div class="card"><span class="loader"></span> Calculando analítica individual…</div>';
-  try{const d=await rpc('cenqal_control_student_learning_v69',{p_token:TOKEN,p_student_id:sid,p_course_id:v69CourseId()});state.studentLearning=d;renderStudentLearningAnalytics()}
+  try{
+    const [d]=await Promise.all([
+      rpc('cenqal_control_student_learning_v69',{p_token:TOKEN,p_student_id:sid,p_course_id:v69CourseId()}),
+      loadStudentPlayV735(sid)
+    ]);
+    state.studentLearning=d;
+    renderStudentLearningAnalytics();
+    renderStudentPlayV735();
+  }
   catch(e){document.getElementById('studentLearningMetrics').innerHTML=`<div class="note danger">${esc(e.message)}</div>`}
 }
 function renderStudentLearningAnalytics(){
   const d=state.studentLearning||{},s=d.summary||{},topics=d.topics||[],pp=d.pre_post||{};const r=v69Risk(s,d.alerts);
+  const ps=state.studentPlay?.summary||{};
   document.getElementById('studentLearningMetrics').innerHTML=[
-    metric('🏋️ Gym',s.gym_sessions||0,`${s.gym_answers||0} respuestas`),metric('⏱ Tiempo activo',v69Minutes(s.gym_active_minutes||0),`${s.gym_active_days||0} días distintos`),
-    metric('🎯 Acierto Gym',s.gym_accuracy_pct==null?'—':`${v69Num(s.gym_accuracy_pct,1)}%`,'precisión acumulada'),metric('🧠 Dominio',s.gym_mastery_pct==null?'—':`${v69Num(s.gym_mastery_pct,1)}%`,`${s.gym_mastered_questions||0}/${s.gym_practiced_questions||0}`),
-    metric('🎓 Exámenes',s.exam_average==null?'—':`${v69Num(s.exam_average,2)}/10`,`${s.exam_passed||0}/${s.exam_count||0} superados`),metric('🧭 PRE→POST',s.knowledge_gain==null?'—':`${Number(s.knowledge_gain)>=0?'+':''}${v69Num(s.knowledge_gain,1)}`,'puntos de conocimiento')
+    metric('🏋️ Gym',s.gym_sessions||0,`${s.gym_answers||0} respuestas`),
+    metric('⏱ Tiempo Gym',v69Minutes(s.gym_active_minutes||0),`${s.gym_active_days||0} días distintos`),
+    metric('🎯 Acierto Gym',s.gym_accuracy_pct==null?'—':`${v69Num(s.gym_accuracy_pct,1)}%`,'precisión acumulada'),
+    metric('🧠 Dominio Gym',s.gym_mastery_pct==null?'—':`${v69Num(s.gym_mastery_pct,1)}%`,`${s.gym_mastered_questions||0}/${s.gym_practiced_questions||0}`),
+    metric('🎮 Play',ps.activities_completed||0,`${ps.completed||0} intentos completados`),
+    metric('🔬 Transferencia',ps.transfer_average==null?'—':`${v69Num(ps.transfer_average,1)}%`,'media CENQAL Play'),
+    metric('🎓 Exámenes',s.exam_average==null?'—':`${v69Num(s.exam_average,2)}/10`,`${s.exam_passed||0}/${s.exam_count||0} superados`),
+    metric('🧭 PRE→POST',s.knowledge_gain==null?'—':`${Number(s.knowledge_gain)>=0?'+':''}${v69Num(s.knowledge_gain,1)}`,'puntos de conocimiento')
   ].join('');
   const sig=(r.signals||[]).slice(0,5).map(x=>x.detail||x.title||x.code).filter(Boolean);
   document.getElementById('studentLearningSignal').innerHTML=`<span class="analyticsBadge ${r.cls}">${r.icon} ${esc(r.label)}</span>${sig.length?` <span class="subtle">${esc(sig.join(' · '))}</span>`:''}`;
@@ -4978,7 +5267,12 @@ function v69Dictionary(){return [
   {variable:'gym_usage_rank',descripcion:'Posición docente por tiempo activo estimado en el Gym. No concede puntos.'},
   {variable:'gym_mastery_rank',descripcion:'Posición docente por porcentaje de dominio. No concede puntos.'},
   {variable:'improvement_rank',descripcion:'Posición docente por ganancia PRE→POST. Solo informativa.'},
-  {variable:'alert_status',descripcion:'Semáforo docente del motor de alertas CENQAL. No se muestra al alumnado.'}
+  {variable:'alert_status',descripcion:'Semáforo docente del motor de alertas CENQAL. No se muestra al alumnado.'},
+  {variable:'play_game_average',descripcion:'Puntuación media obtenida en la fase principal de las actividades CENQAL Play.'},
+  {variable:'play_transfer_average',descripcion:'Puntuación media de transferencia: aplicación del concepto a una situación diferente.'},
+  {variable:'play_active_minutes',descripcion:'Duración registrada de los intentos de CENQAL Play.'},
+  {variable:'play_satisfaction',descripcion:'Satisfacción declarada al terminar la actividad, escala 1–4.'},
+  {variable:'play_perceived_learning',descripcion:'Aprendizaje percibido por el alumno, escala 1–4.'}
 ]}
 function v69AlertRows(alerts){const a=Array.isArray(alerts?.students)?alerts.students:[];return a.map(x=>({student_code:x.student_code,full_name:x.full_name,group_name:x.group_name,alert_status:x.alert_status,signals:(x.alert_signals||x.signals||[]).map(s=>s.detail||s.title||s.code).filter(Boolean).join(' | ')}))}
 
@@ -4993,7 +5287,14 @@ async function exportLearningExcel(anonymized=false){
       {indicador:'Sesiones Gym',valor:state.learning?.summary?.gym_sessions||0},{indicador:'Respuestas Gym',valor:state.learning?.summary?.gym_answers||0},
       {indicador:'Tiempo activo total (min)',valor:state.learning?.summary?.gym_active_minutes||0},{indicador:'Media examen',valor:state.learning?.summary?.exam_average??''},
       {indicador:'PRE/POST emparejados',valor:state.learning?.pre_post_summary?.paired_count||0},{indicador:'Ganancia PRE→POST media',valor:state.learning?.pre_post_summary?.mean_gain??''},
-      {indicador:'Reducción DE (%)',valor:state.learning?.pre_post_summary?.sd_reduction_pct??''},{indicador:'Reducción IQR (%)',valor:state.learning?.pre_post_summary?.iqr_reduction_pct??''}
+      {indicador:'Reducción DE (%)',valor:state.learning?.pre_post_summary?.sd_reduction_pct??''},{indicador:'Reducción IQR (%)',valor:state.learning?.pre_post_summary?.iqr_reduction_pct??''},
+      {indicador:'Usuarios Play',valor:state.playAnalytics?.summary?.students||0},
+      {indicador:'Intentos Play',valor:state.playAnalytics?.summary?.attempts||0},
+      {indicador:'Completados Play',valor:state.playAnalytics?.summary?.completed||0},
+      {indicador:'Minutos Play',valor:state.playAnalytics?.summary?.active_minutes||0},
+      {indicador:'Media juego Play (%)',valor:state.playAnalytics?.summary?.game_average??''},
+      {indicador:'Media transferencia Play (%)',valor:state.playAnalytics?.summary?.transfer_average??''},
+      {indicador:'Satisfacción Play /4',valor:state.playAnalytics?.feedback?.satisfaction_average??''}
     ];
     v69AddSheet(wb,'RESUMEN_GRUPO',summary,[34,24]);
     v69AddSheet(wb,'ALUMNOS',clean(students),Array(30).fill(16));
@@ -5007,6 +5308,11 @@ async function exportLearningExcel(anonymized=false){
     v69AddSheet(wb,'PRE_POST',clean(raw.pre_post||[]),Array(26).fill(17));
     let alerts=v69AlertRows(state.learning?.alerts);if(anonymized)alerts=alerts.map(x=>v69AnonRow(x,map));v69AddSheet(wb,'SEMAFORO',alerts,Array(8).fill(20));
     v69AddSheet(wb,'RANKINGS',clean(students.map(x=>({student_code:x.student_code,full_name:x.full_name,pp_total:x.pp_total,pp_rank:x.pp_rank,gym_active_minutes:x.gym_active_minutes,gym_usage_rank:x.gym_usage_rank,gym_mastery_pct:x.gym_mastery_pct,gym_mastery_rank:x.gym_mastery_rank,knowledge_gain:x.knowledge_gain,improvement_rank:x.improvement_rank}))),Array(12).fill(18));
+    const play=state.playAnalytics||{};
+    v69AddSheet(wb,'PLAY_ACTIVIDADES',play.activities||[],Array(14).fill(18));
+    v69AddSheet(wb,'PLAY_CONCEPTOS',play.concepts||[],Array(10).fill(18));
+    v69AddSheet(wb,'PLAY_ALUMNOS',clean(play.students||[]),Array(16).fill(18));
+    v69AddSheet(wb,'PLAY_FEEDBACK',[play.feedback||{}],Array(10).fill(18));
     v69AddSheet(wb,'DICCIONARIO',v69Dictionary(),[24,70]);
     const year=String(raw.course?.academic_year||'curso').replace(/[^0-9A-Za-z_-]+/g,'_');XLSX.writeFile(wb,`CENQAL_Learning_Analytics_${year}${anonymized?'_ANON':''}.xlsx`);
     toast('Excel generado.');
@@ -5017,7 +5323,13 @@ function exportStudentLearningExcel(){
   try{
     const d=state.studentLearning;if(!d)return toast('Carga primero la ficha analítica.',true);const wb=v69Workbook(),s=d.student||{},sum=d.summary||{};
     v69AddSheet(wb,'RESUMEN',[{alumno:s.full_name,codigo:s.student_code,grupo:s.group_name,...sum}],[26,22,18,...Array(30).fill(16)]);
-    v69AddSheet(wb,'TEMAS',d.topics||[],Array(12).fill(17));v69AddSheet(wb,'SESIONES_GYM',d.sessions||[],Array(22).fill(17));v69AddSheet(wb,'EXAMENES',d.exams||[],Array(18).fill(17));v69AddSheet(wb,'PRE_POST',[d.pre_post||{}],Array(24).fill(18));v69AddSheet(wb,'DICCIONARIO',v69Dictionary(),[24,70]);
+    v69AddSheet(wb,'TEMAS',d.topics||[],Array(12).fill(17));v69AddSheet(wb,'SESIONES_GYM',d.sessions||[],Array(22).fill(17));v69AddSheet(wb,'EXAMENES',d.exams||[],Array(18).fill(17));v69AddSheet(wb,'PRE_POST',[d.pre_post||{}],Array(24).fill(18));
+    const play=state.studentPlay||{};
+    v69AddSheet(wb,'PLAY_RESUMEN',[play.summary||{}],Array(14).fill(18));
+    v69AddSheet(wb,'PLAY_INTENTOS',play.attempts||[],Array(16).fill(18));
+    v69AddSheet(wb,'PLAY_CONCEPTOS',play.concepts||[],Array(10).fill(18));
+    v69AddSheet(wb,'PLAY_FEEDBACK',play.feedback?.rows||[],Array(12).fill(18));
+    v69AddSheet(wb,'DICCIONARIO',v69Dictionary(),[24,70]);
     XLSX.writeFile(wb,`CENQAL_${String(s.student_code||'alumno').replace(/[^0-9A-Za-z_-]+/g,'_')}_Learning_Analytics.xlsx`);
   }catch(e){toast(e.message||'No se pudo exportar el alumno.',true)}
 }
