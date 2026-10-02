@@ -1,4 +1,4 @@
-<!doctype html>
+8<!doctype html>
 <html lang="es">
 <head>
 <meta charset="utf-8" />
@@ -5234,8 +5234,9 @@ async function loadStrategyRawV736(force=false){
 }
 
 function v736Num(v){
-  const n=Number(v);
-  return Number.isFinite(n)?n:null;
+  if(v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
 }
 
 function v736Median(values){
