@@ -2546,9 +2546,30 @@ renderStudentDetail=function(){
 
 function deliveryGroup(status){
   status=String(status||'').toLowerCase();
-  if(['needs_review','submitted','pending','in_review','draft'].includes(status))return 'pending';
-  if(['validated','approved','accepted','published'].includes(status))return 'validated';
-  if(['rejected','returned','needs_changes','cancelled'].includes(status))return 'rejected';
+
+  if([
+    'needs_review',
+    'submitted',
+    'pending',
+    'in_review',
+    'draft'
+  ].includes(status))return 'pending';
+
+  if([
+    'validated',
+    'approved',
+    'accepted',
+    'published',
+    'reviewed'
+  ].includes(status))return 'validated';
+
+  if([
+    'rejected',
+    'returned',
+    'needs_changes',
+    'cancelled'
+  ].includes(status))return 'rejected';
+
   return status;
 }
 
@@ -2563,52 +2584,169 @@ function atlasDeliveryGroup(status){
 
 async function loadAtlasDeliveriesV734(){
   try{
-    const d=await rpc('cenqal_control_atlas_deliveries_v734',{p_token:TOKEN});
-    return {rows:Array.isArray(d?.rows)?d.rows:[],failed:0};
+    const d=await rpc('cenqal_control_atlas_deliveries_v734',{
+      p_token:TOKEN
+    });
+
+    return {
+      rows:Array.isArray(d?.rows)?d.rows:[],
+      failed:0
+    };
+
   }catch(e){
     console.warn('CENQAL Atlas v73.4 no disponible:',e);
-    return {rows:[],failed:1};
+    return {
+      rows:[],
+      failed:1
+    };
   }
 }
 
 function atlasMembersText(x){
   const ms=Array.isArray(x?.members)?x.members:[];
-  if(!ms.length)return `Equipo ${x?.group_code||'—'}`;
-  return ms.map(m=>m.full_name||m.student_code||m.telegram_user_id).filter(Boolean).join(' · ');
+
+  if(!ms.length)
+    return `Equipo ${x?.group_code||'—'}`;
+
+  return ms
+    .map(m=>m.full_name||m.student_code||m.telegram_user_id)
+    .filter(Boolean)
+    .join(' · ');
 }
 
 function atlasById(id){
-  return (state.deliveries?.atlas||[]).find(x=>String(x.id)===String(id));
+  return (state.deliveries?.atlas||[])
+    .find(x=>String(x.id)===String(id));
 }
 
 function atlasRubricHTML(ev){
-  if(!ev || typeof ev!=='object')return '<div class="empty">Preevaluación automática todavía no disponible.</div>';
-  const criteria=ev.criteria&&typeof ev.criteria==='object'?Object.values(ev.criteria):[];
-  let html=`<div class="miniList">
-    <div class="miniRow"><span>Puntuación IA</span><b>${esc(ev.total??'—')}/100</b></div>
-    <div class="miniRow"><span>Rúbrica</span><b>${esc(ev.rubric_version||'CENQAL Atlas')}</b></div>
-  </div>`;
-  if(criteria.length){
-    html+=`<div class="tablewrap" style="margin-top:10px"><table class="table">
-      <thead><tr><th>Criterio</th><th>Puntos</th><th>Feedback IA</th></tr></thead>
-      <tbody>${criteria.map(c=>`<tr>
-        <td>${esc(c.label||'Criterio')}</td>
-        <td>${esc(c.score??0)}/${esc(c.max_points??'—')}</td>
-        <td class="wrap">${esc(c.feedback||'—')}</td>
-      </tr>`).join('')}</tbody>
-    </table></div>`;
+
+  if(!ev || typeof ev!=='object'){
+    return '<div class="empty">Preevaluación automática todavía no disponible.</div>';
   }
-  if(ev.summary)html+=`<div class="note" style="margin-top:10px"><b>Resumen:</b><br>${esc(ev.summary)}</div>`;
-  if(Array.isArray(ev.strengths)&&ev.strengths.length)html+=`<div class="note" style="margin-top:10px"><b>Fortalezas:</b><br>${ev.strengths.map(esc).join('<br>')}</div>`;
-  if(Array.isArray(ev.improvements)&&ev.improvements.length)html+=`<div class="note warn" style="margin-top:10px"><b>A mejorar:</b><br>${ev.improvements.map(esc).join('<br>')}</div>`;
-  if(Array.isArray(ev.evidence_warnings)&&ev.evidence_warnings.length)html+=`<div class="note warn" style="margin-top:10px"><b>Alertas de evidencia:</b><br>${ev.evidence_warnings.map(esc).join('<br>')}</div>`;
-  if(Array.isArray(ev.manual_checks)&&ev.manual_checks.length)html+=`<div class="note warn" style="margin-top:10px"><b>Comprobación docente:</b><br>${ev.manual_checks.map(esc).join('<br>')}</div>`;
+
+  const criteria=
+    ev.criteria&&typeof ev.criteria==='object'
+      ?Object.values(ev.criteria)
+      :[];
+
+  let html=`
+    <div class="miniList">
+
+      <div class="miniRow">
+        <span>Puntuación IA</span>
+        <b>${esc(ev.total??'—')}/100</b>
+      </div>
+
+      <div class="miniRow">
+        <span>Rúbrica</span>
+        <b>${esc(ev.rubric_version||'CENQAL Atlas')}</b>
+      </div>
+
+    </div>
+  `;
+
+  if(criteria.length){
+
+    html+=`
+      <div class="tablewrap" style="margin-top:10px">
+
+        <table class="table">
+
+          <thead>
+            <tr>
+              <th>Criterio</th>
+              <th>Puntos</th>
+              <th>Feedback IA</th>
+            </tr>
+          </thead>
+
+          <tbody>
+
+            ${criteria.map(c=>`
+              <tr>
+
+                <td>
+                  ${esc(c.label||'Criterio')}
+                </td>
+
+                <td>
+                  ${esc(c.score??0)}/${esc(c.max_points??'—')}
+                </td>
+
+                <td class="wrap">
+                  ${esc(c.feedback||'—')}
+                </td>
+
+              </tr>
+            `).join('')}
+
+          </tbody>
+
+        </table>
+
+      </div>
+    `;
+  }
+
+  if(ev.summary){
+    html+=`
+      <div class="note" style="margin-top:10px">
+        <b>Resumen:</b><br>
+        ${esc(ev.summary)}
+      </div>
+    `;
+  }
+
+  if(Array.isArray(ev.strengths)&&ev.strengths.length){
+    html+=`
+      <div class="note" style="margin-top:10px">
+        <b>Fortalezas:</b><br>
+        ${ev.strengths.map(esc).join('<br>')}
+      </div>
+    `;
+  }
+
+  if(Array.isArray(ev.improvements)&&ev.improvements.length){
+    html+=`
+      <div class="note warn" style="margin-top:10px">
+        <b>A mejorar:</b><br>
+        ${ev.improvements.map(esc).join('<br>')}
+      </div>
+    `;
+  }
+
+  if(Array.isArray(ev.evidence_warnings)&&ev.evidence_warnings.length){
+    html+=`
+      <div class="note warn" style="margin-top:10px">
+        <b>Alertas de evidencia:</b><br>
+        ${ev.evidence_warnings.map(esc).join('<br>')}
+      </div>
+    `;
+  }
+
+  if(Array.isArray(ev.manual_checks)&&ev.manual_checks.length){
+    html+=`
+      <div class="note warn" style="margin-top:10px">
+        <b>Comprobación docente:</b><br>
+        ${ev.manual_checks.map(esc).join('<br>')}
+      </div>
+    `;
+  }
+
   return html;
 }
 
+
 function showAtlasDetail(id){
+
   const x=atlasById(id);
-  if(!x)return toast('No se ha encontrado la entrega del Gran Atlas.',true);
+
+  if(!x)
+    return toast(
+      'No se ha encontrado la entrega del Gran Atlas.',
+      true
+    );
 
   const sections=[
     ['01 · Identidad',x.identity_text],
@@ -2626,95 +2764,340 @@ function showAtlasDetail(id){
     ['13 · Evidencia científica',x.sources_text]
   ];
 
-  const defaultScore=x.teacher_score??x.ai_score??'';
+  const defaultScore=
+    x.teacher_score??
+    x.ai_score??
+    '';
+
   modal(`
+
     <div class="sectionTitle">
-      <h3>🗺️ Gran Atlas · ${esc(x.food_name||x.food_code||'Ficha')}</h3>
-      <button class="btn" onclick="closeModal()">Cerrar</button>
+
+      <h3>
+        🗺️ Gran Atlas ·
+        ${esc(x.food_name||x.food_code||'Ficha')}
+      </h3>
+
+      <button
+        class="btn"
+        onclick="closeModal()">
+        Cerrar
+      </button>
+
     </div>
+
 
     <div class="miniList">
-      <div class="miniRow"><span>Equipo</span><b>${esc(x.group_code||'—')}</b></div>
-      <div class="miniRow"><span>Integrantes</span><b>${esc(atlasMembersText(x))}</b></div>
-      <div class="miniRow"><span>Estado</span><b><span class="status ${statusClass(x.status)}">${esc(x.status||'—')}</span></b></div>
-      <div class="miniRow"><span>Progreso</span><b>${esc(x.progress_percent??0)}%</b></div>
-      <div class="miniRow"><span>Entrega</span><b>${esc(fmtDate(x.submitted_at||x.updated_at))}</b></div>
-      <div class="miniRow"><span>Preevaluación IA</span><b>${x.ai_score==null?'Pendiente':esc(x.ai_score)+'/100'}</b></div>
-      <div class="miniRow"><span>Nota docente</span><b>${x.teacher_score==null?'—':esc(x.teacher_score)+'/100'}</b></div>
+
+      <div class="miniRow">
+        <span>Equipo</span>
+        <b>${esc(x.group_code||'—')}</b>
+      </div>
+
+      <div class="miniRow">
+        <span>Integrantes</span>
+        <b>${esc(atlasMembersText(x))}</b>
+      </div>
+
+      <div class="miniRow">
+        <span>Estado</span>
+
+        <b>
+          <span class="status ${statusClass(x.status)}">
+            ${esc(x.status||'—')}
+          </span>
+        </b>
+
+      </div>
+
+      <div class="miniRow">
+        <span>Progreso</span>
+        <b>${esc(x.progress_percent??0)}%</b>
+      </div>
+
+      <div class="miniRow">
+        <span>Entrega</span>
+        <b>${esc(fmtDate(x.submitted_at||x.updated_at))}</b>
+      </div>
+
+      <div class="miniRow">
+        <span>Preevaluación IA</span>
+
+        <b>
+          ${
+            x.ai_score==null
+              ?'Pendiente'
+              :esc(x.ai_score)+'/100'
+          }
+        </b>
+
+      </div>
+
+      <div class="miniRow">
+        <span>Nota docente</span>
+
+        <b>
+          ${
+            x.teacher_score==null
+              ?'—'
+              :esc(x.teacher_score)+'/100'
+          }
+        </b>
+
+      </div>
+
     </div>
+
 
     <div class="field" style="margin-top:12px">
-      <label>Pregunta de investigación</label>
-      <div class="note">${esc(x.research_question||'—')}</div>
+
+      <label>
+        Pregunta de investigación
+      </label>
+
+      <div class="note">
+        ${esc(x.research_question||'—')}
+      </div>
+
     </div>
 
-    ${x.poster_url?`<div class="actions" style="margin-top:12px">
-      <a class="btn" href="${esc(x.poster_url)}" target="_blank" rel="noopener">↗ Abrir póster</a>
-    </div>`:''}
 
-    <details class="card" open style="margin-top:12px">
-      <summary>🧪 Preevaluación automática por rúbrica</summary>
-      <div class="detailBody">${atlasRubricHTML(x.ai_evaluation)}</div>
-    </details>
+    ${
+      x.poster_url
+        ?`
+          <div
+            class="actions"
+            style="margin-top:12px">
 
-    <details class="card" style="margin-top:12px">
-      <summary>📚 Contenido entregado</summary>
+            <a
+              class="btn"
+              href="${esc(x.poster_url)}"
+              target="_blank"
+              rel="noopener">
+
+              ↗ Abrir póster
+
+            </a>
+
+          </div>
+        `
+        :''
+    }
+
+
+    <details
+      class="card"
+      open
+      style="margin-top:12px">
+
+      <summary>
+        🧪 Preevaluación automática por rúbrica
+      </summary>
+
       <div class="detailBody">
-        ${sections.map(([k,v])=>`<div class="reviewBox"><b>${esc(k)}</b><p style="white-space:pre-wrap">${esc(v||'—')}</p></div>`).join('')}
+        ${atlasRubricHTML(x.ai_evaluation)}
       </div>
+
     </details>
 
-    <div class="card" style="margin-top:12px">
-      <h3>👩‍🏫 Validación docente</h3>
-      <div class="note warn">La IA propone. Tú validas o modificas. Comprueba manualmente el póster, las figuras y la trazabilidad real de las fuentes.</div>
-      <div class="formgrid" style="margin-top:12px">
+
+    <details
+      class="card"
+      style="margin-top:12px">
+
+      <summary>
+        📚 Contenido entregado
+      </summary>
+
+      <div class="detailBody">
+
+        ${
+          sections.map(([k,v])=>`
+
+            <div class="reviewBox">
+
+              <b>
+                ${esc(k)}
+              </b>
+
+              <p style="white-space:pre-wrap">
+                ${esc(v||'—')}
+              </p>
+
+            </div>
+
+          `).join('')
+        }
+
+      </div>
+
+    </details>
+
+
+    <div
+      class="card"
+      style="margin-top:12px">
+
+      <h3>
+        👩‍🏫 Validación docente
+      </h3>
+
+      <div class="note warn">
+
+        La IA propone. Tú validas o modificas.
+        Comprueba manualmente el póster,
+        las figuras y la trazabilidad real
+        de las fuentes.
+
+      </div>
+
+
+      <div
+        class="formgrid"
+        style="margin-top:12px">
+
         <div class="field">
-          <label>Nota final /100</label>
-          <input id="atlasTeacherScore" type="number" min="0" max="100" step="1" value="${esc(defaultScore)}">
+
+          <label>
+            Nota final /100
+          </label>
+
+          <input
+            id="atlasTeacherScore"
+            type="number"
+            min="0"
+            max="100"
+            step="1"
+            value="${esc(defaultScore)}">
+
         </div>
+
+
         <div class="field full">
-          <label>Feedback docente</label>
+
+          <label>
+            Feedback docente
+          </label>
+
           <textarea id="atlasTeacherFeedback">${esc(x.teacher_feedback||'')}</textarea>
+
         </div>
+
       </div>
-      <div class="actions" style="margin-top:12px">
-        <button class="btn danger" onclick="reviewAtlasV734('${x.id}','in_progress')">↩️ Devolver a trabajo</button>
-        <button class="btn" onclick="reviewAtlasV734('${x.id}','reviewed')">✅ Marcar revisado</button>
-        <button class="btn primary" onclick="reviewAtlasV734('${x.id}','final')">🏁 Validar como final</button>
+
+
+      <div
+        class="actions"
+        style="margin-top:12px">
+
+        <button
+          class="btn danger"
+          onclick="reviewAtlasV734('${x.id}','in_progress')">
+
+          ↩️ Devolver a trabajo
+
+        </button>
+
+
+        <button
+          class="btn"
+          onclick="reviewAtlasV734('${x.id}','reviewed')">
+
+          ✅ Marcar revisado
+
+        </button>
+
+
+        <button
+          class="btn primary"
+          onclick="reviewAtlasV734('${x.id}','final')">
+
+          🏁 Validar como final
+
+        </button>
+
       </div>
+
     </div>
+
   `);
 }
 
+
 async function reviewAtlasV734(id,status){
+
   const x=atlasById(id);
-  if(!x)return toast('No se ha encontrado la ficha.',true);
 
-  const feedback=document.getElementById('atlasTeacherFeedback')?.value||'';
-  const raw=document.getElementById('atlasTeacherScore')?.value;
-  let score=raw===''?null:Number(raw);
+  if(!x)
+    return toast(
+      'No se ha encontrado la ficha.',
+      true
+    );
 
-  if(score!=null && (!Number.isFinite(score)||score<0||score>100)){
-    return toast('La nota debe estar entre 0 y 100.',true);
+  const feedback=
+    document
+      .getElementById('atlasTeacherFeedback')
+      ?.value||
+    '';
+
+  const raw=
+    document
+      .getElementById('atlasTeacherScore')
+      ?.value;
+
+  let score=
+    raw===''
+      ?null
+      :Number(raw);
+
+  if(
+    score!=null &&
+    (
+      !Number.isFinite(score) ||
+      score<0 ||
+      score>100
+    )
+  ){
+    return toast(
+      'La nota debe estar entre 0 y 100.',
+      true
+    );
   }
-  if(status==='final' && score==null){
-    return toast('Para validar como final indica una nota.',true);
+
+  if(
+    status==='final' &&
+    score==null
+  ){
+    return toast(
+      'Para validar como final indica una nota.',
+      true
+    );
   }
 
   try{
-    await rpc('cenqal_control_atlas_review_v734',{
-      p_token:TOKEN,
-      p_group_code:x.group_code,
-      p_food_code:x.food_code,
-      p_status:status,
-      p_feedback:feedback||null,
-      p_score:score
-    });
+
+    await rpc(
+      'cenqal_control_atlas_review_v734',
+      {
+        p_token:TOKEN,
+        p_group_code:x.group_code,
+        p_food_code:x.food_code,
+        p_status:status,
+        p_feedback:feedback||null,
+        p_score:score
+      }
+    );
+
     closeModal();
+
     state.deliveries=null;
+
     await loadDeliveries(true);
+
     state.teacherAgenda=null;
+
     await loadTeacherAgenda(true);
+
     toast(
       status==='final'
         ?'✅ Gran Atlas validado como final.'
@@ -2722,114 +3105,1153 @@ async function reviewAtlasV734(id,status){
           ?'↩️ Ficha devuelta al equipo.'
           :'✅ Revisión docente guardada.'
     );
+
   }catch(e){
-    toast(e.message||String(e),true);
+
+    toast(
+      e.message||String(e),
+      true
+    );
+
   }
 }
 
 
 async function loadDeliveries(force=false){
-  if(state.deliveries&&!force){renderDeliveries();return state.deliveries}
-  document.getElementById('deliveryMetrics').innerHTML='<div class="card"><span class="loader"></span> Reuniendo las fichas del curso…</div>';
+
+  if(state.deliveries&&!force){
+    renderDeliveries();
+    return state.deliveries;
+  }
+
+  document
+    .getElementById('deliveryMetrics')
+    .innerHTML=
+      '<div class="card"><span class="loader"></span> Reuniendo las fichas del curso…</div>';
+
   try{
-    const direct=await rpc('cenqal_control_deliveries_v67',{p_token:TOKEN});
-    if(direct&&direct.ok!==false){
-      let newest=(a,b)=>new Date(b.created_at||b.participation?.created_at||0)-new Date(a.created_at||a.participation?.created_at||0);
-      const atlasPack=await loadAtlasDeliveriesV734();
+
+    const direct=
+      await rpc(
+        'cenqal_control_deliveries_v67',
+        {
+          p_token:TOKEN
+        }
+      );
+
+    if(
+      direct &&
+      direct.ok!==false
+    ){
+
+      let newest=
+        (a,b)=>
+          new Date(
+            b.created_at||
+            b.participation?.created_at||
+            0
+          )
+          -
+          new Date(
+            a.created_at||
+            a.participation?.created_at||
+            0
+          );
+
+      const atlasPack=
+        await loadAtlasDeliveriesV734();
+
       state.deliveries={
-        contributions:(direct.contributions||[]).sort(newest),
-        portfolios:(direct.portfolios||[]).sort(newest),
-        weekly:(direct.weekly||[]).sort(newest),
-        atlas:(atlasPack.rows||[]).sort((a,b)=>new Date(b.submitted_at||b.updated_at||0)-new Date(a.submitted_at||a.updated_at||0)),
-        failed:atlasPack.failed||0
+
+        contributions:
+          (direct.contributions||[])
+            .sort(newest),
+
+        portfolios:
+          (direct.portfolios||[])
+            .sort(newest),
+
+        weekly:
+          (direct.weekly||[])
+            .sort(newest),
+
+        atlas:
+          (atlasPack.rows||[])
+            .sort(
+              (a,b)=>
+                new Date(
+                  b.submitted_at||
+                  b.updated_at||
+                  0
+                )
+                -
+                new Date(
+                  a.submitted_at||
+                  a.updated_at||
+                  0
+                )
+            ),
+
+        failed:
+          atlasPack.failed||0
       };
+
       renderDeliveries();
+
       return state.deliveries;
     }
+
   }catch(e){
-    console.warn('CENQAL entregas directas no disponibles; se usa compatibilidad:',e);
+
+    console.warn(
+      'CENQAL entregas directas no disponibles; se usa compatibilidad:',
+      e
+    );
+
   }
-  await Promise.all([loadStudents(force),loadProgress(force)]);
+
+
+  await Promise.all([
+    loadStudents(force),
+    loadProgress(force)
+  ]);
+
+
   const candidates=[];
   const seen=new Set();
-  [...state.students,...mergedProgress()].forEach(s=>{
-    const sid=studentIdOf(s);
-    if(!sid||seen.has(String(sid)))return;
-    seen.add(String(sid));
+
+
+  [
+    ...state.students,
+    ...mergedProgress()
+  ]
+  .forEach(s=>{
+
+    const sid=
+      studentIdOf(s);
+
+    if(
+      !sid ||
+      seen.has(String(sid))
+    )return;
+
+    seen.add(
+      String(sid)
+    );
+
     candidates.push(s);
+
   });
-  let active=candidates;
-  let settled=await Promise.allSettled(active.map(s=>rpc('cenqal_control_student_workspace',{p_token:TOKEN,p_student_id:studentIdOf(s)}).then(d=>({s,d}))));
-  let contributions=[],portfolios=[],weekly=[];
-  settled.forEach(r=>{if(r.status!=='fulfilled')return;let {s,d}=r.value;(d.contributions||[]).forEach(x=>contributions.push({...x,_student:s}));(d.portfolio_submissions||[]).forEach(x=>portfolios.push({...x,_student:s}));(d.weekly||[]).forEach(x=>weekly.push({...x,_student:s}))});
-  let newest=(a,b)=>new Date(b.created_at||b.participation?.created_at||0)-new Date(a.created_at||a.participation?.created_at||0);
-  const atlasPack=await loadAtlasDeliveriesV734();
+
+
+  let active=
+    candidates;
+
+
+  let settled=
+    await Promise.allSettled(
+
+      active.map(
+        s=>
+          rpc(
+            'cenqal_control_student_workspace',
+            {
+              p_token:TOKEN,
+              p_student_id:studentIdOf(s)
+            }
+          )
+          .then(
+            d=>({
+              s,
+              d
+            })
+          )
+      )
+
+    );
+
+
+  let contributions=[];
+  let portfolios=[];
+  let weekly=[];
+
+
+  settled.forEach(r=>{
+
+    if(
+      r.status!=='fulfilled'
+    )return;
+
+    let {
+      s,
+      d
+    }=
+      r.value;
+
+
+    (d.contributions||[])
+      .forEach(
+        x=>
+          contributions.push({
+            ...x,
+            _student:s
+          })
+      );
+
+
+    (d.portfolio_submissions||[])
+      .forEach(
+        x=>
+          portfolios.push({
+            ...x,
+            _student:s
+          })
+      );
+
+
+    (d.weekly||[])
+      .forEach(
+        x=>
+          weekly.push({
+            ...x,
+            _student:s
+          })
+      );
+
+  });
+
+
+  let newest=
+    (a,b)=>
+      new Date(
+        b.created_at||
+        b.participation?.created_at||
+        0
+      )
+      -
+      new Date(
+        a.created_at||
+        a.participation?.created_at||
+        0
+      );
+
+
+  const atlasPack=
+    await loadAtlasDeliveriesV734();
+
+
   state.deliveries={
-    contributions:contributions.sort(newest),
-    portfolios:portfolios.sort(newest),
-    weekly:weekly.sort(newest),
-    atlas:(atlasPack.rows||[]).sort((a,b)=>new Date(b.submitted_at||b.updated_at||0)-new Date(a.submitted_at||a.updated_at||0)),
-    failed:settled.filter(x=>x.status==='rejected').length+(atlasPack.failed||0)
+
+    contributions:
+      contributions.sort(newest),
+
+    portfolios:
+      portfolios.sort(newest),
+
+    weekly:
+      weekly.sort(newest),
+
+    atlas:
+      (atlasPack.rows||[])
+        .sort(
+          (a,b)=>
+            new Date(
+              b.submitted_at||
+              b.updated_at||
+              0
+            )
+            -
+            new Date(
+              a.submitted_at||
+              a.updated_at||
+              0
+            )
+        ),
+
+    failed:
+      settled
+        .filter(
+          x=>
+            x.status==='rejected'
+        )
+        .length
+      +
+      (atlasPack.failed||0)
+
   };
-  renderDeliveries();return state.deliveries;
+
+
+  renderDeliveries();
+
+  return state.deliveries;
 }
 
-function deliveryMatches(x,q,status,type){
-  let s=x._student||{},raw=type==='weekly'?x.participation||{}:x;
-  let group=deliveryGroup(raw.status);
-  if(status&&group!==status)return false;
-  let text=[studentName(s),s.student_code,x.title,x.primary_topic,x.topic,x.challenge_code,x.challenge?.title,raw.response_text].join(' ').toLowerCase();
-  return !q||text.includes(q);
+
+function deliveryMatches(
+  x,
+  q,
+  status,
+  type
+){
+
+  let s=
+    x._student||{};
+
+  let raw=
+    type==='weekly'
+      ?x.participation||{}
+      :x;
+
+  let group=
+    deliveryGroup(
+      raw.status
+    );
+
+  if(
+    status &&
+    group!==status
+  )return false;
+
+
+  let text=[
+    studentName(s),
+    s.student_code,
+    x.title,
+    x.primary_topic,
+    x.topic,
+    x.challenge_code,
+    x.challenge?.title,
+    raw.response_text
+  ]
+  .join(' ')
+  .toLowerCase();
+
+
+  return (
+    !q ||
+    text.includes(q)
+  );
 }
+
+
+/* =========================================================
+   RETOS SEMANALES · VALIDACIÓN DOCENTE
+========================================================= */
+
+async function saveWeeklyReview(
+  participationId,
+  score,
+  feedback=null
+){
+
+  const n=
+    Number(score);
+
+  if(
+    !Number.isFinite(n) ||
+    n<0 ||
+    n>5
+  ){
+    return toast(
+      'La nota debe estar entre 0 y 5.',
+      true
+    );
+  }
+
+
+  try{
+
+    const result=
+      await rpc(
+        'cenqal_control_review_weekly',
+        {
+          p_token:TOKEN,
+          p_participation_id:
+            Number(participationId),
+
+          p_teacher_score:n,
+
+          p_teacher_feedback:
+            feedback||null
+        }
+      );
+
+
+    if(
+      !result ||
+      result.ok===false
+    ){
+
+      throw new Error(
+        result?.error||
+        result?.reason||
+        'No se pudo registrar la nota'
+      );
+
+    }
+
+
+    toast(
+      `✅ Reto validado: ${n}/5 · ${result.score_out_of_10}/10 en expediente`
+    );
+
+
+    state.deliveries=null;
+
+
+    await loadDeliveries(true);
+
+
+    try{
+
+      await loadProgress(true);
+
+    }catch(e){
+
+      console.warn(
+        'No se pudo refrescar progreso después de validar el reto:',
+        e
+      );
+
+    }
+
+
+    return result;
+
+
+  }catch(e){
+
+    console.error(
+      'CENQAL weekly review:',
+      e
+    );
+
+
+    toast(
+      'No se pudo validar el reto: '+
+      (
+        e?.message||
+        e
+      ),
+      true
+    );
+
+
+    return null;
+
+  }
+}
+
+
+async function validateWeeklyScore(
+  participationId,
+  score
+){
+
+  const n=
+    Number(score);
+
+
+  if(
+    !Number.isFinite(n) ||
+    n<0 ||
+    n>5
+  ){
+
+    return toast(
+      'La nota debe estar entre 0 y 5.',
+      true
+    );
+
+  }
+
+
+  const ok=
+    confirm(
+      `¿Validar la preevaluación ${n}/5 como nota docente?\n\n`+
+      `Se registrará como ${n*2}/10 en Actividades.`
+    );
+
+
+  if(!ok)return;
+
+
+  return saveWeeklyReview(
+    participationId,
+    n,
+    null
+  );
+}
+
+
+async function reviewWeeklyScore(
+  participationId,
+  currentScore=null
+){
+
+  const suggested=
+    (
+      currentScore==null ||
+      !Number.isFinite(
+        Number(currentScore)
+      )
+    )
+      ?''
+      :String(currentScore);
+
+
+  const raw=
+    prompt(
+      'Nota docente del reto (0–5):',
+      suggested
+    );
+
+
+  if(raw===null)return;
+
+
+  const normalized=
+    String(raw)
+      .trim()
+      .replace(',','.');
+
+
+  const n=
+    Number(normalized);
+
+
+  if(
+    !Number.isFinite(n) ||
+    n<0 ||
+    n>5
+  ){
+
+    return toast(
+      'La nota debe estar entre 0 y 5.',
+      true
+    );
+
+  }
+
+
+  const fb=
+    prompt(
+      'Feedback docente opcional (puedes dejarlo vacío):',
+      ''
+    );
+
+
+  if(fb===null)return;
+
+
+  return saveWeeklyReview(
+    participationId,
+    n,
+    fb.trim()||null
+  );
+}
+
 
 function renderDeliveries(){
-  let d=state.deliveries;if(!d)return;
-  let q=(document.getElementById('deliverySearch')?.value||'').trim().toLowerCase(),st=document.getElementById('deliveryStatus')?.value||'';
-  let c=d.contributions.filter(x=>deliveryMatches(x,q,st,'contribution')),
-      p=d.portfolios.filter(x=>deliveryMatches(x,q,st,'portfolio')),
-      w=d.weekly.filter(x=>deliveryMatches(x,q,st,'weekly')),
-      a=(d.atlas||[]).filter(x=>{
-        if(st&&atlasDeliveryGroup(x.status)!==st)return false;
-        const text=[x.group_code,x.food_code,x.food_name,atlasMembersText(x),x.research_question].join(' ').toLowerCase();
-        return !q||text.includes(q);
+
+  let d=
+    state.deliveries;
+
+  if(!d)return;
+
+
+  let q=
+    (
+      document
+        .getElementById('deliverySearch')
+        ?.value||
+      ''
+    )
+    .trim()
+    .toLowerCase();
+
+
+  let st=
+    document
+      .getElementById('deliveryStatus')
+      ?.value||
+    '';
+
+
+  let c=
+    d.contributions
+      .filter(
+        x=>
+          deliveryMatches(
+            x,
+            q,
+            st,
+            'contribution'
+          )
+      );
+
+
+  let p=
+    d.portfolios
+      .filter(
+        x=>
+          deliveryMatches(
+            x,
+            q,
+            st,
+            'portfolio'
+          )
+      );
+
+
+  let w=
+    d.weekly
+      .filter(
+        x=>
+          deliveryMatches(
+            x,
+            q,
+            st,
+            'weekly'
+          )
+      );
+
+
+  let a=
+    (d.atlas||[])
+      .filter(x=>{
+
+        if(
+          st &&
+          atlasDeliveryGroup(
+            x.status
+          )!==st
+        )return false;
+
+
+        const text=[
+          x.group_code,
+          x.food_code,
+          x.food_name,
+          atlasMembersText(x),
+          x.research_question
+        ]
+        .join(' ')
+        .toLowerCase();
+
+
+        return (
+          !q ||
+          text.includes(q)
+        );
+
       });
-  let pendingC=d.contributions.filter(x=>deliveryGroup(x.status)==='pending').length,
-      pendingP=d.portfolios.filter(x=>deliveryGroup(x.status)==='pending').length,
-      pendingA=(d.atlas||[]).filter(x=>atlasDeliveryGroup(x.status)==='pending').length;
-  document.getElementById('deliveryMetrics').innerHTML=[
-    metric('🧪 Aportaciones',d.contributions.length,`${pendingC} pendientes`),
-    metric('📄 Portfolios',d.portfolios.length,`${pendingP} pendientes`),
-    metric('🗺️ Gran Atlas',(d.atlas||[]).length,`${pendingA} pendientes`),
-    metric('🏆 Respuestas a retos',d.weekly.length,'registradas'),
-    metric('⚠️ Fichas no cargadas',d.failed||0,d.failed?'Reintenta la actualización':'Todo correcto')
-  ].join('');
-  document.getElementById('contributionsInbox').innerHTML=c.length?tableHTML(['Fecha','Alumno','Título / tema','Estado','Preeval.','Acciones'],c.map(x=>[fmtDate(x.created_at),studentName(x._student),x.title||x.primary_topic||x.topic||'—',x.status||'—',x.preliminary_score??'—',`<div class="actions"><button class="btn" onclick="showContributionDetail('${x.id}')">Ver respuestas y rúbrica</button>${contributionControlAction(x,true)}</div>`]),'html'):'<div class="empty">No hay aportaciones con estos filtros.</div>';
-  document.getElementById('portfoliosInbox').innerHTML=p.length?tableHTML(['Fecha','Alumno','Reto / archivo','Estado','Nota','Acciones'],p.map(x=>[fmtDate(x.created_at),studentName(x._student),x.challenge_code||x.file_name||'—',x.status||'—',x.teacher_evaluation?.score??'—',`<button class="btn" onclick="showPortfolioDetail('${x.id}')">Ver evaluación</button>`]),'html'):'<div class="empty">No hay portfolios con estos filtros.</div>';
-  document.getElementById('atlasInbox').innerHTML=a.length?tableHTML(
-    ['Entrega','Equipo','Alimento','Estado','IA','Docente','Acción'],
-    a.map(x=>[
-      fmtDate(x.submitted_at||x.updated_at),
-      `${x.group_code||'—'} · ${atlasMembersText(x)}`,
-      x.food_name||x.food_code||'—',
-      x.status||'—',
-      x.ai_score==null?'Pendiente':`${x.ai_score}/100`,
-      x.teacher_score==null?'—':`${x.teacher_score}/100`,
-      `<button class="btn primary" onclick="showAtlasDetail('${x.id}')">Revisar entrega</button>`
-    ]),
-    'html'
-  ):'<div class="empty">No hay entregas del Gran Atlas con estos filtros.</div>';
-  document.getElementById('challengesInbox').innerHTML=w.length?tableHTML(['Fecha','Alumno','Reto','Estado','Preeval.','Respuesta'],w.map(x=>{let a=x.participation||{},ch=x.challenge||{};return[fmtDate(a.created_at),studentName(x._student),ch.title||`Tema ${ch.topic_number||'—'}`,a.status||'—',a.preliminary_score??'—',a.response_text||'—']}),'last'):'<div class="empty">No hay respuestas a retos con estos filtros.</div>';
+
+
+  let pendingC=
+    d.contributions
+      .filter(
+        x=>
+          deliveryGroup(x.status)==='pending'
+      )
+      .length;
+
+
+  let pendingP=
+    d.portfolios
+      .filter(
+        x=>
+          deliveryGroup(x.status)==='pending'
+      )
+      .length;
+
+
+  let pendingA=
+    (d.atlas||[])
+      .filter(
+        x=>
+          atlasDeliveryGroup(x.status)==='pending'
+      )
+      .length;
+
+
+  let pendingW=
+    d.weekly
+      .filter(
+        x=>
+          deliveryGroup(
+            x.participation?.status
+          )==='pending'
+      )
+      .length;
+
+
+  document
+    .getElementById('deliveryMetrics')
+    .innerHTML=[
+
+      metric(
+        '🧪 Aportaciones',
+        d.contributions.length,
+        `${pendingC} pendientes`
+      ),
+
+      metric(
+        '📄 Portfolios',
+        d.portfolios.length,
+        `${pendingP} pendientes`
+      ),
+
+      metric(
+        '🗺️ Gran Atlas',
+        (d.atlas||[]).length,
+        `${pendingA} pendientes`
+      ),
+
+      metric(
+        '🏆 Respuestas a retos',
+        d.weekly.length,
+        `${pendingW} pendientes de validar`
+      ),
+
+      metric(
+        '⚠️ Fichas no cargadas',
+        d.failed||0,
+        d.failed
+          ?'Reintenta la actualización'
+          :'Todo correcto'
+      )
+
+    ]
+    .join('');
+
+
+  document
+    .getElementById('contributionsInbox')
+    .innerHTML=
+
+      c.length
+
+      ?tableHTML(
+
+        [
+          'Fecha',
+          'Alumno',
+          'Título / tema',
+          'Estado',
+          'Preeval.',
+          'Acciones'
+        ],
+
+        c.map(
+          x=>[
+            fmtDate(x.created_at),
+            studentName(x._student),
+            x.title||
+              x.primary_topic||
+              x.topic||
+              '—',
+            x.status||'—',
+            x.preliminary_score??'—',
+
+            `<div class="actions">
+
+              <button
+                class="btn"
+                onclick="showContributionDetail('${x.id}')">
+
+                Ver respuestas y rúbrica
+
+              </button>
+
+              ${contributionControlAction(x,true)}
+
+            </div>`
+          ]
+        ),
+
+        'html'
+      )
+
+      :'<div class="empty">No hay aportaciones con estos filtros.</div>';
+
+
+  document
+    .getElementById('portfoliosInbox')
+    .innerHTML=
+
+      p.length
+
+      ?tableHTML(
+
+        [
+          'Fecha',
+          'Alumno',
+          'Reto / archivo',
+          'Estado',
+          'Nota',
+          'Acciones'
+        ],
+
+        p.map(
+          x=>[
+            fmtDate(x.created_at),
+            studentName(x._student),
+            x.challenge_code||
+              x.file_name||
+              '—',
+            x.status||'—',
+            x.teacher_evaluation?.score??'—',
+
+            `<button
+              class="btn"
+              onclick="showPortfolioDetail('${x.id}')">
+
+              Ver evaluación
+
+            </button>`
+          ]
+        ),
+
+        'html'
+      )
+
+      :'<div class="empty">No hay portfolios con estos filtros.</div>';
+
+
+  document
+    .getElementById('atlasInbox')
+    .innerHTML=
+
+      a.length
+
+      ?tableHTML(
+
+        [
+          'Entrega',
+          'Equipo',
+          'Alimento',
+          'Estado',
+          'IA',
+          'Docente',
+          'Acción'
+        ],
+
+        a.map(
+          x=>[
+
+            fmtDate(
+              x.submitted_at||
+              x.updated_at
+            ),
+
+            `${x.group_code||'—'} · ${atlasMembersText(x)}`,
+
+            x.food_name||
+              x.food_code||
+              '—',
+
+            x.status||
+              '—',
+
+            x.ai_score==null
+              ?'Pendiente'
+              :`${x.ai_score}/100`,
+
+            x.teacher_score==null
+              ?'—'
+              :`${x.teacher_score}/100`,
+
+            `<button
+              class="btn primary"
+              onclick="showAtlasDetail('${x.id}')">
+
+              Revisar entrega
+
+            </button>`
+
+          ]
+        ),
+
+        'html'
+      )
+
+      :'<div class="empty">No hay entregas del Gran Atlas con estos filtros.</div>';
+
+
+  document
+    .getElementById('challengesInbox')
+    .innerHTML=
+
+      w.length
+
+      ?tableHTML(
+
+        [
+          'Fecha',
+          'Alumno',
+          'Reto',
+          'Estado',
+          'Preeval.',
+          'Nota docente',
+          'Respuesta',
+          'Acciones'
+        ],
+
+        w.map(x=>{
+
+          let participation=
+            x.participation||{};
+
+          let challenge=
+            x.challenge||{};
+
+
+          const pre=
+            participation.preliminary_score;
+
+
+          const teacher=
+            participation.teacher_score;
+
+
+          let actions=[];
+
+
+          if(
+            teacher==null &&
+            pre!=null
+          ){
+
+            actions.push(`
+
+              <button
+                class="btn primary"
+                onclick="validateWeeklyScore(
+                  ${Number(participation.id)},
+                  ${Number(pre)}
+                )">
+
+                ✓ Validar ${esc(pre)}/5
+
+              </button>
+
+            `);
+
+          }
+
+
+          actions.push(`
+
+            <button
+              class="btn"
+              onclick="reviewWeeklyScore(
+                ${Number(participation.id)},
+                ${
+                  teacher==null
+                    ?(
+                      pre==null
+                        ?'null'
+                        :Number(pre)
+                    )
+                    :Number(teacher)
+                }
+              )">
+
+              ✏️ ${
+                teacher==null
+                  ?'Revisar'
+                  :'Cambiar nota'
+              }
+
+            </button>
+
+          `);
+
+
+          return [
+
+            fmtDate(
+              participation.created_at
+            ),
+
+            studentName(
+              x._student
+            ),
+
+            challenge.title||
+              `Tema ${challenge.topic_number||'—'}`,
+
+            participation.status||
+              '—',
+
+            pre==null
+              ?'—'
+              :`${pre}/5`,
+
+            teacher==null
+              ?'—'
+              :`${teacher}/5`,
+
+            participation.response_text||
+              '—',
+
+            `<div class="actions">
+              ${actions.join('')}
+            </div>`
+
+          ];
+
+        }),
+
+        'html'
+      )
+
+      :'<div class="empty">No hay respuestas a retos con estos filtros.</div>';
+
 }
 
-function csvCell(v){return `"${String(v??'').replace(/"/g,'""')}"`}
+
+function csvCell(v){
+
+  return `"${String(v??'').replace(/"/g,'""')}"`;
+
+}
+
+
 function exportDeliveriesCSV(){
-  let d=state.deliveries;if(!d)return toast('Carga primero las entregas.',true);
-  let rows=[['tipo','fecha','alumno','codigo','titulo_reto','estado','preevaluacion']];
-  d.contributions.forEach(x=>rows.push(['aportacion',x.created_at,studentName(x._student),x._student?.student_code,x.title||x.primary_topic,x.status,x.preliminary_score]));
-  d.portfolios.forEach(x=>rows.push(['portfolio',x.created_at,studentName(x._student),x._student?.student_code,x.challenge_code||x.file_name,x.status,x.teacher_evaluation?.score]));
-  d.weekly.forEach(x=>{let a=x.participation||{},ch=x.challenge||{};rows.push(['reto',a.created_at,studentName(x._student),x._student?.student_code,ch.title,a.status,a.preliminary_score])});
-  (d.atlas||[]).forEach(x=>rows.push(['gran_atlas',x.submitted_at||x.updated_at,atlasMembersText(x),x.group_code,x.food_name||x.food_code,x.status,x.teacher_score??x.ai_score]));
-  let blob=new Blob(['\ufeff'+rows.map(r=>r.map(csvCell).join(';')).join('\n')],{type:'text/csv;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='cenqal_entregas.csv';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+
+  let d=
+    state.deliveries;
+
+  if(!d)
+    return toast(
+      'Carga primero las entregas.',
+      true
+    );
+
+
+  let rows=[
+    [
+      'tipo',
+      'fecha',
+      'alumno',
+      'codigo',
+      'titulo_reto',
+      'estado',
+      'preevaluacion'
+    ]
+  ];
+
+
+  d.contributions.forEach(
+    x=>
+      rows.push([
+        'aportacion',
+        x.created_at,
+        studentName(x._student),
+        x._student?.student_code,
+        x.title||x.primary_topic,
+        x.status,
+        x.preliminary_score
+      ])
+  );
+
+
+  d.portfolios.forEach(
+    x=>
+      rows.push([
+        'portfolio',
+        x.created_at,
+        studentName(x._student),
+        x._student?.student_code,
+        x.challenge_code||x.file_name,
+        x.status,
+        x.teacher_evaluation?.score
+      ])
+  );
+
+
+  d.weekly.forEach(x=>{
+
+    let participation=
+      x.participation||{};
+
+    let challenge=
+      x.challenge||{};
+
+    rows.push([
+      'reto',
+      participation.created_at,
+      studentName(x._student),
+      x._student?.student_code,
+      challenge.title,
+      participation.status,
+
+      participation.teacher_score==null
+        ?participation.preliminary_score
+        :participation.teacher_score
+    ]);
+
+  });
+
+
+  (d.atlas||[])
+    .forEach(
+      x=>
+        rows.push([
+          'gran_atlas',
+          x.submitted_at||x.updated_at,
+          atlasMembersText(x),
+          x.group_code,
+          x.food_name||x.food_code,
+          x.status,
+          x.teacher_score??x.ai_score
+        ])
+    );
+
+
+  let blob=
+    new Blob(
+      [
+        '\ufeff'+
+        rows
+          .map(
+            r=>
+              r
+                .map(csvCell)
+                .join(';')
+          )
+          .join('\n')
+      ],
+      {
+        type:'text/csv;charset=utf-8'
+      }
+    );
+
+
+  let a=
+    document.createElement('a');
+
+
+  a.href=
+    URL.createObjectURL(blob);
+
+
+  a.download=
+    'cenqal_entregas.csv';
+
+
+  a.click();
+
+
+  setTimeout(
+    ()=>
+      URL.revokeObjectURL(
+        a.href
+      ),
+    1000
+  );
 }
 
 
