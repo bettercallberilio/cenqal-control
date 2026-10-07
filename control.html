@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>CENQAL Control</title>
-<meta name="CENQAL_CONTROL_BUILD" content="v73.9">
+<meta name="CENQAL_CONTROL_BUILD" content="v73.10">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#0c3f82">
 <link rel="apple-touch-icon" href="./cenqal-apple-touch-icon.png">
@@ -486,7 +486,7 @@ details.card>.detailBody{padding:0 16px 16px}
       <div class="brandmark"></div>
       <div>
         <h1>CENQAL Control</h1>
-        <small>Panel docente seguro · v73.9</small>
+        <small>Panel docente seguro · v73.10</small>
       </div>
     </div>
 
@@ -1070,9 +1070,10 @@ details.card>.detailBody{padding:0 16px 16px}
     </section>
 
     <section class="view" id="view-exams">
-      <div class="viewHeader"><div><h2>📝 Exámenes</h2><p>Consulta de convocatorias y registro docente de resultados manuales cuando la prueba ya está cerrada o en revisión.</p></div><button class="btn" onclick="loadExams(true)">↻ Actualizar</button></div>
-      <div class="note warn" style="margin-bottom:12px">Preparar, abrir, cerrar o liberar revisión continúa realizándose con <b>/examen</b>. En CENQAL Control, <b>Resultados</b> solo se habilita para exámenes <b>closed</b> o <b>review</b>. El registro manual no modifica intentos técnicos, no crea nota /10 y no concede PP automáticamente.</div>
-      <div class="card"><div class="tablewrap"><table class="table"><thead><tr><th>Código</th><th>Tema</th><th>Título</th><th>Estado</th><th>Apertura</th><th>Cierre</th><th>Resultados</th></tr></thead><tbody id="examsBody"></tbody></table></div></div>
+      <div class="viewHeader"><div><h2>📝 Exámenes</h2><p>Las convocatorias técnicas se conservan como histórico. La calificación docente se registra una sola vez por tema.</p></div><button class="btn" onclick="loadExams(true)">↻ Actualizar</button></div>
+      <div class="note warn" style="margin-bottom:12px">Preparar, abrir, cerrar o liberar revisión continúa realizándose con <b>/examen</b>. Un examen <b>closed</b> debe permanecer cerrado; no es necesario pasarlo a <b>review</b> para calificar. <b>Resultados Tn</b> agrupa todas las convocatorias técnicas del mismo tema y no modifica intentos, no crea nota /10 ni concede PP automáticamente.</div>
+      <div id="examTopicResults" class="card" style="margin-bottom:12px"></div>
+      <div class="card"><div class="sectionTitle" style="margin-bottom:10px"><div><h3>Histórico técnico de convocatorias</h3><p>Se muestran todas las convocatorias existentes, aunque pertenezcan al mismo tema.</p></div></div><div class="tablewrap"><table class="table"><thead><tr><th>Código</th><th>Tema</th><th>Título</th><th>Estado</th><th>Apertura</th><th>Cierre</th><th>Resultado académico</th></tr></thead><tbody id="examsBody"></tbody></table></div></div>
     </section>
 
     <section class="view" id="view-groups">
@@ -4807,7 +4808,7 @@ function renderChallenges(){document.getElementById('challengesBody').innerHTML=
 
 function editChallenge(id){let c=state.challenges.find(x=>x.id==id);if(!c)return;let published=c.status==='published';modal(`<h3>Reto T${c.topic_number}</h3>${published?'<div class="note warn">Este reto ya está publicado. Puedes corregir texto/fuente, pero la fecha y el estado quedan bloqueados para evitar duplicar mensajes.</div>':''}<div class="formgrid" style="margin-top:12px"><div class="field full"><label>Título</label><input id="chTitle" value="${esc(c.title||'')}"></div><div class="field full"><label>Pregunta</label><textarea id="chQuestion">${esc(c.question||'')}</textarea></div><div class="field"><label>Semana (lunes)</label><input id="chWeek" type="date" value="${esc(c.week_start||'')}" ${published?'disabled':''}></div><div class="field"><label>Estado</label><select id="chStatus" ${published?'disabled':''}><option value="scheduled">scheduled</option><option value="closed">closed</option></select></div><div class="field"><label>Fuente</label><input id="chSource" value="${esc(c.source_title||'')}"></div><div class="field"><label>URL</label><input id="chUrl" value="${esc(c.source_url||'')}"></div></div><div class="modalFooter"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn primary" id="chNext">Revisar</button></div>`);if(!published)document.getElementById('chStatus').value=['scheduled','closed'].includes(c.status)?c.status:'scheduled';document.getElementById('chNext').onclick=()=>{let data={title:document.getElementById('chTitle').value,question:document.getElementById('chQuestion').value,source_title:document.getElementById('chSource').value,source_url:document.getElementById('chUrl').value};if(!published){data.week_start=document.getElementById('chWeek').value;data.status=document.getElementById('chStatus').value}confirmModal({title:`Guardar reto T${c.topic_number}`,summary:'El bot usará estos datos en las siguientes publicaciones. El cambio queda auditado.',phrase:'CONFIRMAR',onConfirm:async typed=>{await rpc('cenqal_control_update_challenge',{p_token:TOKEN,p_challenge_id:id,p_data:data,p_confirmation:typed});state.challenges=[];await loadChallenges(true);await refreshSnapshot();toast('Reto actualizado.')}})}}
 /* =========================================================
-   CENQAL v73.9 · RESULTADOS MANUALES DE EXAMEN
+   CENQAL v73.10 · RESULTADOS MANUALES DE EXAMEN
    - Solo para exámenes closed / review.
    - APTO / NO_APTO; ausencia de registro = Pendiente.
    - No modifica cenqal_exam_attempts.
@@ -4836,10 +4837,67 @@ function v739ExamAllowsManualResults(exam){
   return examState==='closed'||examState==='review';
 }
 
+function v7310TopicExams(topicNumber){
+  const topic=Number(topicNumber);
+  return state.exams.filter(x=>Number(x.topic_number)===topic);
+}
+
+function v7310TopicAllowsManualResults(topicNumber){
+  return v7310TopicExams(topicNumber).some(v739ExamAllowsManualResults);
+}
+
+function renderExamTopicResults(){
+  const box=document.getElementById('examTopicResults');
+  if(!box)return;
+
+  const topics=[...new Set(
+    state.exams
+      .map(x=>Number(x.topic_number))
+      .filter(Number.isFinite)
+  )].sort((a,b)=>a-b);
+
+  if(!topics.length){
+    box.innerHTML='<div class="empty">No hay temas de examen disponibles.</div>';
+    return;
+  }
+
+  box.innerHTML=`
+    <div class="sectionTitle">
+      <div>
+        <h3>✅ Resultados académicos por tema</h3>
+        <p>Un único registro por alumno y tema, aunque existan varias convocatorias técnicas.</p>
+      </div>
+    </div>
+    <div class="miniList" style="margin-top:10px">
+      ${topics.map(topic=>{
+        const exams=v7310TopicExams(topic);
+        const allowed=exams.some(v739ExamAllowsManualResults);
+        const states=[...new Set(exams.map(x=>String(x.state||'—')))].join(' · ');
+        const title=(exams.find(v739ExamAllowsManualResults)||exams[0])?.title||`Tema ${topic}`;
+        return `
+          <div class="miniRow" style="align-items:center">
+            <div style="min-width:0">
+              <div><b>T${esc(topic)} · ${esc(title)}</b></div>
+              <div class="subtle">${exams.length} convocatoria${exams.length===1?'':'s'} técnica${exams.length===1?'':'s'} · Estados: ${esc(states)}</div>
+            </div>
+            <div>
+              ${allowed
+                ?`<button class="btn primary" onclick="openExamManualResults(${topic})">Resultados T${topic}</button>`
+                :'<span class="subtle">Bloqueado hasta cierre</span>'}
+            </div>
+          </div>`;
+      }).join('')}
+    </div>
+  `;
+}
+
 function renderExams(){
+  renderExamTopicResults();
+
   document.getElementById('examsBody').innerHTML=
     state.exams.map(e=>{
-      const allowed=v739ExamAllowsManualResults(e);
+      const topic=Number(e.topic_number);
+      const allowed=v7310TopicAllowsManualResults(topic);
       return `
         <tr>
           <td>${esc(e.exam_code)}</td>
@@ -4854,7 +4912,7 @@ function renderExams(){
           <td>${fmtDate(e.closed_at)}</td>
           <td>
             ${allowed
-              ?`<button class="btn primary" onclick="openExamManualResults(${Number(e.topic_number)})">Resultados</button>`
+              ?`<span class="subtle">Gestionado en Resultados T${esc(topic)}</span>`
               :'<span class="subtle">Bloqueado hasta cierre</span>'}
           </td>
         </tr>`;
@@ -4887,10 +4945,11 @@ async function openExamManualResults(topicNumber){
     const topic=Number(topicNumber);
     if(!Number.isFinite(topic))throw new Error('Tema de examen no válido.');
 
-    const exam=state.exams.find(x=>Number(x.topic_number)===topic);
-    if(!exam)throw new Error('No se ha encontrado la convocatoria.');
-    if(!v739ExamAllowsManualResults(exam)){
-      throw new Error('Los resultados solo pueden registrarse cuando el examen está closed o review.');
+    const examsForTopic=v7310TopicExams(topic);
+    const exam=examsForTopic.find(v739ExamAllowsManualResults)||examsForTopic[0];
+    if(!exam)throw new Error('No se ha encontrado ninguna convocatoria para este tema.');
+    if(!examsForTopic.some(v739ExamAllowsManualResults)){
+      throw new Error('Los resultados solo pueden registrarse cuando al menos una convocatoria del tema está closed o review.');
     }
 
     toast(`Cargando resultados T${topic}…`);
@@ -4903,8 +4962,9 @@ async function openExamManualResults(topicNumber){
     state.examManualResults={
       course_id:d?.course_id??null,
       topic_number:topic,
-      exam_code:exam.exam_code||`T${topic}`,
+      exam_code:`T${topic}`,
       exam_title:exam.title||'',
+      technical_exam_count:examsForTopic.length,
       rows:Array.isArray(d?.rows)?d.rows:[]
     };
 
@@ -4944,7 +5004,7 @@ function renderExamManualResultsModal(){
         <h3>Resultados · T${esc(topic)}</h3>
         <p>${esc(ctx.exam_code||'')} ${ctx.exam_title?'· '+esc(ctx.exam_title):''}</p>
       </div>
-      <span class="status">${rows.length} alumnos</span>
+      <span class="status">${rows.length} alumnos · ${Number(ctx.technical_exam_count||1)} convocatoria${Number(ctx.technical_exam_count||1)===1?'':'s'}</span>
     </div>
 
     <div class="note" style="margin:12px 0">
