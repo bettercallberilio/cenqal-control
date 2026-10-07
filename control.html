@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>CENQAL Control</title>
-<meta name="CENQAL_CONTROL_BUILD" content="v73.8">
+<meta name="CENQAL_CONTROL_BUILD" content="v73.9">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#0c3f82">
 <link rel="apple-touch-icon" href="./cenqal-apple-touch-icon.png">
@@ -486,7 +486,7 @@ details.card>.detailBody{padding:0 16px 16px}
       <div class="brandmark"></div>
       <div>
         <h1>CENQAL Control</h1>
-        <small>Panel docente seguro · v73.8</small>
+        <small>Panel docente seguro · v73.9</small>
       </div>
     </div>
 
@@ -997,8 +997,7 @@ details.card>.detailBody{padding:0 16px 16px}
         <div class="sectionTitle"><h3>🧪 Rendimiento por tema</h3><span class="subtle">T1–T8</span></div>
         <div id="learningTopics"></div>
       </div>
-
-      <div class="card">
+<div class="card">
         <div class="sectionTitle"><h3>👥 Analítica individual</h3><span class="subtle">pulsa una fila para abrir la ficha</span></div>
         <div class="tablewrap"><table class="table"><thead><tr>
           <th></th><th>Alumno</th><th>Gym</th><th>Tiempo activo</th><th>Acierto</th><th>Dominio</th><th>Exámenes</th><th>Media</th><th>PRE→POST</th><th>Rank PP</th><th>Rank uso</th><th>Rank dominio</th><th></th>
@@ -1071,9 +1070,9 @@ details.card>.detailBody{padding:0 16px 16px}
     </section>
 
     <section class="view" id="view-exams">
-      <div class="viewHeader"><div><h2>📝 Exámenes</h2><p>Consulta de convocatorias. Operaciones críticas permanecen en Telegram en esta primera versión.</p></div><button class="btn" onclick="loadExams(true)">↻ Actualizar</button></div>
-      <div class="note warn" style="margin-bottom:12px">Para preparar, abrir, cerrar o liberar revisión utiliza <b>/examen</b>. Cuando validemos CENQAL Control con datos reales, trasladaremos esas acciones aquí con doble confirmación.</div>
-      <div class="card"><div class="tablewrap"><table class="table"><thead><tr><th>Código</th><th>Tema</th><th>Título</th><th>Estado</th><th>Apertura</th><th>Cierre</th></tr></thead><tbody id="examsBody"></tbody></table></div></div>
+      <div class="viewHeader"><div><h2>📝 Exámenes</h2><p>Consulta de convocatorias y registro docente de resultados manuales cuando la prueba ya está cerrada o en revisión.</p></div><button class="btn" onclick="loadExams(true)">↻ Actualizar</button></div>
+      <div class="note warn" style="margin-bottom:12px">Preparar, abrir, cerrar o liberar revisión continúa realizándose con <b>/examen</b>. En CENQAL Control, <b>Resultados</b> solo se habilita para exámenes <b>closed</b> o <b>review</b>. El registro manual no modifica intentos técnicos, no crea nota /10 y no concede PP automáticamente.</div>
+      <div class="card"><div class="tablewrap"><table class="table"><thead><tr><th>Código</th><th>Tema</th><th>Título</th><th>Estado</th><th>Apertura</th><th>Cierre</th><th>Resultados</th></tr></thead><tbody id="examsBody"></tbody></table></div></div>
     </section>
 
     <section class="view" id="view-groups">
@@ -1998,7 +1997,7 @@ function activateCourse(id){
     button:'Activar curso',
     onConfirm:async typed=>{
       await rpc('cenqal_control_activate_course',{p_token:TOKEN,p_course_id:Number(id),p_confirmation:typed});
-      clearCourseScopedState();
+clearCourseScopedState();
       state.courses=[];
       await refreshSnapshot();
       await loadCourses(true);
@@ -2997,9 +2996,7 @@ function showAtlasDetail(id){
           ↩️ Devolver a trabajo
 
         </button>
-
-
-        <button
+<button
           class="btn"
           onclick="reviewAtlasV734('${x.id}','reviewed')">
 
@@ -3997,8 +3994,7 @@ function renderDeliveries(){
           'Respuesta',
           'Acciones'
         ],
-
-        w.map(x=>{
+w.map(x=>{
 
           let participation=
             x.participation||{};
@@ -4810,7 +4806,15 @@ async function loadChallenges(force=false){if(state.challenges.length&&!force){r
 function renderChallenges(){document.getElementById('challengesBody').innerHTML=state.challenges.map(c=>`<tr><td><b>T${c.topic_number}</b></td><td>${esc(c.week_start||'—')}</td><td title="${esc(c.question||'')}">${esc(c.title)}</td><td><span class="status ${statusClass(c.status)}">${esc(c.status)}</span></td><td>${c.telegram_message_id?'Publicado':'—'}</td><td><button class="btn" onclick="editChallenge(${c.id})">Editar</button></td></tr>`).join('')||'<tr><td colspan="6" class="empty">No hay retos.</td></tr>'}
 
 function editChallenge(id){let c=state.challenges.find(x=>x.id==id);if(!c)return;let published=c.status==='published';modal(`<h3>Reto T${c.topic_number}</h3>${published?'<div class="note warn">Este reto ya está publicado. Puedes corregir texto/fuente, pero la fecha y el estado quedan bloqueados para evitar duplicar mensajes.</div>':''}<div class="formgrid" style="margin-top:12px"><div class="field full"><label>Título</label><input id="chTitle" value="${esc(c.title||'')}"></div><div class="field full"><label>Pregunta</label><textarea id="chQuestion">${esc(c.question||'')}</textarea></div><div class="field"><label>Semana (lunes)</label><input id="chWeek" type="date" value="${esc(c.week_start||'')}" ${published?'disabled':''}></div><div class="field"><label>Estado</label><select id="chStatus" ${published?'disabled':''}><option value="scheduled">scheduled</option><option value="closed">closed</option></select></div><div class="field"><label>Fuente</label><input id="chSource" value="${esc(c.source_title||'')}"></div><div class="field"><label>URL</label><input id="chUrl" value="${esc(c.source_url||'')}"></div></div><div class="modalFooter"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn primary" id="chNext">Revisar</button></div>`);if(!published)document.getElementById('chStatus').value=['scheduled','closed'].includes(c.status)?c.status:'scheduled';document.getElementById('chNext').onclick=()=>{let data={title:document.getElementById('chTitle').value,question:document.getElementById('chQuestion').value,source_title:document.getElementById('chSource').value,source_url:document.getElementById('chUrl').value};if(!published){data.week_start=document.getElementById('chWeek').value;data.status=document.getElementById('chStatus').value}confirmModal({title:`Guardar reto T${c.topic_number}`,summary:'El bot usará estos datos en las siguientes publicaciones. El cambio queda auditado.',phrase:'CONFIRMAR',onConfirm:async typed=>{await rpc('cenqal_control_update_challenge',{p_token:TOKEN,p_challenge_id:id,p_data:data,p_confirmation:typed});state.challenges=[];await loadChallenges(true);await refreshSnapshot();toast('Reto actualizado.')}})}}
-  async function loadExams(force=false){
+/* =========================================================
+   CENQAL v73.9 · RESULTADOS MANUALES DE EXAMEN
+   - Solo para exámenes closed / review.
+   - APTO / NO_APTO; ausencia de registro = Pendiente.
+   - No modifica cenqal_exam_attempts.
+   - No calcula nota /10 ni concede PP automáticamente.
+========================================================= */
+
+async function loadExams(force=false){
   if(state.exams.length&&!force){
     renderExams();
     return state.exams;
@@ -4827,24 +4831,223 @@ function editChallenge(id){let c=state.challenges.find(x=>x.id==id);if(!c)return
   return state.exams;
 }
 
+function v739ExamAllowsManualResults(exam){
+  const examState=String(exam?.state||'').toLowerCase();
+  return examState==='closed'||examState==='review';
+}
+
 function renderExams(){
   document.getElementById('examsBody').innerHTML=
-    state.exams.map(e=>`
-      <tr>
-        <td>${esc(e.exam_code)}</td>
-        <td>T${esc(e.topic_number)}</td>
-        <td>${esc(e.title)}</td>
-        <td>
-          <span class="status ${statusClass(e.state)}">
-            ${esc(e.state)}
-          </span>
-        </td>
-        <td>${fmtDate(e.opened_at)}</td>
-        <td>${fmtDate(e.closed_at)}</td>
-      </tr>
-    `).join('')
+    state.exams.map(e=>{
+      const allowed=v739ExamAllowsManualResults(e);
+      return `
+        <tr>
+          <td>${esc(e.exam_code)}</td>
+          <td>T${esc(e.topic_number)}</td>
+          <td>${esc(e.title)}</td>
+          <td>
+            <span class="status ${statusClass(e.state)}">
+              ${esc(e.state)}
+            </span>
+          </td>
+          <td>${fmtDate(e.opened_at)}</td>
+          <td>${fmtDate(e.closed_at)}</td>
+          <td>
+            ${allowed
+              ?`<button class="btn primary" onclick="openExamManualResults(${Number(e.topic_number)})">Resultados</button>`
+              :'<span class="subtle">Bloqueado hasta cierre</span>'}
+          </td>
+        </tr>`;
+    }).join('')
     ||
-    '<tr><td colspan="6" class="empty">No hay exámenes.</td></tr>';
+    '<tr><td colspan="7" class="empty">No hay exámenes.</td></tr>';
+}
+
+function v739ManualResultText(value){
+  const v=String(value||'').toUpperCase();
+  if(v==='APTO')return 'APTO';
+  if(v==='NO_APTO')return 'NO APTO';
+  return 'Pendiente';
+}
+
+function v739ManualResultClass(value){
+  const v=String(value||'').toUpperCase();
+  if(v==='APTO')return 'ok';
+  if(v==='NO_APTO')return 'bad';
+  return 'warn';
+}
+
+function v739ManualResultDate(row){
+  const value=row?.updated_at||row?.recorded_at;
+  return value?fmtDate(value):'—';
+}
+
+async function openExamManualResults(topicNumber){
+  try{
+    const topic=Number(topicNumber);
+    if(!Number.isFinite(topic))throw new Error('Tema de examen no válido.');
+
+    const exam=state.exams.find(x=>Number(x.topic_number)===topic);
+    if(!exam)throw new Error('No se ha encontrado la convocatoria.');
+    if(!v739ExamAllowsManualResults(exam)){
+      throw new Error('Los resultados solo pueden registrarse cuando el examen está closed o review.');
+    }
+
+    toast(`Cargando resultados T${topic}…`);
+
+    const d=await rpc(
+      'cenqal_control_exam_manual_results',
+      {p_token:TOKEN,p_topic_number:topic}
+    );
+
+    state.examManualResults={
+      course_id:d?.course_id??null,
+      topic_number:topic,
+      exam_code:exam.exam_code||`T${topic}`,
+      exam_title:exam.title||'',
+      rows:Array.isArray(d?.rows)?d.rows:[]
+    };
+
+    renderExamManualResultsModal();
+
+  }catch(e){
+    toast(e.message||'No se pudieron cargar los resultados.',true);
+  }
+}
+
+function renderExamManualResultsModal(){
+  const ctx=state.examManualResults||{};
+  const rows=Array.isArray(ctx.rows)?ctx.rows:[];
+  const topic=Number(ctx.topic_number||0);
+
+  const body=rows.map((r,i)=>{
+    const resultText=v739ManualResultText(r.result);
+    const linked=r.telegram_user_id!=null&&String(r.telegram_user_id)!=='';
+    return `
+      <tr>
+        <td><b>${esc(r.student_name||r.student_code||'Alumno')}</b><div class="subtle">${esc(r.student_code||'—')}</div></td>
+        <td>${esc(r.group_name||'—')}</td>
+        <td><span class="status ${v739ManualResultClass(r.result)}">${esc(resultText)}</span></td>
+        <td class="wrap">${esc(r.reason||'—')}</td>
+        <td class="wrap">${esc(r.teacher_feedback||'—')}</td>
+        <td>${v739ManualResultDate(r)}</td>
+        <td>${linked
+          ?`<button class="btn" onclick="editExamManualResult(${i})">${r.result?'Editar':'Registrar'}</button>`
+          :'<span class="subtle" title="Este alumno no tiene telegram_user_id disponible para la RPC de guardado.">Sin vínculo</span>'}
+        </td>
+      </tr>`;
+  }).join('');
+
+  modal(`
+    <div class="sectionTitle">
+      <div>
+        <h3>Resultados · T${esc(topic)}</h3>
+        <p>${esc(ctx.exam_code||'')} ${ctx.exam_title?'· '+esc(ctx.exam_title):''}</p>
+      </div>
+      <span class="status">${rows.length} alumnos</span>
+    </div>
+
+    <div class="note" style="margin:12px 0">
+      Registro docente independiente de los intentos técnicos del examen. Aquí solo se guarda <b>APTO</b> o <b>NO APTO</b>; si no existe registro, el alumno aparece como <b>Pendiente</b>. No se genera nota /10 ni PP automático.
+    </div>
+
+    <div class="tablewrap">
+      <table class="table">
+        <thead><tr><th>Alumno</th><th>Grupo</th><th>Resultado</th><th>Motivo</th><th>Observación docente</th><th>Actualizado</th><th></th></tr></thead>
+        <tbody>${body||'<tr><td colspan="7" class="empty">No se han devuelto alumnos para este tema.</td></tr>'}</tbody>
+      </table>
+    </div>
+
+    <div class="modalFooter">
+      <button class="btn" onclick="closeModal()">Cerrar</button>
+    </div>
+  `);
+}
+
+function editExamManualResult(index){
+  const ctx=state.examManualResults||{};
+  const row=(ctx.rows||[])[Number(index)];
+  if(!row)return toast('No se ha encontrado el alumno.',true);
+
+  if(row.telegram_user_id==null||String(row.telegram_user_id)===''){
+    return toast('Este alumno no tiene Telegram vinculado y la RPC de guardado necesita telegram_user_id.',true);
+  }
+
+  modal(`
+    <h3>T${esc(ctx.topic_number)} · ${esc(row.student_name||row.student_code||'Alumno')}</h3>
+
+    <div class="note" style="margin-bottom:12px">
+      Esta decisión es manual y docente. No modifica <code>cenqal_exam_attempts</code>, no calcula nota /10 y no concede PP automáticamente.
+    </div>
+
+    <div class="formgrid">
+      <div class="field">
+        <label>Resultado *</label>
+        <select id="examManualResult">
+          <option value="APTO">APTO</option>
+          <option value="NO_APTO">NO APTO</option>
+        </select>
+      </div>
+
+      <div class="field full">
+        <label>Motivo *</label>
+        <textarea id="examManualReason" placeholder="Motivo del resultado">${esc(row.reason||'')}</textarea>
+      </div>
+
+      <div class="field full">
+        <label>Observación docente</label>
+        <textarea id="examManualFeedback" placeholder="Observación opcional para el seguimiento docente">${esc(row.teacher_feedback||'')}</textarea>
+      </div>
+    </div>
+
+    <div class="modalFooter">
+      <button class="btn" id="examManualBack">Volver</button>
+      <button class="btn primary" id="examManualSave">Guardar resultado</button>
+    </div>
+  `);
+
+  const select=document.getElementById('examManualResult');
+  select.value=String(row.result||'APTO').toUpperCase()==='NO_APTO'?'NO_APTO':'APTO';
+
+  document.getElementById('examManualBack').onclick=()=>renderExamManualResultsModal();
+
+  document.getElementById('examManualSave').onclick=async()=>{
+    const result=document.getElementById('examManualResult').value;
+    const reason=document.getElementById('examManualReason').value.trim();
+    const feedback=document.getElementById('examManualFeedback').value.trim();
+
+    if(!reason){
+      toast('Escribe el motivo antes de guardar.',true);
+      document.getElementById('examManualReason').focus();
+      return;
+    }
+
+    const btn=document.getElementById('examManualSave');
+    btn.disabled=true;
+    btn.innerHTML='<span class="loader"></span> Guardando…';
+
+    try{
+      await rpc(
+        'cenqal_control_exam_manual_result_save',
+        {
+          p_token:TOKEN,
+          p_topic_number:Number(ctx.topic_number),
+          p_telegram_user_id:row.telegram_user_id,
+          p_result:result,
+          p_reason:reason,
+          p_teacher_feedback:feedback||null
+        }
+      );
+
+      toast(`Resultado guardado: ${v739ManualResultText(result)}.`);
+      await openExamManualResults(Number(ctx.topic_number));
+
+    }catch(e){
+      toast(e.message||'No se pudo guardar el resultado.',true);
+      btn.disabled=false;
+      btn.textContent='Guardar resultado';
+    }
+  };
 }
 
 
@@ -4998,8 +5201,7 @@ function adjustGame(code,name,suggestedPP=0){
           type="number"
           value="${Number(suggestedPP||0)}">
       </div>
-
-      <div class="field">
+<div class="field">
         <label>Variación Og</label>
         <input
           id="adjOG"
@@ -5998,7 +6200,7 @@ async function enrollExistingStudent(){
     };
 
   }catch(e){
-    toast(
+toast(
       e.message||'No se pudo abrir el catálogo de alumnos.',
       true
     );
@@ -6998,7 +7200,7 @@ function renderStrategyV736(){
       interaction:{mode:'index',intersect:false},
       scales:{
         y:{beginAtZero:true,title:{display:true,text:'Sesiones / intentos'}},
-        y2:{beginAtZero:true,max:10,position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Examen /10'}}
+y2:{beginAtZero:true,max:10,position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Examen /10'}}
       }
     }
   });
@@ -7998,8 +8200,7 @@ async function v733RefreshStudentInline(){
   if(play.status==='fulfilled'){
     renderStudentPlayV735();
   }
-
-  if(
+if(
     workspace.status==='rejected' &&
     learning.status==='rejected' &&
     gymAdvanced.status==='rejected' &&
