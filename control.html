@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>CENQAL Control</title>
-<meta name="CENQAL_CONTROL_BUILD" content="v73.11">
+<meta name="CENQAL_CONTROL_BUILD" content="v73.12">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#0c3f82">
 <link rel="apple-touch-icon" href="./cenqal-apple-touch-icon.png">
@@ -486,7 +486,7 @@ details.card>.detailBody{padding:0 16px 16px}
       <div class="brandmark"></div>
       <div>
         <h1>CENQAL Control</h1>
-        <small>Panel docente seguro · v73.11</small>
+        <small>Panel docente seguro · v73.12</small>
       </div>
     </div>
 
@@ -2662,15 +2662,286 @@ function showContributionDetail(id){
     .forEach(b=>b.setAttribute('data-contribution-action','1'));
 }
 
+/* =========================================================
+   CENQAL v73.12 · PORTFOLIOS DESDE CONTROL
+========================================================= */
+
+function portfolioAutoScore(x){
+  const ev=x?.automatic_evaluation;
+  if(ev && typeof ev==='object' && Number.isFinite(Number(ev.total))){
+    return Number(ev.total);
+  }
+  return null;
+}
+
+function portfolioRawTeacherScore(x){
+  const ev=x?.teacher_evaluation;
+  if(ev && typeof ev==='object'){
+    if(Number.isFinite(Number(ev.raw_score)))return Number(ev.raw_score);
+    if(Number.isFinite(Number(ev.score)))return Number(ev.score);
+  }
+  return null;
+}
+
+function portfolioLate(x){
+  const ev=x?.automatic_evaluation;
+  return !!(ev && typeof ev==='object' && ev._submission_timing?.late);
+}
+
+function portfolioDefaultFeedback(x){
+  const current=String(x?.teacher_feedback||x?.feedback||'').trim();
+  if(current)return current;
+
+  const ev=x?.automatic_evaluation;
+  if(!ev || typeof ev!=='object')return '';
+
+  const parts=[];
+  if(ev.summary)parts.push(String(ev.summary).trim());
+
+  const imp=Array.isArray(ev.improvements)
+    ?ev.improvements.map(v=>String(v||'').trim()).filter(Boolean)
+    :[];
+
+  if(imp.length)parts.push('Aspectos a mejorar: '+imp.slice(0,3).join('; '));
+
+  return parts.join('\n\n').slice(0,2400);
+}
+
+function portfolioScorePreviewText(x,raw){
+  const n=Number(raw);
+  if(!Number.isFinite(n)||n<0||n>100){
+    return 'Introduce una nota entre 0 y 100.';
+  }
+
+  const late=portfolioLate(x);
+  const final=Math.round((late?n*.85:n)*10)/10;
+
+  let result=final>=60?'✅ Superaría el porfolio':'🛠️ No superaría todavía el mínimo de 60/100';
+  if(final>=90)result+=' · 🪙 excelencia: +50 Og';
+
+  return `Nota por rúbrica: ${n.toFixed(1)}/100`
+    +(late?` · retraso -15% → final ${final.toFixed(1)}/100`:` · final ${final.toFixed(1)}/100`)
+    +` · ${result}`;
+}
+
+function updatePortfolioScorePreview(id){
+  const x=portfolioById(id);
+  const box=document.getElementById('portfolioScorePreview');
+  const input=document.getElementById('portfolioTeacherScore');
+  if(!x||!box||!input)return;
+  box.textContent=portfolioScorePreviewText(x,input.value);
+}
+
+function setPortfolioActionBusy(busy,message=''){
+  document.querySelectorAll('[data-portfolio-action]').forEach(b=>b.disabled=!!busy);
+  const box=document.getElementById('portfolioActionStatus');
+  if(box){
+    box.className='note'+(message?' warn':'');
+    box.textContent=message||'';
+  }
+}
+
+function waitPortfolioAction(ms){
+  return new Promise(resolve=>setTimeout(resolve,ms));
+}
+
+async function pollPortfolioAction(actionId){
+  for(let i=0;i<60;i++){
+    const d=await rpc(
+      'cenqal_control_portfolio_action_status_v7312',
+      {p_token:TOKEN,p_action_id:Number(actionId)}
+    );
+
+    const st=String(d?.status||'').toLowerCase();
+
+    if(st==='done')return d;
+    if(st==='failed'){
+      throw new Error(d?.error||'Berilio no pudo completar la revisión del porfolio.');
+    }
+
+    const box=document.getElementById('portfolioActionStatus');
+    if(box){
+      box.className='note warn';
+      box.textContent=st==='processing'
+        ?'⏳ Berilio está aplicando la revisión…'
+        :'⏳ Revisión enviada. Esperando a Berilio…';
+    }
+
+    await waitPortfolioAction(1200);
+  }
+
+  throw new Error(
+    'La revisión quedó enviada, pero está tardando más de lo esperado. '
+    +'Actualiza Entregas en unos segundos y no la envíes de nuevo.'
+  );
+}
+
+async function submitPortfolioDecision(id,action){
+  const x=portfolioById(id);
+  if(!x)return toast('No se ha encontrado el portfolio.',true);
+
+  const rawText=(document.getElementById('portfolioTeacherScore')?.value||'').trim().replace(',','.');
+  const feedback=(document.getElementById('portfolioTeacherFeedback')?.value||'').trim();
+
+  let rawScore=null;
+  if(rawText!==''){
+    rawScore=Number(rawText);
+    if(!Number.isFinite(rawScore)||rawScore<0||rawScore>100){
+      return toast('La nota debe estar entre 0 y 100.',true);
+    }
+  }
+
+  if(action==='validate' && rawScore===null){
+    return toast('Introduce la nota docente entre 0 y 100 antes de validarla.',true);
+  }
+
+  if((action==='changes'||action==='reject')&&!feedback){
+    return toast(
+      action==='changes'
+        ?'Escribe las indicaciones de mejora antes de pedir cambios.'
+        :'Escribe el motivo u orientación antes de rechazar esta versión.',
+      true
+    );
+  }
+
+  const labels={
+    validate:'VALIDAR esta nota de porfolio',
+    changes:'PEDIR CAMBIOS y devolver esta versión al alumno',
+    reject:'RECHAZAR esta versión del porfolio'
+  };
+
+  if(!confirm(`¿${labels[action]}?`))return;
+
+  setPortfolioActionBusy(true,'⏳ Enviando revisión docente…');
+
+  try{
+    const queued=await rpc(
+      'cenqal_control_portfolio_action_v7312',
+      {
+        p_token:TOKEN,
+        p_submission_id:String(id),
+        p_action:action,
+        p_raw_score:rawScore,
+        p_feedback:feedback||null
+      }
+    );
+
+    if(!queued?.action_id){
+      throw new Error(queued?.error||'No se ha creado la acción docente.');
+    }
+
+    const finalState=await pollPortfolioAction(queued.action_id);
+    const result=finalState?.result||{};
+
+    closeModal();
+
+    state.deliveries=null;
+    await loadDeliveries(true);
+
+    if(state.currentStudentId){
+      try{
+        const sid=studentUuid(state.currentStudentId);
+        if(sid){
+          state.studentDetail=await rpc(
+            'cenqal_control_student_workspace',
+            {p_token:TOKEN,p_student_id:sid}
+          );
+          renderStudentDetail();
+        }
+      }catch(e){
+        console.warn('Portfolio: no se pudo refrescar la ficha del alumno:',e);
+      }
+    }
+
+    if(action==='validate'){
+      const raw=result.raw_score==null?'—':Number(result.raw_score).toFixed(1);
+      const fin=result.final_score==null?'—':Number(result.final_score).toFixed(1);
+      if(result.approved){
+        toast(
+          `✅ Porfolio aprobado · ${raw}/100 → ${fin}/100`
+          +(Number(result.og_awarded||0)>0?` · +${result.og_awarded} Og`:'')
+        );
+      }else{
+        toast(`🛠️ Nota validada · ${raw}/100 → ${fin}/100 · requiere nueva versión.`);
+      }
+    }else if(action==='changes'){
+      toast('🛠️ Cambios solicitados. El alumno ha recibido tus indicaciones.');
+    }else{
+      toast('🔴 Versión rechazada. El alumno ha recibido el motivo.');
+    }
+
+  }catch(e){
+    setPortfolioActionBusy(false,'');
+    toast(e?.message||'No se pudo completar la revisión del porfolio.',true);
+  }
+}
+
 function showPortfolioDetail(id){
-  let x=portfolioById(id);if(!x)return toast('No se ha encontrado el portfolio.',true);
+  let x=portfolioById(id);
+  if(!x)return toast('No se ha encontrado el portfolio.',true);
+
   let s=x._student||state.studentDetail?.student||{};
-  modal(`<div class="sectionTitle"><h3>📄 Portfolio de ${esc(studentName(s))}</h3><button class="btn" onclick="closeModal()">Cerrar</button></div>
-    <div class="miniList"><div class="miniRow"><span>Reto</span><b>${esc(x.challenge_code||x.challenge_id||'—')}</b></div><div class="miniRow"><span>Archivo</span><b>${esc(x.file_name||'PDF')}</b></div><div class="miniRow"><span>Estado</span><b><span class="status ${statusClass(x.status)}">${esc(x.status||'—')}</span></b></div></div>
-    <div class="field" style="margin-top:12px"><label>Preevaluación / rúbrica automática</label><div class="note" style="white-space:pre-wrap">${esc(prettyObject(x.automatic_evaluation))}</div></div>
-    <div class="field" style="margin-top:12px"><label>Evaluación docente</label><div class="note" style="white-space:pre-wrap">${esc(prettyObject(x.teacher_evaluation))}</div></div>
-    <div class="field" style="margin-top:12px"><label>Feedback</label><div class="note" style="white-space:pre-wrap">${esc(prettyObject(objv(x,'teacher_feedback','feedback')))}</div></div>
-    <div class="actions" style="margin-top:16px"><button class="btn primary" onclick="botPayload('cs_${x.id}')">Revisar en Berilio</button>${x.storage_path?`<button class="btn" onclick="botPayload('cp_${x.id}')">Enviarme PDF</button>`:''}</div>`);
+  const auto=portfolioAutoScore(x);
+  const previous=portfolioRawTeacherScore(x);
+  const initial=previous!=null?previous:(auto!=null?auto:'');
+  const feedback=portfolioDefaultFeedback(x);
+  const st=String(x.status||'').toLowerCase();
+  const reviewable=['submitted','in_review','changes_requested','approved'].includes(st);
+
+  modal(`<div class="sectionTitle">
+      <h3>📄 Portfolio de ${esc(studentName(s))}</h3>
+      <button class="btn" onclick="closeModal()">Cerrar</button>
+    </div>
+
+    <div class="miniList">
+      <div class="miniRow"><span>Reto</span><b>${esc(x.challenge_code||x.challenge_id||'—')}</b></div>
+      <div class="miniRow"><span>Versión</span><b>v${esc(x.version||'—')}</b></div>
+      <div class="miniRow"><span>Archivo</span><b>${esc(x.file_name||'PDF')}</b></div>
+      <div class="miniRow"><span>Estado</span><b><span class="status ${statusClass(x.status)}">${esc(x.status||'—')}</span></b></div>
+      <div class="miniRow"><span>Preevaluación CENQAL</span><b>${auto==null?'—':`${esc(auto)}/100`}</b></div>
+    </div>
+
+    ${portfolioLate(x)?`<div class="note warn" style="margin-top:12px">⏰ Esta versión se entregó fuera de plazo. Berilio aplicará automáticamente una penalización del 15 % después de la nota por rúbrica.</div>`:''}
+
+    <div class="field" style="margin-top:12px">
+      <label>Preevaluación / rúbrica automática</label>
+      <div class="note" style="white-space:pre-wrap">${esc(prettyObject(x.automatic_evaluation))}</div>
+    </div>
+
+    <div class="field" style="margin-top:12px">
+      <label>Evaluación docente registrada</label>
+      <div class="note" style="white-space:pre-wrap">${esc(prettyObject(x.teacher_evaluation))}</div>
+    </div>
+
+    ${reviewable?`<div class="field" style="margin-top:14px">
+      <label>Nota docente por rúbrica · 0–100</label>
+      <input id="portfolioTeacherScore" inputmode="decimal" value="${esc(initial)}" placeholder="0–100" oninput="updatePortfolioScorePreview('${x.id}')">
+      <div id="portfolioScorePreview" class="note" style="margin-top:7px"></div>
+    </div>
+
+    <div class="field" style="margin-top:12px">
+      <label>Feedback docente</label>
+      <textarea id="portfolioTeacherFeedback" placeholder="Comentario para el alumno">${esc(feedback)}</textarea>
+      <div class="subtle" style="margin-top:5px">Para pedir cambios o rechazar una versión, el comentario es obligatorio.</div>
+    </div>`:
+    `<div class="field" style="margin-top:12px"><label>Feedback</label><div class="note" style="white-space:pre-wrap">${esc(prettyObject(objv(x,'teacher_feedback','feedback')))}</div></div>`}
+
+    <div class="note warn" style="margin-top:12px">
+      La nota final, la penalización por retraso y los Oganesones se calculan en Berilio. Los porfolios no conceden PP; solo una nota final ≥90/100 concede +50 Og.
+    </div>
+
+    <div id="portfolioActionStatus" class="note" style="margin-top:12px"></div>
+
+    <div class="actions" style="margin-top:16px">
+      ${reviewable?`
+        <button class="btn primary" data-portfolio-action onclick="submitPortfolioDecision('${x.id}','validate')">✅ Validar nota</button>
+        <button class="btn warn" data-portfolio-action onclick="submitPortfolioDecision('${x.id}','changes')">🛠️ Pedir cambios</button>
+        <button class="btn danger" data-portfolio-action onclick="submitPortfolioDecision('${x.id}','reject')">🔴 Rechazar versión</button>
+      `:''}
+      ${x.storage_path?`<button class="btn" onclick="botPayload('cp_${x.id}')">📄 Enviarme PDF</button>`:''}
+    </div>`);
+
+  updatePortfolioScorePreview(id);
 }
 
 function renderStudentDetail(){let d=state.studentDetail||{},s=d.student||{},an=d.analytics||{},as=an.student||{},gp=d.gamification_profile||{};let name=s.full_name||[s.first_name,s.last_name].filter(Boolean).join(' ')||s.student_code||'Alumno';let risk=riskFor(as);document.getElementById('studentHero').innerHTML=`<div><h2>${risk} ${esc(name)}</h2><div class="studentMeta">${esc(s.student_code||'—')} · ${esc(s.group_name||'Sin grupo')} · ${s.telegram_user_id?'Telegram vinculado':'Sin vincular a Telegram'}</div></div><div class="actions"><span class="status ${s.active?'ok':'bad'}">${s.active?'ACTIVO':'INACTIVO'}</span></div>`;let weekly=d.weekly||[],exams=d.exams||[],subs=d.portfolio_submissions||[],contrib=d.contributions||[],evid=d.evidences||[],incs=d.incidents||[];let mastered=(d.gym_mastery||[]).filter(x=>x.mastered).length,passed=exams.filter(x=>Number(x.attempt?.score_out_of_10)>=5).length,approved=(d.portfolio_progress||[]).filter(x=>x.progress?.status==='approved').length;document.getElementById('studentMetrics').innerHTML=[metric('📊 Evidencias',as.evidence_average==null?'—':`${n(as.evidence_average)}/10`,`${as.evidence_count||0} registros`),metric('🎓 Oficial',as.provisional_normalized==null?'—':`${n(as.provisional_normalized)}/10`,`${pct(as.graded_official_weight)} evaluado`),metric('⚛️ PP',gp.xp_total||0,gp.level_name||'Aspirante'),metric('🪙 Og',gp.oganeson_balance||0,'saldo actual'),metric('🏆 Actividad',weekly.length,`retos · ${passed}/${exams.length} exámenes`)].join('');let comps=an.components||[];document.getElementById('studentComponents').innerHTML=comps.length?`<div class="miniList">${comps.map(c=>`<div class="miniRow"><span>${esc(c.component_name||c.component_code)}</span><b>${c.component_score==null?'—':n(c.component_score)}/10${c.official?` · ${n(c.component_weight_percent,0)}%`:''}</b></div>`).join('')}</div>`:'<div class="empty">Todavía no hay componentes calificados.</div>';document.getElementById('studentActivity').innerHTML=`<div class="miniList"><div class="miniRow"><span>Retos semanales</span><b>${weekly.length}</b></div><div class="miniRow"><span>Exámenes</span><b>${passed}/${exams.length} superados</b></div><div class="miniRow"><span>Porfolios aprobados</span><b>${approved}</b></div><div class="miniRow"><span>Entregas PDF</span><b>${subs.length}</b></div><div class="miniRow"><span>Aportaciones CENQAL</span><b>${contrib.length}</b></div><div class="miniRow"><span>Gym dominadas</span><b>${mastered}</b></div><div class="miniRow"><span>Evidencias PDF</span><b>${evid.length}</b></div><div class="miniRow"><span>Incidencias</span><b>${incs.filter(x=>['pending','in_review'].includes(x.status)).length} abiertas</b></div></div>`;let grades=an.grades||[];let html='';html+=detailCard('🧾 Últimas calificaciones',grades.length?tableHTML(['Fecha','Componente','Actividad','Nota','Origen'],grades.slice(0,50).map(g=>[fmtDate(g.created_at||g.updated_at),g.component_name||g.component_code,g.item_title||g.item_code,g.effective_score==null?'—':n(g.effective_score),g.source_type||'—'])):'<div class="empty">Sin calificaciones registradas.</div>',true);html+=detailCard('📰 Retos semanales',weekly.length?tableHTML(['Tema','Fecha','Reto','Preeval.','Estado','Respuesta'],weekly.map(x=>{let p=x.participation||{},c=x.challenge||{};return[`T${c.topic_number||'—'}`,fmtDate(p.created_at),c.title||'',p.preliminary_score==null?'—':`${n(p.preliminary_score,0)}/5`,p.status||'—',p.response_text||''] }),'last'):'<div class="empty">Sin participaciones semanales.</div>');html+=detailCard('📝 Exámenes',exams.length?tableHTML(['Tema','Examen','Estado','Aciertos','Nota','Entrega'],exams.map(x=>{let a=x.attempt||{},e=x.session||{};return[`T${e.topic_number||'—'}`,e.title||e.exam_code||'',a.status||'—',`${a.correct_count??'—'}/${e.question_count||20}`,a.score_out_of_10==null?'—':`${n(a.score_out_of_10)}/10`,fmtDate(a.submitted_at)]})):'<div class="empty">Sin intentos de examen.</div>');html+=detailCard('📄 Porfolios y entregas',subs.length?tableHTML(['Fecha','Reto','Versión','Archivo','Estado','Nota','PDF'],subs.map(x=>[fmtDate(x.created_at),x.challenge_code||x.challenge_id||'',x.version||'—',x.file_name||'PDF',x.status||'—',x.teacher_evaluation?.score==null?'—':`${n(x.teacher_evaluation.score,0)}/100`,x.storage_path?`<button class="btn" onclick="botPayload('cp_${x.id}')">Enviarme PDF</button>`:'—']),'html'):'<div class="empty">Sin entregas de porfolio.</div>');html+=detailCard('🧪 Aportaciones a CENQAL',contrib.length?tableHTML(['Fecha','Tema','Modo','Estado','Preeval.','PP','Og'],contrib.slice(0,200).map(x=>[fmtDate(x.created_at),x.primary_topic||x.macrotheme_number||'—',x.contribution_mode||'—',x.status||'—',x.preliminary_score??'—',x.prestige_amount??'—',x.oganeson_amount??'—'])):'<div class="empty">Sin aportaciones.</div>');let gm=d.gym_mastery||[];let topics={};gm.forEach(x=>{let t=x.topic_number||'—';topics[t]??={total:0,mastered:0,correct:0,wrong:0};topics[t].total++;if(x.mastered)topics[t].mastered++;topics[t].correct+=Number(x.correct_count||0);topics[t].wrong+=Number(x.wrong_count||0)});html+=detailCard('🧠 CENQAL Gym',Object.keys(topics).length?tableHTML(['Tema','Preguntas trabajadas','Dominadas','Aciertos','Errores'],Object.entries(topics).map(([t,x])=>[`T${t}`,x.total,x.mastered,x.correct,x.wrong])):'<div class="empty">Sin actividad en Gym.</div>');let ge=d.gamification_events||[];html+=detailCard('🪙 Historial PP / Og',ge.length?tableHTML(['Evento','PP','Og','Descripción'],ge.slice(0,100).map(x=>[x.event_type||x.event_key||'—',x.xp_delta||0,x.oganeson_delta||0,x.description||'—'])):'<div class="empty">Sin movimientos.</div>');html+=detailCard('📁 Evidencias PDF',evid.length?tableHTML(['Fecha','Tipo','Título','Hash','PDF'],evid.map(x=>[fmtDate(x.generated_at),x.evidence_type||'—',x.title||'—',(x.pdf_sha256||'').slice(0,14)+'…',x.storage_path?`<button class="btn" onclick="botPayload('ce_${x.id}')">Enviarme PDF</button>`:'—']),'html'):'<div class="empty">Sin evidencias PDF.</div>');html+=detailCard('🛠️ Incidencias',incs.length?tableHTML(['Fecha','Código','Módulo','Estado','Descripción'],incs.map(x=>[fmtDate(x.created_at),x.incident_code||'—',x.module||'—',x.status||'—',x.description||'—']),'last'):'<div class="empty">Sin incidencias.</div>');document.getElementById('studentSections').innerHTML=html}
@@ -2713,6 +2984,7 @@ function deliveryGroup(status){
     'rejected',
     'returned',
     'needs_changes',
+    'changes_requested',
     'cancelled'
   ].includes(status))return 'rejected';
 
