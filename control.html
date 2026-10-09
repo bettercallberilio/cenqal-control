@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>CENQAL Control</title>
-<meta name="CENQAL_CONTROL_BUILD" content="v73.15">
+<meta name="CENQAL_CONTROL_BUILD" content="v73.16">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#0c3f82">
 <link rel="apple-touch-icon" href="./cenqal-apple-touch-icon.png">
@@ -486,7 +486,7 @@ details.card>.detailBody{padding:0 16px 16px}
       <div class="brandmark"></div>
       <div>
         <h1>CENQAL Control</h1>
-        <small>Panel docente seguro · v73.15</small>
+        <small>Panel docente seguro · v73.16</small>
       </div>
     </div>
 
@@ -1117,7 +1117,7 @@ details.card>.detailBody{padding:0 16px 16px}
       <div class="viewHeader">
         <div>
           <h2>🗺️ Gran Atlas · Equipos reales</h2>
-          <p>Equipos A/B del Atlas, miembros del curso seleccionado, entregas, sesiones y trazabilidad. No usa el grupo académico G1/G2.</p>
+          <p>Equipos A/B del Atlas, miembros, entregas, sesiones y pósteres. Los pósteres válidos se abren directamente desde cada ficha; los enlaces locales o no compartibles se marcan como error.</p>
         </div>
         <button class="btn" onclick="loadAtlasOverviewV735(true)">↻ Actualizar</button>
       </div>
@@ -4438,9 +4438,9 @@ function renderDeliveries(){
             x.session_count??'—',
 
             x.poster_ok===false
-              ?'⚠️ No válido'
+              ?'<span class="status bad">⚠️ No válido</span>'
               :x.poster_url
-                ?'✅'
+                ?`<a class="btn" href="${esc(x.poster_url)}" target="_blank" rel="noopener">🎨 Abrir</a>`
                 :'—',
 
             `<button
@@ -5636,12 +5636,26 @@ function atlasV735Status(s){
 function atlasV735FoodRows(g){
   return (g.foods||[])
     .filter(f=>f.status!=='not_started')
-    .map(f=>`
-      <div class="miniRow">
-        <span><b>#${esc(f.display_order)}</b> · ${esc(f.food_code)} · ${esc(f.name)}</span>
-        <b>${esc(atlasV735Status(f.status))} · ${esc(f.progress_percent??0)}%</b>
-      </div>
-    `).join('')||'<div class="empty">Todavía no hay fichas iniciadas.</div>';
+    .map(f=>{
+      const poster=
+        f.poster_url
+          ?(
+            f.poster_ok===false
+              ?'<span class="status bad">⚠️ Póster no compartible</span>'
+              :`<a class="btn" href="${esc(f.poster_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">🎨 Abrir póster</a>`
+          )
+          :'<span class="subtle">Sin póster</span>';
+
+      return `
+        <div class="miniRow" style="align-items:center;gap:10px;flex-wrap:wrap">
+          <span style="flex:1;min-width:220px">
+            <b>#${esc(f.display_order)}</b> · ${esc(f.food_code)} · ${esc(f.name)}
+            <br><span class="subtle">${esc(atlasV735Status(f.status))} · ${esc(f.progress_percent??0)}%</span>
+          </span>
+          <span>${poster}</span>
+        </div>
+      `;
+    }).join('')||'<div class="empty">Todavía no hay fichas iniciadas.</div>';
 }
 
 function renderAtlasOverviewV735(){
@@ -5669,10 +5683,14 @@ function renderAtlasOverviewV735(){
   const noTelegram=students.filter(s=>s.atlas_state==='no_telegram').length;
   const unassigned=students.filter(s=>s.atlas_state==='unassigned').length;
   const pending=groups.reduce((n,g)=>n+Number(g.ready_review_count||0),0);
+  const allFoods=groups.flatMap(g=>Array.isArray(g.foods)?g.foods:[]);
+  const posterValid=allFoods.filter(f=>f.poster_url&&f.poster_ok!==false).length;
+  const posterInvalid=allFoods.filter(f=>f.poster_url&&f.poster_ok===false).length;
 
   metrics.innerHTML=[
     metric('🗺️ Equipos Atlas',groups.length,'equipos reales A/B'),
     metric('👥 Alumnos asignados',assigned,`${students.length} matrículas activas`),
+    metric('🎨 Pósteres',posterValid,posterInvalid?`${posterInvalid} enlace no compartible`:'enlaces válidos'),
     metric('📥 Por revisar',pending,'fichas ready_review'),
     metric('⏱️ Sesiones abiertas',open.length,open.length?'revisar antes de iniciar otra':'ninguna')
   ].join('');
@@ -9386,3 +9404,5 @@ boot();
 
 </body>
 </html>
+
+  
