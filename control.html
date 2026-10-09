@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>CENQAL Control</title>
-<meta name="CENQAL_CONTROL_BUILD" content="v73.12">
+<meta name="CENQAL_CONTROL_BUILD" content="v73.13">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#0c3f82">
 <link rel="apple-touch-icon" href="./cenqal-apple-touch-icon.png">
@@ -486,7 +486,7 @@ details.card>.detailBody{padding:0 16px 16px}
       <div class="brandmark"></div>
       <div>
         <h1>CENQAL Control</h1>
-        <small>Panel docente seguro · v73.12</small>
+        <small>Panel docente seguro · v73.13</small>
       </div>
     </div>
 
@@ -497,6 +497,7 @@ details.card>.detailBody{padding:0 16px 16px}
       <button data-view="students">👥 Alumnos</button>
       <button data-view="progress">📈 Progreso</button>
       <button data-view="learning">📊 Learning Analytics</button>
+      <button data-view="play-control">🎮 CENQAL Play</button>
       <button data-view="deliveries">📥 Entregas</button>
       <button data-view="calendar">📅 Calendario</button>
       <button data-view="challenges">🏆 Retos</button>
@@ -578,6 +579,7 @@ details.card>.detailBody{padding:0 16px 16px}
             <button class="btn primary" onclick="newEvent()">＋ Añadir evento</button>
             <button class="btn" onclick="go('students')">👥 Gestionar alumnos</button>
             <button class="btn" onclick="go('progress')">📈 Ver progreso</button>
+            <button class="btn" onclick="go('play-control')">🎮 Sala de Juegos</button>
             <button class="btn" onclick="go('deliveries')">📥 Revisar entregas</button>
             <button class="btn" onclick="go('challenges')">🏆 Editar retos</button>
             <button class="btn" onclick="go('game')">🪙 PP / Og</button>
@@ -1005,6 +1007,41 @@ details.card>.detailBody{padding:0 16px 16px}
       </div>
     </section>
 
+    <section class="view" id="view-play-control">
+      <div class="viewHeader">
+        <div>
+          <h2>🎮 CENQAL Play · Sala de Juegos</h2>
+          <p>Abre, cierra o programa las salas de aprendizaje activo sin tocar Berilio ni Supabase.</p>
+        </div>
+        <div class="actions">
+          <button class="btn" onclick="loadPlayControl(true)">↻ Actualizar</button>
+          <button class="btn" onclick="go('learning')">📊 Ver analítica</button>
+        </div>
+      </div>
+
+      <div class="note warn" style="margin-bottom:14px">
+        <b>Protección de contenido:</b> actualmente solo el Tema 1 contiene actividades reales en CENQAL Play.
+        Los temas 2–8 aparecen para planificación, pero Control no permitirá abrirlos hasta que sus juegos estén cargados.
+        Play es formativo y no concede PP ni Og.
+      </div>
+
+      <div class="metrics grid" id="playControlMetrics">
+        <div class="card"><span class="loader"></span> Cargando Sala de Juegos…</div>
+      </div>
+
+      <div id="playControlTopics" class="sectionGrid">
+        <div class="card"><span class="loader"></span> Cargando temas…</div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <h3>ℹ️ Cómo funciona</h3>
+        <div class="note">
+          <b>Abrir ahora</b> habilita la sala para el alumnado. <b>Programar</b> deja una fecha futura y Berilio la abrirá automáticamente cuando llegue el momento.
+          Si el tema todavía no se había anunciado, Berilio publicará el aviso en el grupo. <b>Reanunciar</b> fuerza un nuevo aviso en el siguiente ciclo del bot.
+        </div>
+      </div>
+    </section>
+
     <section class="view" id="view-deliveries">
       <div class="viewHeader">
         <div><h2>📥 Entregas y revisión</h2><p>Consulta centralizada de aportaciones, rúbricas, portfolios, Gran Atlas y retos. Las preevaluaciones automáticas son orientativas y la validación final sigue siendo docente.</p></div>
@@ -1188,6 +1225,7 @@ let state={
   studentLearning:null,
   studentGymAdvanced:null,
   studentPlay:null,
+  playControl:null,
   currentStudentId:null,
   studentDetail:null
 };
@@ -1623,6 +1661,7 @@ function go(name){
   if(name==='students')loadStudents();
   if(name==='progress')loadProgress();
   if(name==='learning')loadLearning();
+  if(name==='play-control')loadPlayControl();
   if(name==='deliveries')loadDeliveries();
   if(name==='calendar')loadCalendar();
   if(name==='challenges')loadChallenges();
@@ -7091,6 +7130,232 @@ async function loadInitialAssessmentV692(force=false){
 }
 
 
+/* =========================================================
+   CENQAL v73.13 · SALA DE JUEGOS / CENQAL PLAY
+========================================================= */
+
+const V7313_PLAY_TITLES={
+  1:'Enlace químico y propiedades del agua',
+  2:'Química orgánica, grupos funcionales e hidratos de carbono',
+  3:'Aminoácidos y proteínas',
+  4:'Lípidos',
+  5:'Enzimas',
+  6:'Sistemas dispersos, disoluciones y termoquímica',
+  7:'Cinética, equilibrio químico y ácido-base',
+  8:'Oxidación-reducción y transferencia de electrones'
+};
+
+function v7313PlayRows(){
+  const server=Array.isArray(state.playControl?.topics)?state.playControl.topics:[];
+  const byN=Object.fromEntries(server.map(x=>[Number(x.topic_number),x]));
+  return Array.from({length:8},(_,i)=>{
+    const n=i+1;
+    return {
+      topic_number:n,
+      title:V7313_PLAY_TITLES[n],
+      is_open:false,
+      content_ready:false,
+      available_from:null,
+      announced_at:null,
+      ...byN[n]
+    };
+  });
+}
+
+function v7313PlayDate(value){
+  if(!value)return '—';
+  const d=new Date(value);
+  if(Number.isNaN(d.getTime()))return String(value);
+  return d.toLocaleString('es-ES',{
+    day:'2-digit',month:'2-digit',year:'numeric',
+    hour:'2-digit',minute:'2-digit'
+  });
+}
+
+function v7313PlayScheduled(row){
+  if(row?.is_open||!row?.available_from)return false;
+  const d=new Date(row.available_from);
+  return !Number.isNaN(d.getTime()) && d.getTime()>Date.now();
+}
+
+function v7313PlayStatus(row){
+  if(!row.content_ready){
+    return '<span class="status bad">🔒 Contenido pendiente</span>';
+  }
+  if(row.is_open){
+    return '<span class="status ok">🟢 Abierto</span>';
+  }
+  if(v7313PlayScheduled(row)){
+    return '<span class="status warn">🗓️ Programado</span>';
+  }
+  return '<span class="status">⚪ Cerrado</span>';
+}
+
+async function loadPlayControl(force=false){
+  const box=document.getElementById('playControlTopics');
+  if(!box)return;
+
+  if(state.playControl&&!force){
+    renderPlayControl();
+    return;
+  }
+
+  box.innerHTML='<div class="card"><span class="loader"></span> Cargando temas Play…</div>';
+
+  try{
+    state.playControl=await rpc(
+      'cenqal_control_play_topics_v7313',
+      {p_token:TOKEN}
+    );
+    renderPlayControl();
+  }catch(e){
+    state.playControl={_error:e.message||String(e),topics:[]};
+    renderPlayControl();
+  }
+}
+
+function renderPlayControl(){
+  const box=document.getElementById('playControlTopics');
+  const metrics=document.getElementById('playControlMetrics');
+  if(!box||!metrics)return;
+
+  const d=state.playControl||{};
+  if(d._error){
+    metrics.innerHTML='';
+    box.innerHTML=`<div class="card note danger">No se ha podido cargar la Sala de Juegos: ${esc(d._error)}</div>`;
+    return;
+  }
+
+  const rows=v7313PlayRows();
+  const ready=rows.filter(x=>x.content_ready).length;
+  const open=rows.filter(x=>x.is_open).length;
+  const scheduled=rows.filter(v7313PlayScheduled).length;
+  const announced=rows.filter(x=>x.announced_at).length;
+
+  metrics.innerHTML=[
+    metric('🎮 Contenido listo',ready,'temas con actividades reales'),
+    metric('🟢 Salas abiertas',open,'disponibles para alumnado'),
+    metric('🗓️ Programadas',scheduled,'apertura futura'),
+    metric('📣 Anunciadas',announced,'avisos enviados al grupo')
+  ].join('');
+
+  box.innerHTML=rows.map(x=>{
+    const n=Number(x.topic_number);
+    const scheduled=v7313PlayScheduled(x);
+    return `<div class="card">
+      <div class="sectionTitle">
+        <div>
+          <div class="subtle">TEMA ${n}</div>
+          <h3 style="margin-top:3px">${esc(x.title||V7313_PLAY_TITLES[n])}</h3>
+        </div>
+        ${v7313PlayStatus(x)}
+      </div>
+
+      <div class="miniList" style="margin-top:10px">
+        <div class="miniRow"><span>Contenido</span><b>${x.content_ready?'✅ Preparado':'🔒 Pendiente'}</b></div>
+        <div class="miniRow"><span>Apertura programada</span><b>${scheduled?esc(v7313PlayDate(x.available_from)):'—'}</b></div>
+        <div class="miniRow"><span>Último anuncio</span><b>${x.announced_at?esc(v7313PlayDate(x.announced_at)):'No anunciado'}</b></div>
+      </div>
+
+      <div class="actions" style="margin-top:13px">
+        ${x.content_ready?`<button class="btn" onclick="previewPlayTopic(${n})">👁️ Vista docente</button>`:''}
+        ${x.content_ready&&!x.is_open?`<button class="btn primary" onclick="updatePlayTopicV7313(${n},'open')">🟢 Abrir ahora</button>`:''}
+        ${x.is_open?`<button class="btn warn" onclick="updatePlayTopicV7313(${n},'close')">⚪ Cerrar sala</button>`:''}
+        ${x.content_ready&&!x.is_open?`<button class="btn" onclick="schedulePlayTopicV7313(${n})">🗓️ Programar</button>`:''}
+        ${x.content_ready&&x.announced_at?`<button class="btn" onclick="updatePlayTopicV7313(${n},'reannounce')">📣 Reanunciar</button>`:''}
+      </div>
+
+      ${!x.content_ready?`<div class="note" style="margin-top:12px">Control bloquea la apertura para evitar que el alumnado entre en una sala sin actividades cargadas.</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+function previewPlayTopic(n){
+  if(Number(n)!==1){
+    return toast('Este tema todavía no tiene actividades Play cargadas.',true);
+  }
+  window.open(
+    `https://bettercallberilio.github.io/cenqal-gym/play.html?topic=${Number(n)}`,
+    '_blank',
+    'noopener'
+  );
+}
+
+async function updatePlayTopicV7313(n,action,availableFrom=null){
+  const labels={
+    open:`abrir ahora CENQAL Play · T${n}`,
+    close:`cerrar CENQAL Play · T${n}`,
+    reannounce:`enviar de nuevo el aviso de CENQAL Play · T${n}`
+  };
+
+  if(action!=='schedule' && !confirm(`¿Quieres ${labels[action]||action}?`))return;
+
+  try{
+    toast('Actualizando CENQAL Play…');
+
+    await rpc(
+      'cenqal_control_play_topic_update_v7313',
+      {
+        p_token:TOKEN,
+        p_topic_number:Number(n),
+        p_action:action,
+        p_available_from:availableFrom
+      }
+    );
+
+    state.playControl=null;
+    await loadPlayControl(true);
+
+    if(action==='open'){
+      toast('🟢 Sala abierta. Berilio enviará el aviso si todavía no estaba anunciada.');
+    }else if(action==='close'){
+      toast('⚪ Sala cerrada.');
+    }else if(action==='schedule'){
+      toast('🗓️ Apertura programada.');
+    }else if(action==='reannounce'){
+      toast('📣 Reanuncio preparado. Berilio lo enviará en el siguiente ciclo.');
+    }
+
+  }catch(e){
+    toast(e?.message||'No se pudo actualizar CENQAL Play.',true);
+  }
+}
+
+function schedulePlayTopicV7313(n){
+  const now=new Date(Date.now()+60*60*1000);
+  const pad=v=>String(v).padStart(2,'0');
+  const initial=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+
+  modal(`<div class="sectionTitle">
+      <h3>🗓️ Programar CENQAL Play · T${Number(n)}</h3>
+      <button class="btn" onclick="closeModal()">Cerrar</button>
+    </div>
+    <div class="field" style="margin-top:14px">
+      <label>Fecha y hora de apertura</label>
+      <input type="datetime-local" id="playScheduleDate" value="${esc(initial)}">
+    </div>
+    <div class="note" style="margin-top:12px">
+      Berilio comprobará la programación aproximadamente cada minuto. Cuando llegue la hora, abrirá realmente la sala y enviará el anuncio al grupo si procede.
+    </div>
+    <div class="modalFooter">
+      <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn primary" onclick="confirmPlayScheduleV7313(${Number(n)})">Guardar programación</button>
+    </div>`);
+}
+
+async function confirmPlayScheduleV7313(n){
+  const value=document.getElementById('playScheduleDate')?.value;
+  if(!value)return toast('Indica una fecha y hora.',true);
+
+  const d=new Date(value);
+  if(Number.isNaN(d.getTime())||d.getTime()<=Date.now()){
+    return toast('La apertura debe programarse para una fecha futura.',true);
+  }
+
+  closeModal();
+  await updatePlayTopicV7313(n,'schedule',d.toISOString());
+}
+
 async function loadPlayAnalyticsV735(force=false){
   if(state.playAnalytics&&!force)return state.playAnalytics;
   try{
@@ -8731,6 +8996,10 @@ async function v733RefreshActiveView(force=true){
         // Learning Analytics vuelve a consultar los datos del Gym,
         // sesiones, respuestas, dominio, PRE/POST y exámenes.
         await loadLearning(true);
+        break;
+
+      case 'play-control':
+        await loadPlayControl(true);
         break;
 
       case 'deliveries':
