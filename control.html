@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>CENQAL Control</title>
-<meta name="CENQAL_CONTROL_BUILD" content="v73.14">
+<meta name="CENQAL_CONTROL_BUILD" content="v73.15">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#0c3f82">
 <link rel="apple-touch-icon" href="./cenqal-apple-touch-icon.png">
@@ -486,7 +486,7 @@ details.card>.detailBody{padding:0 16px 16px}
       <div class="brandmark"></div>
       <div>
         <h1>CENQAL Control</h1>
-        <small>Panel docente seguro · v73.14</small>
+        <small>Panel docente seguro · v73.15</small>
       </div>
     </div>
 
@@ -1114,8 +1114,20 @@ details.card>.detailBody{padding:0 16px 16px}
     </section>
 
     <section class="view" id="view-groups">
-      <div class="viewHeader"><div><h2>🗺️ Atlas / Grupos</h2><p>Distribución actual. El grupo de cada alumno se edita desde Alumnos.</p></div></div>
-      <div class="grid three" id="groupsGrid"></div>
+      <div class="viewHeader">
+        <div>
+          <h2>🗺️ Gran Atlas · Equipos reales</h2>
+          <p>Equipos A/B del Atlas, miembros del curso seleccionado, entregas, sesiones y trazabilidad. No usa el grupo académico G1/G2.</p>
+        </div>
+        <button class="btn" onclick="loadAtlasOverviewV735(true)">↻ Actualizar</button>
+      </div>
+      <div id="atlasGroupMetrics" class="metrics grid"></div>
+      <div id="atlasOpenSessions"></div>
+      <div class="grid two" id="groupsGrid"></div>
+      <div class="card" style="margin-top:14px">
+        <h3>👥 Alumnado del curso y equipo Atlas</h3>
+        <div id="atlasStudentsGrid"></div>
+      </div>
     </section>
 
     <section class="view" id="view-game">
@@ -1667,7 +1679,7 @@ function go(name){
   if(name==='challenges')loadChallenges();
   if(name==='weekly-grade')loadWeeklyGrades();
   if(name==='exams')loadExams();
-  if(name==='groups')loadStudents().then(renderGroups);
+  if(name==='groups')loadAtlasOverviewV735();
   if(name==='game')loadGame();
   if(name==='evidence')loadEvidence();
   if(name==='audit')loadAudit();
@@ -1814,6 +1826,7 @@ function clearCourseScopedState(){
   state.selectedCourseId=null;
   state.progress=null;
   state.deliveries=null;
+  state.atlasOverview=null;
   state.teacherTasks=null;
   state.teacherAgenda=null;
   state.learning=null;
@@ -3041,9 +3054,13 @@ function atlasDeliveryGroup(status){
 
 async function loadAtlasDeliveriesV734(){
   try{
-    const d=await rpc('cenqal_control_atlas_deliveries_v734',{
-      p_token:TOKEN
-    });
+    let d;
+    try{
+      d=await rpc('cenqal_control_atlas_deliveries_v735',{p_token:TOKEN});
+    }catch(e735){
+      console.warn('CENQAL Atlas v73.5 no disponible; compatibilidad v73.4:',e735);
+      d=await rpc('cenqal_control_atlas_deliveries_v734',{p_token:TOKEN});
+    }
 
     return {
       rows:Array.isArray(d?.rows)?d.rows:[],
@@ -3051,7 +3068,7 @@ async function loadAtlasDeliveriesV734(){
     };
 
   }catch(e){
-    console.warn('CENQAL Atlas v73.4 no disponible:',e);
+    console.warn('CENQAL Atlas no disponible:',e);
     return {
       rows:[],
       failed:1
@@ -3322,23 +3339,17 @@ function showAtlasDetail(id){
     ${
       x.poster_url
         ?`
-          <div
-            class="actions"
-            style="margin-top:12px">
-
-            <a
-              class="btn"
-              href="${esc(x.poster_url)}"
-              target="_blank"
-              rel="noopener">
-
-              ↗ Abrir póster
-
-            </a>
-
+          <div class="actions" style="margin-top:12px">
+            ${
+              x.poster_ok===false
+                ?`<span class="status bad">⚠️ Enlace de póster no compartible</span>`
+                :`<a class="btn" href="${esc(x.poster_url)}" target="_blank" rel="noopener">↗ Abrir póster</a>`
+            }
+            <button class="btn" onclick="showAtlasHistoryV735('${x.id}')">🕘 Historial de entregas</button>
           </div>
+          ${x.poster_ok===false?`<div class="note danger" style="margin-top:8px">El equipo ha guardado una ruta local o un enlace no web. Debe sustituirlo por un enlace https:// accesible para la profesora.</div>`:''}
         `
-        :''
+        :`<div class="actions" style="margin-top:12px"><button class="btn" onclick="showAtlasHistoryV735('${x.id}')">🕘 Historial de entregas</button></div>`
     }
 
 
@@ -4383,12 +4394,15 @@ function renderDeliveries(){
       ?tableHTML(
 
         [
-          'Entrega',
+          'Fecha',
+          'N.º',
           'Equipo',
           'Alimento',
           'Estado',
           'IA',
           'Docente',
+          'Sesiones',
+          'Póster',
           'Acción'
         ],
 
@@ -4399,6 +4413,10 @@ function renderDeliveries(){
               x.submitted_at||
               x.updated_at
             ),
+
+            x.delivery_number==null
+              ?'—'
+              :`#${x.delivery_number}`,
 
             `${x.group_code||'—'} · ${atlasMembersText(x)}`,
 
@@ -4416,6 +4434,14 @@ function renderDeliveries(){
             x.teacher_score==null
               ?'—'
               :`${x.teacher_score}/100`,
+
+            x.session_count??'—',
+
+            x.poster_ok===false
+              ?'⚠️ No válido'
+              :x.poster_url
+                ?'✅'
+                :'—',
 
             `<button
               class="btn primary"
@@ -5569,44 +5595,271 @@ function editExamManualResult(index){
 
 
 /* =========================================================
-   ATLAS / GRUPOS
+   GRAN ATLAS · EQUIPOS REALES · v73.15
 ========================================================= */
 
-function renderGroups(){
-  let g={};
+async function loadAtlasOverviewV735(force=false){
+  if(state.atlasOverview&&!force){
+    renderAtlasOverviewV735();
+    return state.atlasOverview;
+  }
 
-  state.students
-    .filter(x=>x.active)
-    .forEach(s=>{
-      let k=s.group_name||'Sin grupo';
-      (g[k]??=[]).push(s);
-    });
+  const grid=document.getElementById('groupsGrid');
+  if(grid)grid.innerHTML='<div class="card"><span class="loader"></span> Cargando equipos reales del Atlas…</div>';
 
-  document.getElementById('groupsGrid').innerHTML=
-    Object.entries(g)
-      .map(([k,v])=>`
-        <div class="card">
-          <h3>${esc(k)}</h3>
+  try{
+    state.atlasOverview=await rpc(
+      'cenqal_control_atlas_overview_v735',
+      {p_token:TOKEN}
+    );
+    renderAtlasOverviewV735();
+    return state.atlasOverview;
+  }catch(e){
+    state.atlasOverview={_error:e.message||String(e),groups:[],students:[],open_sessions:[]};
+    renderAtlasOverviewV735();
+    return state.atlasOverview;
+  }
+}
 
-          <div class="metric">
-            <b>${v.length}</b>
-            <span>alumnos</span>
-          </div>
+function atlasV735Status(s){
+  const v=String(s||'not_started');
+  return ({
+    not_started:'No iniciado',
+    in_progress:'En curso',
+    profiled:'Perfilado',
+    ready_review:'📥 Entregado',
+    reviewed:'✅ Revisado',
+    final:'🏁 Final'
+  })[v]||v;
+}
 
-          <div style="
-            margin-top:10px;
-            font-size:13px;
-            color:#647990
-          ">
-            ${v.map(x=>
-              esc(x.full_name||x.student_code)
-            ).join('<br>')}
-          </div>
+function atlasV735FoodRows(g){
+  return (g.foods||[])
+    .filter(f=>f.status!=='not_started')
+    .map(f=>`
+      <div class="miniRow">
+        <span><b>#${esc(f.display_order)}</b> · ${esc(f.food_code)} · ${esc(f.name)}</span>
+        <b>${esc(atlasV735Status(f.status))} · ${esc(f.progress_percent??0)}%</b>
+      </div>
+    `).join('')||'<div class="empty">Todavía no hay fichas iniciadas.</div>';
+}
+
+function renderAtlasOverviewV735(){
+  const d=state.atlasOverview||{};
+  const metrics=document.getElementById('atlasGroupMetrics');
+  const grid=document.getElementById('groupsGrid');
+  const studentsBox=document.getElementById('atlasStudentsGrid');
+  const openBox=document.getElementById('atlasOpenSessions');
+
+  if(!metrics||!grid||!studentsBox||!openBox)return;
+
+  if(d._error){
+    metrics.innerHTML='';
+    grid.innerHTML=`<div class="card note danger">No se pudo cargar el Gran Atlas: ${esc(d._error)}</div>`;
+    studentsBox.innerHTML='';
+    openBox.innerHTML='';
+    return;
+  }
+
+  const groups=Array.isArray(d.groups)?d.groups:[];
+  const students=Array.isArray(d.students)?d.students:[];
+  const open=Array.isArray(d.open_sessions)?d.open_sessions:[];
+
+  const assigned=students.filter(s=>s.atlas_state==='assigned').length;
+  const noTelegram=students.filter(s=>s.atlas_state==='no_telegram').length;
+  const unassigned=students.filter(s=>s.atlas_state==='unassigned').length;
+  const pending=groups.reduce((n,g)=>n+Number(g.ready_review_count||0),0);
+
+  metrics.innerHTML=[
+    metric('🗺️ Equipos Atlas',groups.length,'equipos reales A/B'),
+    metric('👥 Alumnos asignados',assigned,`${students.length} matrículas activas`),
+    metric('📥 Por revisar',pending,'fichas ready_review'),
+    metric('⏱️ Sesiones abiertas',open.length,open.length?'revisar antes de iniciar otra':'ninguna')
+  ].join('');
+
+  openBox.innerHTML=open.length
+    ?`<div class="note warn" style="margin-bottom:12px">
+        <b>⏱️ Sesiones Atlas abiertas</b><br>
+        ${open.map(s=>{
+          const h=Number(s.open_hours||0);
+          return `${esc(s.group_code)} · ${esc(s.food_code)} · abierta hace ${Number.isFinite(h)?h.toFixed(1):'—'} h
+            <button class="btn warn" style="margin-left:8px" onclick="closeAtlasSessionV735('${s.id}')">Cerrar sesión atascada</button>`;
+        }).join('<br><br>')}
+      </div>`
+    :'';
+
+  grid.innerHTML=groups.map(g=>{
+    const members=Array.isArray(g.members)?g.members:[];
+    const started=Number(g.highest_started_delivery||0);
+    const next=Math.min(Number(g.food_count||13),started+1);
+    return `<div class="card">
+      <div class="sectionTitle">
+        <div>
+          <div class="subtle">EQUIPO ${esc(g.group_code)}</div>
+          <h3 style="margin-top:3px">${esc(g.name||g.group_code)}</h3>
         </div>
-      `)
-      .join('')
-    ||
-    '<div class="empty">Sin grupos.</div>';
+        <span class="status ${g.open_session_count?'warn':'ok'}">${g.open_session_count?'⏱️ sesión abierta':'✓ operativo'}</span>
+      </div>
+
+      <p class="subtle">${esc(g.subtitle||'')}</p>
+
+      <div class="miniList">
+        <div class="miniRow"><span>Integrantes</span><b>${members.length}</b></div>
+        <div class="miniRow"><span>Fichas finales</span><b>${esc(g.final_count||0)}/${esc(g.food_count||0)}</b></div>
+        <div class="miniRow"><span>Entregadas para revisión</span><b>${esc(g.ready_review_count||0)}</b></div>
+        <div class="miniRow"><span>Sesiones registradas</span><b>${esc(g.session_count||0)}</b></div>
+        <div class="miniRow"><span>Siguiente nº de entrega</span><b>#${esc(next||1)}</b></div>
+      </div>
+
+      <div class="note" style="margin-top:10px">
+        <b>Miembros:</b><br>
+        ${members.map(m=>esc(m.full_name||m.student_code)).join('<br>')||'—'}
+      </div>
+
+      <details style="margin-top:10px">
+        <summary>Fichas iniciadas / entregadas</summary>
+        <div class="miniList" style="margin-top:8px">${atlasV735FoodRows(g)}</div>
+      </details>
+    </div>`;
+  }).join('')||'<div class="empty">No hay equipos Atlas activos.</div>';
+
+  studentsBox.innerHTML=students.length
+    ?tableHTML(
+      ['Alumno','Grupo académico','Equipo Atlas','Estado','Cambiar'],
+      students.map(s=>[
+        s.full_name||s.student_code||'—',
+        s.academic_group_name||'—',
+        s.atlas_group_code||'—',
+        s.atlas_state==='assigned'
+          ?'✅ Asignado'
+          :s.atlas_state==='no_telegram'
+            ?'⚠️ Sin Telegram'
+            :'⚠️ Sin equipo Atlas',
+        s.telegram_user_id
+          ?`<div class="actions">
+              <button class="btn ${s.atlas_group_code==='A'?'primary':''}" onclick="assignAtlasGroupV735(${Number(s.telegram_user_id)},'A')">A</button>
+              <button class="btn ${s.atlas_group_code==='B'?'primary':''}" onclick="assignAtlasGroupV735(${Number(s.telegram_user_id)},'B')">B</button>
+            </div>`
+          :'Vincular Telegram primero'
+      ]),
+      'html'
+    )
+    :'<div class="empty">No hay matrículas activas en el curso seleccionado.</div>';
+
+  if(noTelegram||unassigned){
+    studentsBox.insertAdjacentHTML(
+      'afterbegin',
+      `<div class="note warn" style="margin-bottom:10px">
+        ⚠️ ${noTelegram} alumno(s) sin Telegram vinculado · ${unassigned} alumno(s) sin equipo Atlas.
+      </div>`
+    );
+  }
+}
+
+async function assignAtlasGroupV735(uid,group){
+  if(!confirm(`¿Asignar este alumno al Equipo ${group} del Gran Atlas?`))return;
+
+  try{
+    await rpc(
+      'cenqal_control_atlas_assign_v735',
+      {
+        p_token:TOKEN,
+        p_telegram_user_id:Number(uid),
+        p_group_code:group
+      }
+    );
+    state.atlasOverview=null;
+    await loadAtlasOverviewV735(true);
+    toast(`✅ Equipo Atlas actualizado: ${group}.`);
+  }catch(e){
+    toast(e.message||String(e),true);
+  }
+}
+
+async function closeAtlasSessionV735(id){
+  const reason=prompt(
+    'Motivo del cierre docente de esta sesión abierta:',
+    'Sesión anterior quedó abierta por error.'
+  );
+  if(reason===null)return;
+  if(!reason.trim())return toast('Indica un motivo.',true);
+
+  if(!confirm('¿Cerrar esta sesión Atlas? No se inventará trabajo ni participantes; solo quedará registrado el cierre docente.'))return;
+
+  try{
+    await rpc(
+      'cenqal_control_atlas_close_session_v735',
+      {
+        p_token:TOKEN,
+        p_session_id:id,
+        p_reason:reason.trim()
+      }
+    );
+    state.atlasOverview=null;
+    await loadAtlasOverviewV735(true);
+    toast('✅ Sesión Atlas cerrada.');
+  }catch(e){
+    toast(e.message||String(e),true);
+  }
+}
+
+async function showAtlasHistoryV735(id){
+  try{
+    const d=await rpc(
+      'cenqal_control_atlas_history_v735',
+      {p_token:TOKEN,p_entry_id:id}
+    );
+
+    const subs=Array.isArray(d?.submissions)?d.submissions:[];
+    const evs=Array.isArray(d?.evaluations)?d.evaluations:[];
+
+    modal(`
+      <div class="sectionTitle">
+        <h3>🕘 Historial del Gran Atlas</h3>
+        <button class="btn" onclick="closeModal()">Cerrar</button>
+      </div>
+
+      <div class="note">
+        Desde v73.15 cada nueva entrega o reentrega conserva una fotografía de la ficha. Las entregas anteriores a esta migración solo pueden reconstruirse con el historial de evaluación disponible.
+      </div>
+
+      <h3 style="margin-top:14px">Fotografías de entrega</h3>
+      ${
+        subs.length
+          ?tableHTML(
+            ['N.º','Tipo','Fecha','Estado en la fotografía','Progreso'],
+            subs.map(s=>[
+              s.submission_no,
+              s.snapshot_kind==='baseline'?'Base previa':'Entrega',
+              fmtDate(s.submitted_at||s.created_at),
+              s.snapshot?.status||'—',
+              `${s.snapshot?.progress_percent??0}%`
+            ])
+          )
+          :'<div class="empty">Aún no hay fotografías guardadas.</div>'
+      }
+
+      <h3 style="margin-top:14px">Historial de evaluaciones</h3>
+      ${
+        evs.length
+          ?tableHTML(
+            ['Fecha','Origen','Estado','Puntuación','Feedback'],
+            evs.map(e=>[
+              fmtDate(e.created_at),
+              e.evaluation_source||'—',
+              e.status||'—',
+              e.score==null?'—':`${e.score}/100`,
+              e.feedback||'—'
+            ]),
+            'last'
+          )
+          :'<div class="empty">Aún no hay evaluaciones.</div>'
+      }
+    `);
+
+  }catch(e){
+    toast(e.message||String(e),true);
+  }
 }
 
 
