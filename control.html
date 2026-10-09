@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>CENQAL Control</title>
-<meta name="CENQAL_CONTROL_BUILD" content="v73.13">
+<meta name="CENQAL_CONTROL_BUILD" content="v73.14">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#0c3f82">
 <link rel="apple-touch-icon" href="./cenqal-apple-touch-icon.png">
@@ -486,7 +486,7 @@ details.card>.detailBody{padding:0 16px 16px}
       <div class="brandmark"></div>
       <div>
         <h1>CENQAL Control</h1>
-        <small>Panel docente seguro · v73.13</small>
+        <small>Panel docente seguro · v73.14</small>
       </div>
     </div>
 
@@ -1020,8 +1020,8 @@ details.card>.detailBody{padding:0 16px 16px}
       </div>
 
       <div class="note warn" style="margin-bottom:14px">
-        <b>Protección de contenido:</b> actualmente solo el Tema 1 contiene actividades reales en CENQAL Play.
-        Los temas 2–8 aparecen para planificación, pero Control no permitirá abrirlos hasta que sus juegos estén cargados.
+        <b>Protección de contenido:</b> actualmente los Temas 1 y 2 contienen actividades reales en CENQAL Play.
+        Los temas 3–8 aparecen para planificación, pero Control no permitirá abrirlos hasta que sus juegos estén cargados.
         Play es formativo y no concede PP ni Og.
       </div>
 
@@ -7271,11 +7271,13 @@ function renderPlayControl(){
 }
 
 function previewPlayTopic(n){
-  if(Number(n)!==1){
+  const topic=Number(n);
+  const row=v7313PlayRows().find(x=>Number(x.topic_number)===topic);
+  if(!row?.content_ready){
     return toast('Este tema todavía no tiene actividades Play cargadas.',true);
   }
   window.open(
-    `https://bettercallberilio.github.io/cenqal-gym/play.html?topic=${Number(n)}`,
+    `https://bettercallberilio.github.io/cenqal-gym/play.html?topic=${topic}`,
     '_blank',
     'noopener'
   );
