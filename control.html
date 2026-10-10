@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>CENQAL Control</title>
-<meta name="CENQAL_CONTROL_BUILD" content="v73.17">
+<meta name="CENQAL_CONTROL_BUILD" content="v73.20">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#0c3f82">
 <link rel="apple-touch-icon" href="./cenqal-apple-touch-icon.png">
@@ -486,7 +486,7 @@ details.card>.detailBody{padding:0 16px 16px}
       <div class="brandmark"></div>
       <div>
         <h1>CENQAL Control</h1>
-        <small>Panel docente seguro · v73.17</small>
+        <small>Panel docente seguro · v73.20</small>
       </div>
     </div>
 
@@ -1057,12 +1057,21 @@ details.card>.detailBody{padding:0 16px 16px}
     </section>
 
     <section class="view" id="view-student">
-      <div class="viewHeader"><div><button class="btn" onclick="go('students')">← Alumnos</button></div><div class="actions"><button class="btn" onclick="reloadCurrentStudent()">↻ Actualizar</button><button class="btn primary" id="studentDossierBtn" onclick="requestStudentDossier()">📄 Expediente PDF</button></div></div>
+      <div class="viewHeader"><div><button class="btn" onclick="go('students')">← Alumnos</button></div><div class="actions"><button class="btn" onclick="reloadCurrentStudent()">↻ Actualizar</button><button class="btn primary" id="studentDossierBtn" onclick="requestStudentDossier()">📘 Atlas / expediente PDF</button></div></div>
       <div class="card studentHero" id="studentHero"><div><span class="loader"></span> Cargando ficha…</div></div>
       <div class="metrics grid" id="studentMetrics" style="margin-top:14px"></div>
       <div class="sectionGrid" style="margin-top:14px">
         <div class="card"><h3>🧾 Evaluación oficial</h3><div id="studentComponents"></div></div>
         <div class="card"><h3>🎮 Actividad CENQAL</h3><div id="studentActivity"></div></div>
+      </div>
+      <div class="card" style="margin-top:14px">
+        <div class="sectionTitle">
+          <div>
+            <h3>🧭 Trazabilidad integral del alumno</h3>
+            <p>Fuente v73.19: Atlas, retos, aportaciones, Gym, Play, portfolio, exámenes, PP/Og y logros.</p>
+          </div>
+        </div>
+        <div id="studentActivity7319"><div class="empty">Cargando trazabilidad integral…</div></div>
       </div>
       <div class="card studentAnalytics" id="studentLearningCard" style="display:none">
         <div class="sectionTitle">
@@ -2456,6 +2465,7 @@ async function openStudent(id){
   state.currentStudentId=sid;
   state.studentDetail=null;
   state.studentLearning=null;
+  state.studentActivityV7319=null;
   const slc=document.getElementById('studentLearningCard');
   if(slc)slc.style.display='none';
 
@@ -2485,6 +2495,10 @@ async function openStudent(id){
     document.getElementById('studentActivity').innerHTML='';
   }
 
+  if(document.getElementById('studentActivity7319')){
+    document.getElementById('studentActivity7319').innerHTML='<div class="empty">Cargando trazabilidad integral…</div>';
+  }
+
   window.scrollTo({top:0});
 
   try{
@@ -2498,6 +2512,19 @@ async function openStudent(id){
 
     state.studentDetail=d;
     renderStudentDetail();
+
+    try{
+      state.studentActivityV7319=await rpc(
+        'cenqal_control_student_activity_v7319',
+        {p_token:TOKEN,p_student_id:sid}
+      );
+      renderStudentActivityV7319();
+    }catch(e7319){
+      console.warn('Actividad integral v73.19 no disponible:',e7319);
+      const box=document.getElementById('studentActivity7319');
+      if(box)box.innerHTML='<div class="note warn">⚠️ No se ha podido cargar la trazabilidad integral v73.19.</div>';
+    }
+
     await loadStudentLearningAnalytics(sid);
 
   }catch(e){
@@ -2514,6 +2541,63 @@ async function openStudent(id){
 async function reloadCurrentStudent(){if(state.currentStudentId)await openStudent(state.currentStudentId)}
 
 function requestStudentDossier(){if(!state.currentStudentId)return;botPayload('cd_'+state.currentStudentId)}
+
+function studentModuleCount7319(blocks){
+  return (blocks||[]).reduce((sum,b)=>{
+    const n=Number(b?.count);
+    return sum+(Number.isFinite(n)?n:(Array.isArray(b?.rows)?b.rows.length:0));
+  },0);
+}
+
+function renderStudentActivityV7319(){
+  const d=state.studentActivityV7319||{};
+  const gp=d.official_gamification_profile||{};
+  const atlas=d.atlas||{};
+  const events=d.gamification_event_history||[];
+  const achievements=events.filter(x=>String(x?.event_type||'').toLowerCase()==='achievement');
+
+  const weekly=studentModuleCount7319(d.weekly_tables);
+  const gym=studentModuleCount7319(d.gym_tables);
+  const play=studentModuleCount7319(d.play_tables);
+  const portfolios=studentModuleCount7319(d.portfolio_tables);
+
+  const contrib=(d.contributions||[]).length;
+  const challenges=(d.challenge_progress||[]).length;
+  const exams=(d.exam_attempts||[]).length;
+  const manual=(d.exam_manual_results||[]).length;
+  const atlasEntries=(atlas.entries||[]).length;
+  const atlasIndividual=(atlas.individual_sessions||[]).length;
+
+  const box=document.getElementById('studentActivity7319');
+  if(!box)return;
+
+  box.innerHTML=`
+    <div class="metrics grid" style="margin-bottom:12px">
+      ${metric('⚛️ PP oficiales',gp.xp_total||0,gp.level_name||'saldo actual')}
+      ${metric('🪙 Og oficiales',gp.oganeson_balance||0,'saldo actual')}
+      ${metric('🏅 Logros',achievements.length,`${events.length} movimientos auditables`)}
+      ${metric('🗺️ Atlas',atlas.group_code||'—',`${atlasIndividual} sesiones individuales`)}
+    </div>
+
+    <div class="miniList">
+      <div class="miniRow"><span>🗺️ Fichas Atlas del equipo</span><b>${atlasEntries}</b></div>
+      <div class="miniRow"><span>👤 Sesiones Atlas con participación individual registrada</span><b>${atlasIndividual}</b></div>
+      <div class="miniRow"><span>🏆 Retos semanales</span><b>${weekly}</b></div>
+      <div class="miniRow"><span>🎯 Progreso de retos / portfolio</span><b>${challenges}</b></div>
+      <div class="miniRow"><span>🧪 Aportaciones CENQAL</span><b>${contrib}</b></div>
+      <div class="miniRow"><span>🏋️ Gym · registros de trabajo atribuibles</span><b>${gym}</b></div>
+      <div class="miniRow"><span>🎮 Play · registros atribuibles</span><b>${play}</b></div>
+      <div class="miniRow"><span>📄 Portfolio · registros atribuibles</span><b>${portfolios}</b></div>
+      <div class="miniRow"><span>📝 Intentos técnicos de examen</span><b>${exams}</b></div>
+      <div class="miniRow"><span>🎓 Resultados manuales de examen</span><b>${manual}</b></div>
+    </div>
+
+    <div class="note warn" style="margin-top:12px">
+      Los ceros significan que CENQAL no ha encontrado telemetría atribuible en las tablas de trabajo; no equivalen automáticamente a “el alumno no trabajó”.
+      Los PP/Og mostrados arriba son el saldo oficial actual; el historial de movimientos se conserva aparte como auditoría.
+    </div>
+  `;
+}
 
 function objv(o,...keys){for(let k of keys)if(o&&o[k]!=null)return o[k];return null}
 
