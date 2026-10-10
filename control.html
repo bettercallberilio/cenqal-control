@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>CENQAL Control</title>
-<meta name="CENQAL_CONTROL_BUILD" content="v73.16">
+<meta name="CENQAL_CONTROL_BUILD" content="v73.17">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#0c3f82">
 <link rel="apple-touch-icon" href="./cenqal-apple-touch-icon.png">
@@ -486,7 +486,7 @@ details.card>.detailBody{padding:0 16px 16px}
       <div class="brandmark"></div>
       <div>
         <h1>CENQAL Control</h1>
-        <small>Panel docente seguro · v73.16</small>
+        <small>Panel docente seguro · v73.17</small>
       </div>
     </div>
 
@@ -1138,8 +1138,14 @@ details.card>.detailBody{padding:0 16px 16px}
     </section>
 
     <section class="view" id="view-evidence">
-      <div class="viewHeader"><div><h2>📁 Evidencias</h2><p>Índice de actas, expedientes e informes PDF generados.</p></div><button class="btn" onclick="loadEvidence(true)">↻ Actualizar</button></div>
-      <div class="card"><div class="tablewrap"><table class="table"><thead><tr><th>Fecha</th><th>Tipo</th><th>Título</th><th>Alumno</th><th>SHA-256</th><th>Ruta privada</th><th></th></tr></thead><tbody id="evidenceBody"></tbody></table></div></div>
+      <div class="viewHeader">
+        <div><h2>📁 Evidencias · inspección</h2><p>Archivo documental del curso: actas, expedientes e informes versionados con copia privada y huella SHA-256.</p></div>
+        <div class="actions"><button class="btn primary" onclick="botPayload('cg_course')">📚 Generar informe de curso</button><button class="btn" onclick="loadEvidence(true)">↻ Actualizar</button></div>
+      </div>
+      <div id="evidenceMetrics" class="metrics grid"></div>
+      <div id="evidenceHealthBox"></div>
+      <div class="card"><h3>Documentos del curso seleccionado</h3><div class="tablewrap"><table class="table"><thead><tr><th>Fecha</th><th>Tipo</th><th>Título</th><th>Alumno</th><th>Integridad</th><th>SHA-256</th><th>Ruta privada</th><th></th></tr></thead><tbody id="evidenceBody"></tbody></table></div></div>
+      <div class="card" id="legacyEvidenceCard" style="display:none"><h3>⚠️ Evidencias históricas sin curso asignado</h3><p class="subtle">Se muestran aparte y nunca se atribuyen automáticamente a este curso si la relación no es inequívoca.</p><div class="tablewrap"><table class="table"><thead><tr><th>Fecha</th><th>Tipo</th><th>Título</th><th>Alumno</th><th>Ruta</th></tr></thead><tbody id="legacyEvidenceBody"></tbody></table></div></div>
     </section>
 
     <section class="view" id="view-audit">
@@ -1220,6 +1226,8 @@ let state={
   exams:[],
   game:[],
   evidence:[],
+  evidenceLegacy:[],
+  evidenceHealth:null,
   audit:[],
   courses:[],
   selectedCourseId:null,
@@ -6101,77 +6109,115 @@ function adjustGame(code,name,suggestedPP=0){
 
 
 /* =========================================================
-   EVIDENCIAS
+   EVIDENCIAS · INSPECCIÓN · v73.17
 ========================================================= */
 
+function evidenceIntegrityV7317(e){
+  const storage=!!e.storage_path;
+  const pdf=!!String(e.pdf_sha256||'').trim();
+  const data=!!String(e.data_sha256||'').trim();
+
+  if(storage&&pdf&&data){
+    return {cls:'ok',text:'✅ Completa',detail:'copia privada + hash PDF + hash datos'};
+  }
+
+  const miss=[];
+  if(!storage)miss.push('copia privada');
+  if(!pdf)miss.push('hash PDF');
+  if(!data)miss.push('hash datos');
+
+  return {cls:'bad',text:'⚠️ Incompleta',detail:'falta '+miss.join(', ')};
+}
+
 async function loadEvidence(force=false){
-  if(state.evidence.length&&!force){
+  if(state.evidence.length&&!force&&state.evidenceHealth){
     renderEvidence();
     return state.evidence;
   }
 
-  let d=await rpc(
-    'cenqal_control_evidences',
-    {p_token:TOKEN}
-  );
+  let d;
+
+  try{
+    d=await rpc('cenqal_control_evidences_v7317',{p_token:TOKEN});
+  }catch(e7317){
+    console.warn('Evidencias v73.17 no disponibles; compatibilidad anterior:',e7317);
+    d=await rpc('cenqal_control_evidences',{p_token:TOKEN});
+  }
 
   state.evidence=d.rows||[];
+  state.evidenceLegacy=d.legacy_unassigned||[];
+
+  try{
+    state.evidenceHealth=await rpc('cenqal_control_evidence_health_v7317',{p_token:TOKEN});
+  }catch(e){
+    state.evidenceHealth=null;
+    console.warn('Health de evidencias v73.17 no disponible:',e);
+  }
 
   renderEvidence();
-
   return state.evidence;
 }
 
 function renderEvidence(){
+  const rows=state.evidence||[];
+  const legacy=state.evidenceLegacy||[];
+  const h=state.evidenceHealth||{};
+
+  const metrics=document.getElementById('evidenceMetrics');
+  const healthBox=document.getElementById('evidenceHealthBox');
+  const legacyCard=document.getElementById('legacyEvidenceCard');
+  const legacyBody=document.getElementById('legacyEvidenceBody');
+
+  const complete=rows.filter(e=>evidenceIntegrityV7317(e).cls==='ok').length;
+
+  if(metrics){
+    metrics.innerHTML=[
+      metric('📄 Evidencias',rows.length,'curso seleccionado'),
+      metric('✅ Íntegras',complete,'copia privada + hashes'),
+      metric('⚠️ Legado sin curso',legacy.length,legacy.length?'requiere revisión':'ninguna'),
+      metric('🗓️ Última evidencia',h.latest_generated_at?fmtDate(h.latest_generated_at):'—','fecha de generación')
+    ].join('');
+  }
+
+  if(healthBox){
+    const missStorage=Number(h.missing_private_copy||0);
+    const missPdf=Number(h.missing_pdf_hash||0);
+    const missData=Number(h.missing_data_hash||0);
+    const ok=!missStorage&&!missPdf&&!missData;
+
+    healthBox.innerHTML=`<div class="note ${ok?'':'warn'}" style="margin-bottom:12px">
+      <b>${ok?'✅ Integridad documental correcta':'⚠️ Revisar integridad documental'}</b><br>
+      Curso ${esc(h.academic_year||'—')} · sin copia privada: <b>${missStorage}</b> · sin hash PDF: <b>${missPdf}</b> · sin hash de datos: <b>${missData}</b>.
+      <br><span class="subtle">Estos controles verifican el índice documental; no sustituyen la conservación institucional que pueda exigir la universidad.</span>
+    </div>`;
+  }
+
   document.getElementById('evidenceBody').innerHTML=
-    state.evidence.map(e=>`
-      <tr>
+    rows.map(e=>{
+      const i=evidenceIntegrityV7317(e);
+      return `<tr>
+        <td>${fmtDate(e.generated_at)}</td>
+        <td>${esc(e.evidence_type)}</td>
+        <td>${esc(e.title)}</td>
+        <td>${esc(e.student_code||'—')}</td>
+        <td title="${esc(i.detail)}"><span class="status ${i.cls}">${esc(i.text)}</span></td>
+        <td title="${esc(e.pdf_sha256||'')}">${e.pdf_sha256?`${esc(String(e.pdf_sha256).slice(0,14))}…`:'—'}</td>
+        <td>${esc(e.storage_path||'—')}</td>
+        <td>${e.storage_path?`<button class="btn" onclick="botPayload('ce_${e.id}')">Enviarme PDF</button>`:'—'}</td>
+      </tr>`;
+    }).join('')
+    ||'<tr><td colspan="8" class="empty">Todavía no hay evidencias asociadas a este curso.</td></tr>';
 
-        <td>
-          ${fmtDate(e.generated_at)}
-        </td>
-
-        <td>
-          ${esc(e.evidence_type)}
-        </td>
-
-        <td>
-          ${esc(e.title)}
-        </td>
-
-        <td>
-          ${esc(e.student_code||'—')}
-        </td>
-
-        <td title="${esc(e.pdf_sha256)}">
-          ${esc(
-            (e.pdf_sha256||'')
-              .slice(0,14)
-          )}…
-        </td>
-
-        <td>
-          ${esc(e.storage_path||'—')}
-        </td>
-
-        <td>
-          ${
-            e.storage_path
-            ?`
-              <button
-                class="btn"
-                onclick="botPayload('ce_${e.id}')">
-                Enviarme PDF
-              </button>
-            `
-            :'—'
-          }
-        </td>
-
-      </tr>
-    `).join('')
-    ||
-    '<tr><td colspan="7" class="empty">Todavía no hay evidencias.</td></tr>';
+  if(legacyCard&&legacyBody){
+    legacyCard.style.display=legacy.length?'block':'none';
+    legacyBody.innerHTML=legacy.map(e=>`<tr>
+      <td>${fmtDate(e.generated_at)}</td>
+      <td>${esc(e.evidence_type||'—')}</td>
+      <td>${esc(e.title||'—')}</td>
+      <td>${esc(e.student_code||'—')}</td>
+      <td>${esc(e.storage_path||'—')}</td>
+    </tr>`).join('');
+  }
 }
 
 
@@ -9404,5 +9450,3 @@ boot();
 
 </body>
 </html>
-
-  
