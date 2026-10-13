@@ -8326,6 +8326,22 @@ function v736StrategicAlerts(rows){
 
 function v736DifficultyRows(){
   const out=[];
+
+  const v73Difficulty=state.gymTopicsV73?.difficulty||[];
+  const descriptive=v73Difficulty
+    .filter(x=>String(x.difficulty_status||'').toUpperCase()==='DESCRIPTIVE' && x.difficulty_index!=null)
+    .sort((a,b)=>Number(a.difficulty_rank||999)-Number(b.difficulty_rank||999));
+
+  for(const x of descriptive){
+    out.push({
+      source:'Gym · tema',
+      concept:'Tema '+x.topic_number,
+      accuracy:v736Num(x.accuracy_pct),
+      n:Number(x.responses||0),
+      detail:'Índice dificultad '+v69Num(x.difficulty_index,1)+'/100 · '+v69Num(x.active_hours||0,2)+' h activas'
+    });
+  }
+
   const gymConcepts=state.gymAdvanced?.concepts||[];
 
   if(gymConcepts.length){
@@ -9004,39 +9020,52 @@ function laScroll(id){
 }
 
 function v740TopicEffortRows(){
+  const v73=state.gymTopicsV73||{};
+  const topicRows=Array.isArray(v73.topics)?v73.topics:[];
+  if(topicRows.length){
+    return Array.from({length:8},(_,i)=>{
+      const n=i+1;
+      const x=topicRows.find(r=>Number(r.topic_number)===n)||{};
+      return {
+        topic_number:n,
+        active_minutes:Number(x.active_hours||0)*60,
+        active_hours:Number(x.active_hours||0),
+        sessions:Number(x.sessions||0),
+        responses:Number(x.responses||0),
+        gym_users:Number(x.students_practiced||0),
+        accuracy:x.accuracy_pct,
+        mastery:x.mastery_pct,
+        persistent_error_pct:x.persistent_error_pct,
+        active_seconds_per_response:x.active_seconds_per_response,
+        measured_sessions:Number(x.measured_sessions||0),
+        estimated_sessions:Number(x.estimated_sessions||0),
+        time_quality:String(x.time_quality||'NONE').toUpperCase(),
+        source_minutes:Number(x.active_hours||0)>0 || Number(x.sessions||0)>0
+      };
+    });
+  }
+
   const topics=state.learning?.topics||[];
-  const sessions=state.strategyRaw?.gym_sessions||[];
-  const map=new Map();
-
-  const ensure=n=>{
-    const k=Number(n);
-    if(!Number.isFinite(k)||k<1||k>8)return null;
-    if(!map.has(k))map.set(k,{topic_number:k,active_minutes:0,sessions:0,responses:0,gym_users:0,accuracy:null,mastery:null,source_minutes:false});
-    return map.get(k);
-  };
-
-  topics.forEach(t=>{
-    const r=ensure(t.topic_number);
-    if(!r)return;
-    r.responses=Number(t.gym_attempts||0);
-    r.gym_users=Number(t.gym_users||0);
-    r.accuracy=t.gym_accuracy_pct;
-    r.mastery=t.mastery_pct;
+  return Array.from({length:8},(_,i)=>{
+    const n=i+1;
+    const t=topics.find(x=>Number(x.topic_number)===n)||{};
+    return {
+      topic_number:n,
+      active_minutes:0,
+      active_hours:0,
+      sessions:0,
+      responses:Number(t.gym_attempts||0),
+      gym_users:Number(t.gym_users||0),
+      accuracy:t.gym_accuracy_pct,
+      mastery:t.mastery_pct,
+      persistent_error_pct:null,
+      active_seconds_per_response:null,
+      measured_sessions:0,
+      estimated_sessions:0,
+      time_quality:'NONE',
+      source_minutes:false
+    };
   });
-
-  sessions.forEach(s=>{
-    const raw=s.topic_number??s.topic??String(s.topic_list||'').match(/\d+/)?.[0];
-    const r=ensure(raw);
-    if(!r)return;
-    r.sessions++;
-    const mins=Number(s.active_minutes??s.duration_minutes??s.estimated_active_minutes);
-    if(Number.isFinite(mins)&&mins>=0){
-      r.active_minutes+=mins;
-      r.source_minutes=true;
-    }
-  });
-
-  return Array.from({length:8},(_,i)=>map.get(i+1)||{topic_number:i+1,active_minutes:0,sessions:0,responses:0,gym_users:0,accuracy:null,mastery:null,source_minutes:false});
 }
 
 function renderTopicEffortV740(){
@@ -9046,20 +9075,28 @@ function renderTopicEffortV740(){
   const hasMinutes=rows.some(x=>x.source_minutes);
 
   box.innerHTML=tableHTML(
-    ['Tema','Tiempo activo','Sesiones','Usuarios','Respuestas','Acierto','Dominio'],
+    ['Tema','Tiempo activo','Calidad','Sesiones','Usuarios','Respuestas','Acierto','Dominio'],
     rows.map(x=>[
       'T'+x.topic_number,
       x.source_minutes?v69Minutes(x.active_minutes):'—',
+      x.time_quality==='MEASURED'
+        ?'<span class="status ok">Medido</span>'
+        :x.time_quality==='MIXED'
+          ?'<span class="status warn">Mixto</span>'
+          :x.time_quality==='ESTIMATED'
+            ?'<span class="status warn">Estimado</span>'
+            :'<span class="status">Sin tiempo</span>',
       x.sessions||0,
       x.gym_users||0,
       x.responses||0,
       x.accuracy==null?'—':v69Num(x.accuracy,1)+'%',
       x.mastery==null?'—':v69Num(x.mastery,1)+'%'
-    ])
+    ]),
+    'html'
   );
 
   if(!hasMinutes){
-    box.innerHTML+='<div class="note warn" style="margin-top:10px">El Control recibe volumen de práctica por tema, pero el export actual no aporta todavía minutos activos por tema. No se inventan horas a partir de tiempos de respuesta.</div>';
+    box.innerHTML+='<div class="note warn" style="margin-top:10px">El RPC v73 no devuelve todavía tiempo activo para este corte. Se mantiene la métrica como no disponible, sin inferir horas a partir de tiempos de respuesta.</div>';
   }
 }
 
@@ -9073,13 +9110,17 @@ function renderDataQualityV740(){
   const play=Number(state.playAnalytics?.summary?.students||0);
   const linked=Number(state.snapshot?.metrics?.linked_students||0);
   const anon=Number(state.anonymousGymHistory?.summary?.responses||0);
-  const errs=[state.gymAdvanced?._error,state.playAnalytics?._error,state.anonymousGymHistory?._error].filter(Boolean);
+  const v73=state.gymTopicsV73||{};
+  const measuredSessions=(v73.topics||[]).reduce((a,x)=>a+Number(x.measured_sessions||0),0);
+  const estimatedSessions=(v73.topics||[]).reduce((a,x)=>a+Number(x.estimated_sessions||0),0);
+  const errs=[v73._error,state.gymAdvanced?._error,state.playAnalytics?._error,state.anonymousGymHistory?._error].filter(Boolean);
   const pct=(v,d)=>d?Math.round(100*v/d):0;
 
   metrics.innerHTML=[
     metric('🪪 Telegram',linked,total?pct(linked,total)+'% identificado':'—'),
     metric('🏋️ Cobertura Gym',gym,total?pct(gym,total)+'% del grupo':'—'),
     metric('🎮 Cobertura Play',play,total?pct(play,total)+'% del grupo':'—'),
+    metric('⏱ Sesiones medidas',measuredSessions,estimatedSessions?estimatedSessions+' estimadas/legado':'heartbeat v73'),
     metric('🕰️ Histórico anónimo',anon,anon?'respuestas no atribuibles':'sin histórico'),
     metric('⚠️ Fuentes con error',errs.length,errs.length?'revisar telemetría':'sin errores detectados')
   ].join('');
