@@ -1325,6 +1325,7 @@ let state={
   learning:null,
   learningExport:null,
   strategyRaw:null,
+  gymTopicsV73:null,
   gymAdvanced:null,
   anonymousGymHistory:null,
   playAnalytics:null,
@@ -8072,6 +8073,28 @@ function renderStudentPlayV735(){
 
 let v736StrategyRawLoadedAt=0;
 
+async function loadGymTopicsV73(force=false){
+  if(state.gymTopicsV73&&!force)return state.gymTopicsV73;
+  try{
+    const d=await rpc('cenqal_control_gym_topics_v73',{
+      p_token:TOKEN,
+      p_course_id:v69CourseId()
+    });
+    state.gymTopicsV73=d||{ok:false,topics:[],students:[],difficulty:[]};
+    return state.gymTopicsV73;
+  }catch(e){
+    console.warn('CENQAL Gym v73 por tema no disponible:',e);
+    state.gymTopicsV73={
+      _error:e.message||String(e),
+      ok:false,
+      topics:[],
+      students:[],
+      difficulty:[]
+    };
+    return state.gymTopicsV73;
+  }
+}
+
 async function loadStrategyRawV736(force=false){
   const now=Date.now();
   // El export bruto es más pesado que los KPIs; no se vuelve a pedir cada 20 s.
@@ -8934,6 +8957,7 @@ async function loadLearning(force=false){
     await Promise.all([
       loadInitialAssessmentV692(false),
       loadPlayAnalyticsV735(false),
+      loadGymTopicsV73(false),
       loadGymAdvancedV737(false),
       loadAnonymousGymHistoryV738(false),
       loadStrategyRawV736(false)
@@ -8954,6 +8978,7 @@ async function loadLearning(force=false){
     await Promise.all([
       loadInitialAssessmentV692(force),
       loadPlayAnalyticsV735(force),
+      loadGymTopicsV73(force),
       loadGymAdvancedV737(force),
       loadAnonymousGymHistoryV738(force),
       loadStrategyRawV736(force)
