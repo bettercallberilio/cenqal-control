@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>CENQAL Control</title>
-<meta name="CENQAL_CONTROL_BUILD" content="v73.20">
+<meta name="CENQAL_CONTROL_BUILD" content="v73.23">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#0c3f82">
 <link rel="apple-touch-icon" href="./cenqal-apple-touch-icon.png">
@@ -486,7 +486,7 @@ details.card>.detailBody{padding:0 16px 16px}
       <div class="brandmark"></div>
       <div>
         <h1>CENQAL Control</h1>
-        <small>Panel docente seguro · v73.20</small>
+        <small>Panel docente seguro · v73.23</small>
       </div>
     </div>
 
@@ -1057,7 +1057,7 @@ details.card>.detailBody{padding:0 16px 16px}
     </section>
 
     <section class="view" id="view-student">
-      <div class="viewHeader"><div><button class="btn" onclick="go('students')">← Alumnos</button></div><div class="actions"><button class="btn" onclick="reloadCurrentStudent()">↻ Actualizar</button><button class="btn primary" id="studentDossierBtn" onclick="requestStudentDossier()">📘 Atlas / expediente PDF</button></div></div>
+      <div class="viewHeader"><div><button class="btn" onclick="go('students')">← Alumnos</button></div><div class="actions"><button class="btn" onclick="reloadCurrentStudent()">↻ Actualizar</button><button class="btn primary" id="studentDossierBtn" onclick="requestStudentDossier()">📘 Atlas / expediente PDF</button><button class="btn" onclick="requestStudentEvidenceV7322()">📦 Evidencias completas ZIP</button></div></div>
       <div class="card studentHero" id="studentHero"><div><span class="loader"></span> Cargando ficha…</div></div>
       <div class="metrics grid" id="studentMetrics" style="margin-top:14px"></div>
       <div class="sectionGrid" style="margin-top:14px">
@@ -1126,7 +1126,7 @@ details.card>.detailBody{padding:0 16px 16px}
       <div class="viewHeader">
         <div>
           <h2>🗺️ Gran Atlas · Equipos reales</h2>
-          <p>Equipos A/B del Atlas, miembros, entregas, sesiones y pósteres. Los pósteres válidos se abren directamente desde cada ficha; los enlaces locales o no compartibles se marcan como error.</p>
+          <p>Equipos A/B del Atlas, miembros, entregas, sesiones, documentos escritos y pósteres. Desde el Centro de Evidencias podrás descargar por grupo las fichas, fotografías de entrega, evaluaciones y los PDF de póster archivados. Los enlaces externos se conservan como referencia.</p>
         </div>
         <button class="btn" onclick="loadAtlasOverviewV735(true)">↻ Actualizar</button>
       </div>
@@ -2541,6 +2541,9 @@ async function openStudent(id){
 async function reloadCurrentStudent(){if(state.currentStudentId)await openStudent(state.currentStudentId)}
 
 function requestStudentDossier(){if(!state.currentStudentId)return;botPayload('cd_'+state.currentStudentId)}
+function requestStudentEvidenceV7322(){if(!state.currentStudentId)return;botPayload('ev_student_'+state.currentStudentId)}
+function requestAtlasGroupEvidenceV7322(group){if(!group)return;botPayload('ev_group_'+String(group).toUpperCase())}
+function requestAtlasPosterV7322(entryId){if(!entryId)return;botPayload('ev_poster_'+entryId)}
 
 function studentModuleCount7319(blocks){
   return (blocks||[]).reduce((sum,b)=>{
@@ -3437,11 +3440,12 @@ function showAtlasDetail(id){
                 ?`<span class="status bad">⚠️ Enlace de póster no compartible</span>`
                 :`<a class="btn" href="${esc(x.poster_url)}" target="_blank" rel="noopener">↗ Abrir póster</a>`
             }
+            <button class="btn" onclick="requestAtlasPosterV7322('${x.id}')">⬇ Descargar PDF del póster</button>
             <button class="btn" onclick="showAtlasHistoryV735('${x.id}')">🕘 Historial de entregas</button>
           </div>
           ${x.poster_ok===false?`<div class="note danger" style="margin-top:8px">El equipo ha guardado una ruta local o un enlace no web. Debe sustituirlo por un enlace https:// accesible para la profesora.</div>`:''}
         `
-        :`<div class="actions" style="margin-top:12px"><button class="btn" onclick="showAtlasHistoryV735('${x.id}')">🕘 Historial de entregas</button></div>`
+        :`<div class="actions" style="margin-top:12px"><button class="btn" onclick="requestAtlasPosterV7322('${x.id}')">⬇ Buscar PDF del póster</button><button class="btn" onclick="showAtlasHistoryV735('${x.id}')">🕘 Historial de entregas</button></div>`
     }
 
 
@@ -5745,6 +5749,7 @@ function atlasV735FoodRows(g){
             <br><span class="subtle">${esc(atlasV735Status(f.status))} · ${esc(f.progress_percent??0)}%</span>
           </span>
           <span>${poster}</span>
+          <span>${f.id?`<button class="btn" onclick="event.stopPropagation();requestAtlasPosterV7322('${f.id}')">⬇ PDF póster</button>`:''}</span>
         </div>
       `;
     }).join('')||'<div class="empty">Todavía no hay fichas iniciadas.</div>';
@@ -5808,7 +5813,10 @@ function renderAtlasOverviewV735(){
           <div class="subtle">EQUIPO ${esc(g.group_code)}</div>
           <h3 style="margin-top:3px">${esc(g.name||g.group_code)}</h3>
         </div>
-        <span class="status ${g.open_session_count?'warn':'ok'}">${g.open_session_count?'⏱️ sesión abierta':'✓ operativo'}</span>
+        <div class="actions">
+          <span class="status ${g.open_session_count?'warn':'ok'}">${g.open_session_count?'⏱️ sesión abierta':'✓ operativo'}</span>
+          <button class="btn" onclick="requestAtlasGroupEvidenceV7322('${g.group_code}')">📦 Evidencias grupo</button>
+        </div>
       </div>
 
       <p class="subtle">${esc(g.subtitle||'')}</p>
@@ -5824,6 +5832,11 @@ function renderAtlasOverviewV735(){
       <div class="note" style="margin-top:10px">
         <b>Miembros:</b><br>
         ${members.map(m=>esc(m.full_name||m.student_code)).join('<br>')||'—'}
+      </div>
+
+      <div class="note" style="margin-top:10px">
+        <b>📚 Evidencias:</b> el paquete del grupo incluye ficha escrita actual, snapshots de entregas, evaluación docente/IA,
+        sesiones y copias PDF de póster cuando se hayan archivado en Berilio con <b>/poster CODIGO_FICHA</b>.
       </div>
 
       <details style="margin-top:10px">
