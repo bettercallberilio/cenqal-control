@@ -9161,7 +9161,7 @@ function renderHomeResearchPulse(){
     '<div class="note '+(anon?'warn':'')+'"><b>🧬 Calidad del dato</b><br>'+(anon?anon+' respuestas históricas anónimas':'Sin actividad anónima histórica')+'</div>';
 }
 
-function generateLearningExecutiveActa(){
+async function generateLearningExecutiveActa(){
   const d=state.learning||{};
   const sum=d.summary||{};
   if(!sum.students && !(d.students||[]).length){
@@ -9171,50 +9171,218 @@ function generateLearningExecutiveActa(){
   }
 
   const course=state.snapshot?.course||{};
-  const topics=d.topics||[];
-  const difficulties=state.strategyComputed?.difficulties||[];
-  const alerts=state.strategyComputed?.alerts||[];
+  const total=Number(sum.students||d.students?.length||0);
+  const linked=Number(state.snapshot?.metrics?.linked_students||0);
+  const anon=Number(state.anonymousGymHistory?.summary?.responses||0);
+  const play=state.playAnalytics?.summary||{};
+  const topicEffort=v740TopicEffortRows();
+  const topicLearning=d.topics||[];
+  const gymV73=state.gymTopicsV73||{};
+  const difficultyRows=(gymV73.difficulty||[])
+    .filter(x=>String(x.difficulty_status||'').toUpperCase()==='DESCRIPTIVE' && x.difficulty_index!=null)
+    .sort((a,b)=>Number(a.difficulty_rank||999)-Number(b.difficulty_rank||999));
+  const alerts=(state.strategyComputed?.alerts||[]);
+  const highAlerts=alerts.filter(x=>Number(x.priority)>=2);
+  const measuredSessions=topicEffort.reduce((a,x)=>a+Number(x.measured_sessions||0),0);
+  const estimatedSessions=topicEffort.reduce((a,x)=>a+Number(x.estimated_sessions||0),0);
   const now=new Date();
+  const iso=now.toISOString();
+  const compact=iso.replace(/[-:T]/g,'').slice(0,14);
+  const snapshotId='CENQAL-LA-'+String(course.id||'CURSO')+'-'+compact;
+
+  const snapshotPayload={
+    snapshot_id:snapshotId,
+    generated_at:iso,
+    control_version:'v74.0',
+    course:{
+      id:course.id||null,
+      academic_year:course.academic_year||null,
+      group_name:course.group_name||null,
+      subject:course.subject||null
+    },
+    sample:{
+      students:total,
+      linked_students:linked,
+      gym_users:Number(sum.gym_users||0),
+      play_users:Number(play.students||0)
+    },
+    gym_topics:topicEffort.map(x=>({
+      topic_number:x.topic_number,
+      active_hours:Number(x.active_hours||0),
+      sessions:Number(x.sessions||0),
+      responses:Number(x.responses||0),
+      students_practiced:Number(x.gym_users||0),
+      accuracy_pct:x.accuracy==null?null:Number(x.accuracy),
+      mastery_pct:x.mastery==null?null:Number(x.mastery),
+      measured_sessions:Number(x.measured_sessions||0),
+      estimated_sessions:Number(x.estimated_sessions||0),
+      time_quality:x.time_quality||'NONE'
+    })),
+    difficulty:difficultyRows.map(x=>({
+      topic_number:Number(x.topic_number),
+      difficulty_index:Number(x.difficulty_index),
+      difficulty_rank:Number(x.difficulty_rank),
+      accuracy_pct:x.accuracy_pct==null?null:Number(x.accuracy_pct),
+      mastery_pct:x.mastery_pct==null?null:Number(x.mastery_pct),
+      persistent_error_pct:x.persistent_error_pct==null?null:Number(x.persistent_error_pct),
+      active_seconds_per_response:x.active_seconds_per_response==null?null:Number(x.active_seconds_per_response)
+    })),
+    play:{
+      completed:Number(play.completed||0),
+      transfer_average:play.transfer_average==null?null:Number(play.transfer_average)
+    },
+    data_quality:{
+      measured_sessions:measuredSessions,
+      estimated_sessions:estimatedSessions,
+      anonymous_gym_responses:anon
+    },
+    intervention_signals:{
+      total:alerts.length,
+      priority_2_or_more:highAlerts.length
+    }
+  };
+
+  let sha256='NO_DISPONIBLE';
+  try{
+    const bytes=new TextEncoder().encode(JSON.stringify(snapshotPayload));
+    const digest=await crypto.subtle.digest('SHA-256',bytes);
+    sha256=Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  }catch(e){
+    console.warn('CENQAL v74 acta SHA-256:',e);
+  }
+
+  const effortRows=topicEffort.map(x=>{
+    const q=x.time_quality==='MEASURED'?'Medido':
+      x.time_quality==='MIXED'?'Mixto':
+      x.time_quality==='ESTIMATED'?'Estimado':'Sin tiempo';
+    return '<tr>'+
+      '<td>T'+x.topic_number+'</td>'+
+      '<td>'+(x.source_minutes?v69Minutes(x.active_minutes):'—')+'</td>'+
+      '<td>'+q+'</td>'+
+      '<td>'+Number(x.sessions||0)+'</td>'+
+      '<td>'+Number(x.gym_users||0)+'</td>'+
+      '<td>'+Number(x.responses||0)+'</td>'+
+      '</tr>';
+  }).join('');
+
+  const learningRows=topicLearning.map(t=>{
+    const v73=topicEffort.find(x=>Number(x.topic_number)===Number(t.topic_number))||{};
+    return '<tr>'+
+      '<td>T'+esc(t.topic_number)+'</td>'+
+      '<td>'+Number(t.gym_attempts||0)+'</td>'+
+      '<td>'+(t.gym_accuracy_pct==null?'—':v69Num(t.gym_accuracy_pct,1)+'%')+'</td>'+
+      '<td>'+(t.mastery_pct==null?'—':v69Num(t.mastery_pct,1)+'%')+'</td>'+
+      '<td>'+(v73.persistent_error_pct==null?'—':v69Num(v73.persistent_error_pct,1)+'%')+'</td>'+
+      '<td>'+(t.exam_average==null?'—':v69Num(t.exam_average,2)+'/10')+'</td>'+
+      '</tr>';
+  }).join('');
+
+  const diffTable=difficultyRows.map(x=>
+    '<tr>'+
+      '<td>'+Number(x.difficulty_rank||0)+'</td>'+
+      '<td>T'+Number(x.topic_number||0)+'</td>'+
+      '<td>'+v69Num(x.difficulty_index,1)+'/100</td>'+
+      '<td>'+(x.accuracy_pct==null?'—':v69Num(x.accuracy_pct,1)+'%')+'</td>'+
+      '<td>'+(x.mastery_pct==null?'—':v69Num(x.mastery_pct,1)+'%')+'</td>'+
+      '<td>'+(x.persistent_error_pct==null?'—':v69Num(x.persistent_error_pct,1)+'%')+'</td>'+
+      '<td>'+(x.active_seconds_per_response==null?'—':v69Num(x.active_seconds_per_response,1)+' s')+'</td>'+
+      '</tr>'
+  ).join('');
+
+  const maxHours=Math.max(0,...topicEffort.map(x=>Number(x.active_hours||0)));
+  const effortBars=topicEffort.map(x=>{
+    const h=Number(x.active_hours||0);
+    const width=maxHours>0?Math.round(100*h/maxHours):0;
+    return '<div class="barrow"><span class="barlabel">T'+x.topic_number+'</span><div class="track"><span style="width:'+width+'%"></span></div><b>'+v69Num(h,2)+' h</b></div>';
+  }).join('');
+
+  const conclusions=[];
+  const gymUsers=Number(sum.gym_users||0);
+  const playUsers=Number(play.students||0);
+  if(total){
+    conclusions.push('Adopción: '+gymUsers+'/'+total+' estudiantes registran actividad identificada en Gym ('+Math.round(100*gymUsers/total)+'%) y '+playUsers+'/'+total+' en Play ('+Math.round(100*playUsers/total)+'%).');
+  }
+  const topEffort=[...topicEffort].filter(x=>x.source_minutes).sort((a,b)=>Number(b.active_hours||0)-Number(a.active_hours||0))[0];
+  if(topEffort){
+    conclusions.push('Esfuerzo: T'+topEffort.topic_number+' concentra el mayor tiempo activo registrado ('+v69Num(topEffort.active_hours,2)+' h). Mayor dedicación no equivale por sí sola a mayor dificultad.');
+  }
+  if(difficultyRows[0]){
+    conclusions.push('Dificultad observada: T'+difficultyRows[0].topic_number+' ocupa el primer lugar del índice descriptivo ('+v69Num(difficultyRows[0].difficulty_index,1)+'/100), calculado solo cuando existe cobertura suficiente.');
+  }
+  if(play.transfer_average!=null){
+    conclusions.push('Transferencia: la media observada en Play es '+v69Num(play.transfer_average,1)+'%. Su relación con examen o dominio se interpreta como asociación descriptiva, no causal.');
+  }
+  if(highAlerts.length){
+    conclusions.push('Intervención docente: '+highAlerts.length+' estudiante(s) presentan señales de prioridad 2 o superior que justifican revisión docente individual.');
+  }
+  conclusions.push('Calidad del dato: '+measuredSessions+' sesiones Gym tienen tiempo medido por heartbeat v73 y '+estimatedSessions+' conservan tiempo estimado/legado. '+anon+' respuestas históricas permanecen anónimas.');
+
   const w=window.open('','_blank');
   if(!w){
     toast('El navegador ha bloqueado la ventana del acta.',true);
     return;
   }
 
-  const topicRows=topics.map(t=>
-    '<tr><td>T'+esc(t.topic_number)+'</td><td>'+Number(t.gym_attempts||0)+'</td><td>'+
-    (t.gym_accuracy_pct==null?'—':v69Num(t.gym_accuracy_pct,1)+'%')+'</td><td>'+
-    (t.mastery_pct==null?'—':v69Num(t.mastery_pct,1)+'%')+'</td><td>'+
-    (t.exam_average==null?'—':v69Num(t.exam_average,2)+'/10')+'</td></tr>'
-  ).join('');
-
-  const diffRows=difficulties.slice(0,8).map(x=>
-    '<tr><td>'+esc(x.source)+'</td><td>'+esc(x.concept)+'</td><td>'+v69Num(x.accuracy,1)+'%</td><td>'+Number(x.n||0)+'</td></tr>'
-  ).join('');
-
-  const total=Number(sum.students||d.students?.length||0);
-  const linked=Number(state.snapshot?.metrics?.linked_students||0);
-  const anon=Number(state.anonymousGymHistory?.summary?.responses||0);
-  const play=state.playAnalytics?.summary||{};
-
   const html='<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Acta ejecutiva CENQAL</title>'+
-    '<style>@page{size:A4;margin:14mm}body{font-family:Arial,sans-serif;color:#17304f;font-size:11px;line-height:1.4}h1,h2{color:#0c3f82}h1{font-size:22px;margin-bottom:4px}h2{font-size:15px;margin-top:18px}.meta{color:#66788e;margin-bottom:14px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.k{border:1px solid #dbe7f4;border-radius:10px;padding:9px}.k b{display:block;font-size:18px;color:#0c3f82}table{width:100%;border-collapse:collapse}th,td{padding:6px;border-bottom:1px solid #dbe7f4;text-align:left}th{background:#f5f9fd}.note{background:#fff7e8;padding:9px;border-radius:8px}.foot{margin-top:16px;color:#66788e;font-size:9px}</style></head><body>'+
+    '<style>'+
+    '@page{size:A4;margin:13mm}'+
+    'body{font-family:Arial,sans-serif;color:#17304f;font-size:10.5px;line-height:1.38;margin:0}'+
+    'h1,h2{color:#0c3f82}h1{font-size:22px;margin:0 0 4px}h2{font-size:14px;margin:16px 0 7px}'+
+    '.meta{color:#66788e;margin-bottom:12px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}'+
+    '.k{border:1px solid #dbe7f4;border-radius:9px;padding:8px}.k b{display:block;font-size:17px;color:#0c3f82;margin-top:2px}'+
+    'table{width:100%;border-collapse:collapse;margin:4px 0 10px}th,td{padding:5px;border-bottom:1px solid #dbe7f4;text-align:left;vertical-align:top}th{background:#f5f9fd}'+
+    '.note{background:#fff7e8;padding:8px;border-radius:8px}.good{background:#eefaf3}.idbox{border:1px solid #dbe7f4;border-radius:8px;padding:7px;margin:8px 0;font-family:monospace;font-size:8.5px;word-break:break-all}'+
+    '.barrow{display:grid;grid-template-columns:28px 1fr 52px;gap:6px;align-items:center;margin:4px 0}.track{height:9px;background:#edf2f7;border-radius:999px;overflow:hidden}.track span{display:block;height:100%;background:#0c3f82;border-radius:999px}.barlabel{font-weight:bold}'+
+    '.foot{margin-top:14px;color:#66788e;font-size:8.5px}.pagebreak{break-before:page;page-break-before:always}ol{padding-left:18px}li{margin-bottom:4px}'+
+    '</style></head><body>'+
     '<h1>Acta ejecutiva de Learning Analytics</h1>'+
-    '<div class="meta"><b>'+esc(course.subject||'CENQAL')+'</b> · '+esc(course.academic_year||'—')+' · '+esc(course.group_name||'—')+'<br>Corte: '+esc(now.toLocaleString('es-ES'))+' · CENQAL Control v74.0 · n='+total+'</div>'+
-    '<div class="grid"><div class="k">Alumnado<b>'+total+'</b></div><div class="k">Usuarios Gym<b>'+Number(sum.gym_users||0)+'</b></div><div class="k">Usuarios Play<b>'+Number(play.students||0)+'</b></div><div class="k">Media examen<b>'+(sum.exam_average==null?'—':v69Num(sum.exam_average,2)+'/10')+'</b></div></div>'+
-    '<h2>Participación y esfuerzo</h2><p>Gym: '+Number(sum.gym_answers||0)+' respuestas y '+Number(sum.gym_sessions||0)+' sesiones. Tiempo Gym global estimado: '+v69Minutes(sum.gym_active_minutes||0)+'. Play: '+Number(play.completed||0)+' intentos completados.</p>'+
-    '<h2>Aprendizaje por tema</h2><table><thead><tr><th>Tema</th><th>Resp. Gym</th><th>Acierto</th><th>Dominio</th><th>Examen</th></tr></thead><tbody>'+topicRows+'</tbody></table>'+
-    '<h2>Dificultad observada</h2><table><thead><tr><th>Fuente</th><th>Concepto/tema</th><th>Acierto</th><th>n</th></tr></thead><tbody>'+(diffRows||'<tr><td colspan="4">Sin datos suficientes.</td></tr>')+'</tbody></table>'+
-    '<h2>Transferencia e intervención</h2><p>Transferencia media Play: '+(play.transfer_average==null?'—':v69Num(play.transfer_average,1)+'%')+'. Señales de revisión docente: '+alerts.length+'.</p>'+
-    '<h2>Calidad del dato</h2><p>Telegram vinculado: '+linked+'/'+total+'. Histórico anónimo Gym: '+anon+' respuestas.</p>'+
-    '<div class="note"><b>Advertencia metodológica.</b> Los patrones de uso, esfuerzo, dominio y rendimiento son descriptivos. Esta fotografía no demuestra causalidad.</div>'+
-    '<div class="foot">CENQAL · fotografía ejecutiva generada desde los datos disponibles. Guardar como PDF mediante Imprimir → Guardar como PDF.</div>'+
+    '<div class="meta"><b>'+esc(course.subject||'CENQAL')+'</b> · '+esc(course.academic_year||'—')+' · '+esc(course.group_name||'—')+'<br>Corte: '+esc(now.toLocaleString('es-ES'))+' · CENQAL Control v74.0 · tamaño de muestra: '+total+'</div>'+
+    '<div class="grid">'+
+      '<div class="k">Alumnado<b>'+total+'</b></div>'+
+      '<div class="k">Usuarios Gym<b>'+gymUsers+'</b></div>'+
+      '<div class="k">Usuarios Play<b>'+playUsers+'</b></div>'+
+      '<div class="k">Media examen<b>'+(sum.exam_average==null?'—':v69Num(sum.exam_average,2)+'/10')+'</b></div>'+
+    '</div>'+
+    '<div class="idbox"><b>ID de fotografía:</b> '+esc(snapshotId)+'<br><b>SHA-256 del resumen analítico:</b> '+esc(sha256)+'</div>'+
+
+    '<h2>1. Participación y adopción</h2>'+
+    '<p>Gym: '+gymUsers+'/'+total+' estudiantes identificados · '+Number(sum.gym_answers||0)+' respuestas · '+Number(sum.gym_sessions||0)+' sesiones. Play: '+playUsers+'/'+total+' estudiantes · '+Number(play.completed||0)+' intentos completados. Telegram vinculado: '+linked+'/'+total+'.</p>'+
+
+    '<h2>2. Esfuerzo por tema</h2>'+
+    effortBars+
+    '<table><thead><tr><th>Tema</th><th>Tiempo activo</th><th>Calidad</th><th>Sesiones</th><th>Usuarios</th><th>Respuestas</th></tr></thead><tbody>'+effortRows+'</tbody></table>'+
+    '<div class="note">Tiempo activo: en v73 se mide mediante heartbeat cuando la ventana está visible, existe una pregunta activa y hay interacción reciente. Las sesiones anteriores pueden conservar una estimación histórica y se etiquetan separadamente.</div>'+
+
+    '<div class="pagebreak"></div>'+
+    '<h2>3. Aprendizaje y rendimiento por tema</h2>'+
+    '<table><thead><tr><th>Tema</th><th>Resp. Gym</th><th>Acierto</th><th>Dominio</th><th>Error persist.</th><th>Examen</th></tr></thead><tbody>'+learningRows+'</tbody></table>'+
+
+    '<h2>4. Dificultad de contenidos</h2>'+
+    '<table><thead><tr><th>Rango</th><th>Tema</th><th>Índice</th><th>Acierto</th><th>Dominio</th><th>Error persist.</th><th>s/respuesta</th></tr></thead><tbody>'+(diffTable||'<tr><td colspan="7">No hay todavía al menos dos temas con cobertura suficiente para calcular el índice descriptivo.</td></tr>')+'</tbody></table>'+
+    '<div class="note">El índice de dificultad combina tasa de error, porcentaje no dominado, errores persistentes y tiempo activo por respuesta. Solo se calcula con cobertura suficiente y no constituye una nota.</div>'+
+
+    '<h2>5. Transferencia y señales para intervención docente</h2>'+
+    '<p>Transferencia media Play: '+(play.transfer_average==null?'—':v69Num(play.transfer_average,1)+'%')+'. Señales automáticas detectadas: '+alerts.length+'; de ellas, '+highAlerts.length+' requieren revisión prioritaria. Las señales sirven para orientar la revisión docente y no clasifican automáticamente al alumnado.</p>'+
+
+    '<h2>6. Calidad y cobertura de los datos</h2>'+
+    '<div class="grid">'+
+      '<div class="k">Sesiones medidas<b>'+measuredSessions+'</b></div>'+
+      '<div class="k">Sesiones estimadas<b>'+estimatedSessions+'</b></div>'+
+      '<div class="k">Histórico anónimo<b>'+anon+'</b></div>'+
+      '<div class="k">Telegram vinculado<b>'+linked+'/'+total+'</b></div>'+
+    '</div>'+
+    '<p>La actividad anónima histórica se conserva únicamente de forma agregada y no se atribuye retrospectivamente a ningún alumno.</p>'+
+
+    '<h2>Conclusiones descriptivas del corte</h2>'+
+    '<ol>'+conclusions.slice(0,6).map(x=>'<li>'+esc(x)+'</li>').join('')+'</ol>'+
+
+    '<div class="note"><b>Advertencia metodológica.</b> Esta acta describe patrones observados en la telemetría educativa. Las asociaciones entre uso, esfuerzo, dominio, transferencia y rendimiento no demuestran causalidad.</div>'+
+    '<div class="foot">CENQAL · fotografía ejecutiva generada desde datos vivos. El SHA-256 corresponde al resumen analítico agregado utilizado para esta acta. Para conservar el documento: Imprimir → Guardar como PDF. La versión integral/auditable permanece separada.</div>'+
     '<script>setTimeout(function(){window.print();},350);<\/script></body></html>';
 
   w.document.write(html);
   w.document.close();
 }
-
 function renderLearning(){
   const d=state.learning||{},sum=d.summary||{},students=d.students||[],topics=d.topics||[];
   const risks={red:0,yellow:0,green:0,gray:0};students.forEach(x=>risks[v69Risk(x,d.alerts).cls]++);
