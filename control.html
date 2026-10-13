@@ -9080,19 +9080,18 @@ function renderTopicEffortV740(){
       'T'+x.topic_number,
       x.source_minutes?v69Minutes(x.active_minutes):'—',
       x.time_quality==='MEASURED'
-        ?'<span class="status ok">Medido</span>'
+        ?'Medido'
         :x.time_quality==='MIXED'
-          ?'<span class="status warn">Mixto</span>'
+          ?'Mixto'
           :x.time_quality==='ESTIMATED'
-            ?'<span class="status warn">Estimado</span>'
-            :'<span class="status">Sin tiempo</span>',
+            ?'Estimado'
+            :'Sin tiempo',
       x.sessions||0,
       x.gym_users||0,
       x.responses||0,
       x.accuracy==null?'—':v69Num(x.accuracy,1)+'%',
       x.mastery==null?'—':v69Num(x.mastery,1)+'%'
-    ]),
-    'html'
+    ])
   );
 
   if(!hasMinutes){
