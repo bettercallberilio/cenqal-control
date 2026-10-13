@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>CENQAL Control</title>
-<meta name="CENQAL_CONTROL_BUILD" content="v73.23">
+<meta name="CENQAL_CONTROL_BUILD" content="v74.0">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#0c3f82">
 <link rel="apple-touch-icon" href="./cenqal-apple-touch-icon.png">
@@ -486,29 +486,17 @@ details.card>.detailBody{padding:0 16px 16px}
       <div class="brandmark"></div>
       <div>
         <h1>CENQAL Control</h1>
-        <small>Panel docente seguro · v73.23</small>
+        <small>Centro docente · v74.0</small>
       </div>
     </div>
 
     <nav class="nav" id="nav">
-      <button data-view="home" class="active">🏠 Inicio</button>
-      <button data-view="agenda">📌 Mis pendientes</button>
-      <button data-view="course">🎓 Curso</button>
-      <button data-view="students">👥 Alumnos</button>
-      <button data-view="progress">📈 Progreso</button>
+      <button data-view="home" class="active">🏠 Inicio / Alertas</button>
+      <button data-view="students">👥 Alumnado</button>
       <button data-view="learning">📊 Learning Analytics</button>
-      <button data-view="play-control">🎮 CENQAL Play</button>
-      <button data-view="deliveries">📥 Entregas</button>
-      <button data-view="calendar">📅 Calendario</button>
-      <button data-view="challenges">🏆 Retos</button>
-      <button data-view="weekly-grade">✅ Nota de retos</button>
-      <button data-view="exams">📝 Exámenes</button>
-      <button data-view="groups">🗺️ Atlas / Grupos</button>
-      <button data-view="game">🏆 Ranking / economía</button>
-      <button data-view="evidence">📁 Evidencias</button>
-      <button data-view="audit">🧾 Auditoría</button>
-      <button data-view="system">🔧 Sistema</button>
-      <button data-view="reset">🗂️ Gestión de cursos</button>
+      <button data-view="management">🎓 Gestión docente</button>
+      <button data-view="records">📁 Actas y evidencias</button>
+      <button data-view="admin">⚙️ Administración</button>
     </nav>
 
     <div class="sidefooter">
@@ -555,6 +543,19 @@ details.card>.detailBody{padding:0 16px 16px}
         </div>
       </div>
 
+      <div class="card" style="margin-bottom:14px">
+        <div class="sectionTitle">
+          <div>
+            <h3>🚦 Pulso docente</h3>
+            <p>Problemas primero: adopción, dificultad, señales de revisión y calidad del dato.</p>
+          </div>
+          <button class="btn" onclick="go('learning')">Abrir analítica</button>
+        </div>
+        <div id="homeResearchPulse" class="grid two" style="margin-top:12px">
+          <div class="note">El pulso se completa al cargar Learning Analytics.</div>
+        </div>
+      </div>
+
       <div class="metrics grid" id="metrics">
         <div class="card">
           <span class="loader"></span> Cargando…
@@ -576,15 +577,12 @@ details.card>.detailBody{padding:0 16px 16px}
           <h3>⚡ Acciones rápidas</h3>
 
           <div class="grid two">
-            <button class="btn primary" onclick="newEvent()">＋ Añadir evento</button>
-            <button class="btn" onclick="go('students')">👥 Gestionar alumnos</button>
-            <button class="btn" onclick="go('progress')">📈 Ver progreso</button>
-            <button class="btn" onclick="go('play-control')">🎮 Sala de Juegos</button>
-            <button class="btn" onclick="go('deliveries')">📥 Revisar entregas</button>
-            <button class="btn" onclick="go('challenges')">🏆 Editar retos</button>
-            <button class="btn" onclick="go('game')">🪙 PP / Og</button>
-            <button class="btn" onclick="go('evidence')">📁 Evidencias</button>
-            <button class="btn warn" onclick="go('reset')">🗂️ Gestión de cursos</button>
+            <button class="btn primary" onclick="go('learning')">📊 Learning Analytics</button>
+            <button class="btn" onclick="go('students')">👥 Alumnado</button>
+            <button class="btn" onclick="go('management')">🎓 Gestión docente</button>
+            <button class="btn" onclick="go('records')">📁 Actas y evidencias</button>
+            <button class="btn" onclick="newEvent()">＋ Añadir evento</button>
+            <button class="btn warn" onclick="go('admin')">⚙️ Administración</button>
           </div>
 
           <div class="note" style="margin-top:12px">
@@ -628,6 +626,37 @@ details.card>.detailBody{padding:0 16px 16px}
         <div id="teacherAgendaList" class="teacherAgendaList">
           <div class="teacherAgendaEmpty"><span class="loader"></span> Revisando tareas…</div>
         </div>
+      </div>
+    </section>
+
+    <section class="view" id="view-management">
+      <div class="viewHeader"><div><h2>🎓 Gestión docente</h2><p>Herramientas operativas del curso agrupadas por función. La funcionalidad existente se conserva.</p></div></div>
+      <div class="sectionGrid">
+        <div class="card"><h3>📝 Evaluación y seguimiento</h3><div class="actions"><button class="btn primary" onclick="go('exams')">Exámenes</button><button class="btn" onclick="go('deliveries')">Entregas</button><button class="btn" onclick="go('challenges')">Retos</button><button class="btn" onclick="go('weekly-grade')">Nota de retos</button><button class="btn" onclick="go('progress')">Progreso</button></div></div>
+        <div class="card"><h3>🎮 Aprendizaje activo</h3><div class="actions"><button class="btn primary" onclick="go('play-control')">CENQAL Play</button><button class="btn" onclick="go('groups')">Gran Atlas</button><button class="btn" onclick="go('calendar')">Calendario</button></div></div>
+        <div class="card"><h3>🏆 Gamificación</h3><p class="subtle">Prestigio, Óganesones y coherencia de marcadores.</p><button class="btn" onclick="go('game')">Ranking / economía</button></div>
+        <div class="card"><h3>📌 Pendientes docentes</h3><p class="subtle">La agenda ya forma parte del Inicio; aquí puedes abrir su vista completa.</p><button class="btn" onclick="go('agenda')">Abrir agenda completa</button></div>
+      </div>
+    </section>
+
+    <section class="view" id="view-records">
+      <div class="viewHeader"><div><h2>📁 Actas y evidencias</h2><p>Fotografías fechadas del proyecto, expedientes, exportaciones y trazabilidad documental.</p></div></div>
+      <div class="sectionGrid">
+        <div class="card"><h3>📊 Acta ejecutiva de Learning Analytics</h3><p class="subtle">Resumen visual para la memoria del proyecto.</p><div class="actions"><button class="btn primary" onclick="generateLearningExecutiveActa()">📄 Generar acta ejecutiva</button><button class="btn" onclick="go('learning')">Ver analítica</button></div></div>
+        <div class="card"><h3>🧾 Acta integral / auditoría</h3><p class="subtle">Conserva la trazabilidad técnica y el informe integral existente.</p><div class="actions"><button class="btn primary" onclick="botPayload('cg_course')">Generar informe integral</button><button class="btn" onclick="go('audit')">Auditoría</button></div></div>
+        <div class="card"><h3>🗃️ Centro de evidencias</h3><p class="subtle">Documentos versionados, copia privada y huellas SHA-256.</p><button class="btn" onclick="go('evidence')">Abrir evidencias</button></div>
+        <div class="card"><h3>👥 Expedientes individuales</h3><p class="subtle">Ficha 360º y paquetes de evidencia por alumno.</p><button class="btn" onclick="go('students')">Abrir alumnado</button></div>
+      </div>
+      <div class="note warn" style="margin-top:14px">El acta ejecutiva se prepara para guardar como PDF. El archivado automático con hash se conectará a Berilio cuando esté disponible la acción correspondiente.</div>
+    </section>
+
+    <section class="view" id="view-admin">
+      <div class="viewHeader"><div><h2>⚙️ Administración</h2><p>Configuración del curso, sistema, auditoría y gestión de históricos.</p></div></div>
+      <div class="sectionGrid">
+        <div class="card"><h3>🎓 Curso</h3><p class="subtle">Datos académicos y configuración.</p><button class="btn" onclick="go('course')">Abrir configuración</button></div>
+        <div class="card"><h3>🗂️ Gestión de cursos</h3><p class="subtle">Crear, duplicar, seleccionar, activar y archivar.</p><button class="btn" onclick="go('reset')">Gestionar cursos</button></div>
+        <div class="card"><h3>🧾 Auditoría</h3><p class="subtle">Historial de cambios de Control.</p><button class="btn" onclick="go('audit')">Abrir auditoría</button></div>
+        <div class="card"><h3>🔧 Sistema</h3><p class="subtle">Conexión, seguridad y sesión.</p><button class="btn" onclick="go('system')">Comprobar sistema</button></div>
       </div>
     </section>
 
