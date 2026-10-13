@@ -8517,6 +8517,9 @@ y2:{beginAtZero:true,max:10,position:'right',grid:{drawOnChartArea:false},title:
       knowledge_gain:x.knowledge_gain
     }))
   };
+  renderTopicEffortV740();
+  renderDataQualityV740();
+  renderHomeResearchPulse();
 }
 
 
@@ -8969,6 +8972,183 @@ async function loadLearning(force=false){
   }
 }
 
+
+function laScroll(id){
+  const el=document.getElementById(id);
+  if(el)el.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function v740TopicEffortRows(){
+  const topics=state.learning?.topics||[];
+  const sessions=state.strategyRaw?.gym_sessions||[];
+  const map=new Map();
+
+  const ensure=n=>{
+    const k=Number(n);
+    if(!Number.isFinite(k)||k<1||k>8)return null;
+    if(!map.has(k))map.set(k,{topic_number:k,active_minutes:0,sessions:0,responses:0,gym_users:0,accuracy:null,mastery:null,source_minutes:false});
+    return map.get(k);
+  };
+
+  topics.forEach(t=>{
+    const r=ensure(t.topic_number);
+    if(!r)return;
+    r.responses=Number(t.gym_attempts||0);
+    r.gym_users=Number(t.gym_users||0);
+    r.accuracy=t.gym_accuracy_pct;
+    r.mastery=t.mastery_pct;
+  });
+
+  sessions.forEach(s=>{
+    const raw=s.topic_number??s.topic??String(s.topic_list||'').match(/\d+/)?.[0];
+    const r=ensure(raw);
+    if(!r)return;
+    r.sessions++;
+    const mins=Number(s.active_minutes??s.duration_minutes??s.estimated_active_minutes);
+    if(Number.isFinite(mins)&&mins>=0){
+      r.active_minutes+=mins;
+      r.source_minutes=true;
+    }
+  });
+
+  return Array.from({length:8},(_,i)=>map.get(i+1)||{topic_number:i+1,active_minutes:0,sessions:0,responses:0,gym_users:0,accuracy:null,mastery:null,source_minutes:false});
+}
+
+function renderTopicEffortV740(){
+  const box=document.getElementById('topicEffortBox');
+  if(!box)return;
+  const rows=v740TopicEffortRows();
+  const hasMinutes=rows.some(x=>x.source_minutes);
+
+  box.innerHTML=tableHTML(
+    ['Tema','Tiempo activo','Sesiones','Usuarios','Respuestas','Acierto','Dominio'],
+    rows.map(x=>[
+      'T'+x.topic_number,
+      x.source_minutes?v69Minutes(x.active_minutes):'—',
+      x.sessions||0,
+      x.gym_users||0,
+      x.responses||0,
+      x.accuracy==null?'—':v69Num(x.accuracy,1)+'%',
+      x.mastery==null?'—':v69Num(x.mastery,1)+'%'
+    ])
+  );
+
+  if(!hasMinutes){
+    box.innerHTML+='<div class="note warn" style="margin-top:10px">El Control recibe volumen de práctica por tema, pero el export actual no aporta todavía minutos activos por tema. No se inventan horas a partir de tiempos de respuesta.</div>';
+  }
+}
+
+function renderDataQualityV740(){
+  const metrics=document.getElementById('dataQualityMetrics');
+  const detail=document.getElementById('dataQualityDetail');
+  if(!metrics||!detail)return;
+
+  const total=Number(state.learning?.summary?.students||state.learning?.students?.length||0);
+  const gym=Number(state.learning?.summary?.gym_users||0);
+  const play=Number(state.playAnalytics?.summary?.students||0);
+  const linked=Number(state.snapshot?.metrics?.linked_students||0);
+  const anon=Number(state.anonymousGymHistory?.summary?.responses||0);
+  const errs=[state.gymAdvanced?._error,state.playAnalytics?._error,state.anonymousGymHistory?._error].filter(Boolean);
+  const pct=(v,d)=>d?Math.round(100*v/d):0;
+
+  metrics.innerHTML=[
+    metric('🪪 Telegram',linked,total?pct(linked,total)+'% identificado':'—'),
+    metric('🏋️ Cobertura Gym',gym,total?pct(gym,total)+'% del grupo':'—'),
+    metric('🎮 Cobertura Play',play,total?pct(play,total)+'% del grupo':'—'),
+    metric('🕰️ Histórico anónimo',anon,anon?'respuestas no atribuibles':'sin histórico'),
+    metric('⚠️ Fuentes con error',errs.length,errs.length?'revisar telemetría':'sin errores detectados')
+  ].join('');
+
+  detail.innerHTML=
+    '<div class="grid two">'+
+      '<div class="note"><b>Cobertura individual.</b><br>'+
+      Math.max(0,total-gym)+' alumno(s) sin Gym identificado · '+
+      Math.max(0,total-play)+' sin Play · '+
+      Math.max(0,total-linked)+' sin Telegram vinculado.</div>'+
+      '<div class="note '+(anon?'warn':'')+'"><b>Trazabilidad histórica.</b><br>'+
+      (anon?anon+' respuestas históricas del Gym se conservan solo de forma agregada.':'No hay actividad histórica anónima registrada.')+
+      '</div>'+
+    '</div>'+
+    (errs.length?'<div class="note danger" style="margin-top:10px"><b>Incidencias:</b><br>'+errs.map(esc).join('<br>')+'</div>':'');
+}
+
+function renderHomeResearchPulse(){
+  const box=document.getElementById('homeResearchPulse');
+  if(!box)return;
+  const d=state.learning||{};
+  if(!d.summary){
+    box.innerHTML='<div class="note">Abre Learning Analytics para calcular el pulso del proyecto.</div>';
+    return;
+  }
+
+  const total=Number(d.summary.students||d.students?.length||0);
+  const gym=Number(d.summary.gym_users||0);
+  const play=Number(state.playAnalytics?.summary?.students||0);
+  const priority=(state.strategyComputed?.alerts||[]).filter(x=>Number(x.priority)>=2).length;
+  const diff=state.strategyComputed?.difficulties?.[0];
+  const anon=Number(state.anonymousGymHistory?.summary?.responses||0);
+
+  box.innerHTML=
+    '<div class="note '+(priority?'danger':'')+'"><b>🚨 Revisión docente</b><br>'+(priority?priority+' alumno(s) con señales de atención':'Sin señales prioritarias calculadas')+'</div>'+
+    '<div class="note"><b>📲 Adopción</b><br>Gym '+gym+'/'+(total||'—')+' · Play '+play+'/'+(total||'—')+'</div>'+
+    '<div class="note '+(diff?'warn':'')+'"><b>🎯 Mayor dificultad observada</b><br>'+(diff?esc(diff.source+' · '+diff.concept+' · '+v69Num(diff.accuracy,1)+'%'):'Sin datos suficientes')+'</div>'+
+    '<div class="note '+(anon?'warn':'')+'"><b>🧬 Calidad del dato</b><br>'+(anon?anon+' respuestas históricas anónimas':'Sin actividad anónima histórica')+'</div>';
+}
+
+function generateLearningExecutiveActa(){
+  const d=state.learning||{};
+  const sum=d.summary||{};
+  if(!sum.students && !(d.students||[]).length){
+    toast('Carga Learning Analytics antes de generar el acta.',true);
+    go('learning');
+    return;
+  }
+
+  const course=state.snapshot?.course||{};
+  const topics=d.topics||[];
+  const difficulties=state.strategyComputed?.difficulties||[];
+  const alerts=state.strategyComputed?.alerts||[];
+  const now=new Date();
+  const w=window.open('','_blank');
+  if(!w){
+    toast('El navegador ha bloqueado la ventana del acta.',true);
+    return;
+  }
+
+  const topicRows=topics.map(t=>
+    '<tr><td>T'+esc(t.topic_number)+'</td><td>'+Number(t.gym_attempts||0)+'</td><td>'+
+    (t.gym_accuracy_pct==null?'—':v69Num(t.gym_accuracy_pct,1)+'%')+'</td><td>'+
+    (t.mastery_pct==null?'—':v69Num(t.mastery_pct,1)+'%')+'</td><td>'+
+    (t.exam_average==null?'—':v69Num(t.exam_average,2)+'/10')+'</td></tr>'
+  ).join('');
+
+  const diffRows=difficulties.slice(0,8).map(x=>
+    '<tr><td>'+esc(x.source)+'</td><td>'+esc(x.concept)+'</td><td>'+v69Num(x.accuracy,1)+'%</td><td>'+Number(x.n||0)+'</td></tr>'
+  ).join('');
+
+  const total=Number(sum.students||d.students?.length||0);
+  const linked=Number(state.snapshot?.metrics?.linked_students||0);
+  const anon=Number(state.anonymousGymHistory?.summary?.responses||0);
+  const play=state.playAnalytics?.summary||{};
+
+  const html='<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Acta ejecutiva CENQAL</title>'+
+    '<style>@page{size:A4;margin:14mm}body{font-family:Arial,sans-serif;color:#17304f;font-size:11px;line-height:1.4}h1,h2{color:#0c3f82}h1{font-size:22px;margin-bottom:4px}h2{font-size:15px;margin-top:18px}.meta{color:#66788e;margin-bottom:14px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.k{border:1px solid #dbe7f4;border-radius:10px;padding:9px}.k b{display:block;font-size:18px;color:#0c3f82}table{width:100%;border-collapse:collapse}th,td{padding:6px;border-bottom:1px solid #dbe7f4;text-align:left}th{background:#f5f9fd}.note{background:#fff7e8;padding:9px;border-radius:8px}.foot{margin-top:16px;color:#66788e;font-size:9px}</style></head><body>'+
+    '<h1>Acta ejecutiva de Learning Analytics</h1>'+
+    '<div class="meta"><b>'+esc(course.subject||'CENQAL')+'</b> · '+esc(course.academic_year||'—')+' · '+esc(course.group_name||'—')+'<br>Corte: '+esc(now.toLocaleString('es-ES'))+' · CENQAL Control v74.0 · n='+total+'</div>'+
+    '<div class="grid"><div class="k">Alumnado<b>'+total+'</b></div><div class="k">Usuarios Gym<b>'+Number(sum.gym_users||0)+'</b></div><div class="k">Usuarios Play<b>'+Number(play.students||0)+'</b></div><div class="k">Media examen<b>'+(sum.exam_average==null?'—':v69Num(sum.exam_average,2)+'/10')+'</b></div></div>'+
+    '<h2>Participación y esfuerzo</h2><p>Gym: '+Number(sum.gym_answers||0)+' respuestas y '+Number(sum.gym_sessions||0)+' sesiones. Tiempo Gym global estimado: '+v69Minutes(sum.gym_active_minutes||0)+'. Play: '+Number(play.completed||0)+' intentos completados.</p>'+
+    '<h2>Aprendizaje por tema</h2><table><thead><tr><th>Tema</th><th>Resp. Gym</th><th>Acierto</th><th>Dominio</th><th>Examen</th></tr></thead><tbody>'+topicRows+'</tbody></table>'+
+    '<h2>Dificultad observada</h2><table><thead><tr><th>Fuente</th><th>Concepto/tema</th><th>Acierto</th><th>n</th></tr></thead><tbody>'+(diffRows||'<tr><td colspan="4">Sin datos suficientes.</td></tr>')+'</tbody></table>'+
+    '<h2>Transferencia e intervención</h2><p>Transferencia media Play: '+(play.transfer_average==null?'—':v69Num(play.transfer_average,1)+'%')+'. Señales de revisión docente: '+alerts.length+'.</p>'+
+    '<h2>Calidad del dato</h2><p>Telegram vinculado: '+linked+'/'+total+'. Histórico anónimo Gym: '+anon+' respuestas.</p>'+
+    '<div class="note"><b>Advertencia metodológica.</b> Los patrones de uso, esfuerzo, dominio y rendimiento son descriptivos. Esta fotografía no demuestra causalidad.</div>'+
+    '<div class="foot">CENQAL · fotografía ejecutiva generada desde los datos disponibles. Guardar como PDF mediante Imprimir → Guardar como PDF.</div>'+
+    '<script>setTimeout(function(){window.print();},350);<\/script></body></html>';
+
+  w.document.write(html);
+  w.document.close();
+}
+
 function renderLearning(){
   const d=state.learning||{},sum=d.summary||{},students=d.students||[],topics=d.topics||[];
   const risks={red:0,yellow:0,green:0,gray:0};students.forEach(x=>risks[v69Risk(x,d.alerts).cls]++);
@@ -9029,7 +9209,10 @@ function renderLearning(){
   document.getElementById('learningTopics').innerHTML=tableHTML(['Tema','Usuarios Gym','Respuestas','Acierto Gym','Practicadas','Dominadas','Dominio','Exámenes','Media examen'],topics.map(x=>[
     `T${x.topic_number}`,x.gym_users||0,x.gym_attempts||0,x.gym_accuracy_pct==null?'—':`${v69Num(x.gym_accuracy_pct,1)}%`,x.practiced_questions||0,x.mastered_questions||0,x.mastery_pct==null?'—':`${v69Num(x.mastery_pct,1)}%`,x.exam_count||0,x.exam_average==null?'—':`${v69Num(x.exam_average,2)}/10`
   ]));
+  renderTopicEffortV740();
+  renderDataQualityV740();
   renderLearningStudents();
+  renderHomeResearchPulse();
 }
 
 
