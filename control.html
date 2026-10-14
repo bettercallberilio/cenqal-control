@@ -3181,12 +3181,24 @@ function tableHTML(headers,rows,mode=''){let h=headers.map(x=>`<th>${esc(x)}</th
 const renderStudentDetailBase=renderStudentDetail;
 renderStudentDetail=function(){
   renderStudentDetailBase();
+
   let c=state.studentDetail?.contributions||[],p=state.studentDetail?.portfolio_submissions||[];
-  if(!c.length&&!p.length)return;
   let html='';
+
+  const recovered=v741RecoveredExamGradeFromWorkspace(state.studentDetail);
+  if(recovered){
+    html+=detailCard(
+      '🎓 EX1 · calificación recuperada tras incidencia técnica',
+      '<div class="note warn"><b>'+v69Num(recovered.score,2)+'/10</b> · '+esc(recovered.item_code||'WEXAM:T1:MANUAL')+'<br>'+
+      'Esta es la calificación real recuperada y validada por la profesora. CENQAL no reconstruye respuestas, aciertos ni detalle técnico que no quedaron registrados.</div>',
+      true
+    );
+  }
+
   if(c.length)html+=detailCard('🔎 Respuestas y rúbricas de aportaciones',tableHTML(['Fecha','Título','Estado','Preeval.','Acción'],c.map(x=>[fmtDate(x.created_at),x.title||x.primary_topic||'Sin título',x.status||'—',x.preliminary_score??'—',`<button class="btn" onclick="showContributionDetail('${x.id}')">Ver respuestas y rúbrica</button>`]),'html'));
   if(p.length)html+=detailCard('🔎 Rúbricas de portfolios',tableHTML(['Fecha','Reto','Estado','Nota','Acción'],p.map(x=>[fmtDate(x.created_at),x.challenge_code||x.challenge_id||'—',x.status||'—',x.teacher_evaluation?.score??'—',`<button class="btn" onclick="showPortfolioDetail('${x.id}')">Ver evaluación</button>`]),'html'));
-  document.getElementById('studentSections').insertAdjacentHTML('beforeend',html);
+
+  if(html)document.getElementById('studentSections').insertAdjacentHTML('beforeend',html);
 };
 
 function deliveryGroup(status){
