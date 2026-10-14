@@ -9517,8 +9517,9 @@ function renderDataQualityV740(){
     metric('🏋️ Cobertura Gym',gym,total?pct(gym,total)+'% del grupo':'—'),
     metric('🎮 Cobertura Play',play,total?pct(play,total)+'% del grupo':'—'),
     metric('⏱ Sesiones medidas',measuredSessions,estimatedSessions?estimatedSessions+' estimadas/legado':'heartbeat v73'),
+    metric('🎓 EX1 recuperado',recovered,recoveredExpected?recovered+'/'+recoveredExpected+' notas':'sin comprobación'),
     metric('🕰️ Histórico anónimo',anon,anon?'respuestas no atribuibles':'sin histórico'),
-    metric('⚠️ Fuentes con error',errs.length,errs.length?'revisar telemetría':'sin errores detectados')
+    metric('⚠️ Fuentes con error',errs.length+recoveredFailures,(errs.length+recoveredFailures)?'revisar cobertura':'sin errores detectados')
   ].join('');
 
   detail.innerHTML=
@@ -9527,11 +9528,15 @@ function renderDataQualityV740(){
       Math.max(0,total-gym)+' alumno(s) sin Gym identificado · '+
       Math.max(0,total-play)+' sin Play · '+
       Math.max(0,total-linked)+' sin Telegram vinculado.</div>'+
-      '<div class="note '+(anon?'warn':'')+'"><b>Trazabilidad histórica.</b><br>'+
-      (anon?anon+' respuestas históricas del Gym se conservan solo de forma agregada.':'No hay actividad histórica anónima registrada.')+
+      '<div class="note '+((anon||recovered)?'warn':'')+'"><b>Trazabilidad histórica.</b><br>'+
+      (recovered
+        ?'EX1: '+recovered+' calificación(es) recuperada(s) tras la incidencia técnica. No se reconstruyen respuestas del intento. '
+        :'EX1 recuperado: sin datos cargados. ')+
+      (anon?anon+' respuestas históricas del Gym se conservan solo de forma agregada.':'No hay actividad Gym histórica anónima adicional.')+
       '</div>'+
     '</div>'+
-    (errs.length?'<div class="note danger" style="margin-top:10px"><b>Incidencias:</b><br>'+errs.map(esc).join('<br>')+'</div>':'');
+    (errs.length?'<div class="note danger" style="margin-top:10px"><b>Incidencias de fuentes:</b><br>'+errs.map(esc).join('<br>')+'</div>':'')+
+    (recoveredFailures?'<div class="note warn" style="margin-top:10px"><b>Cobertura gradebook:</b> no se pudieron leer '+recoveredFailures+' ficha(s) al comprobar EX1.</div>':'');
 }
 
 function renderHomeResearchPulse(){
