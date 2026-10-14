@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>CENQAL Control</title>
-<meta name="CENQAL_CONTROL_BUILD" content="v74.0">
+<meta name="CENQAL_CONTROL_BUILD" content="v74.1">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#0c3f82">
 <link rel="apple-touch-icon" href="./cenqal-apple-touch-icon.png">
@@ -486,7 +486,7 @@ details.card>.detailBody{padding:0 16px 16px}
       <div class="brandmark"></div>
       <div>
         <h1>CENQAL Control</h1>
-        <small>Centro docente · v74.0</small>
+        <small>Centro docente · v74.1</small>
       </div>
     </div>
 
@@ -1194,7 +1194,8 @@ details.card>.detailBody{padding:0 16px 16px}
 
     <section class="view" id="view-exams">
       <div class="viewHeader"><div><h2>📝 Exámenes</h2><p>Las convocatorias técnicas se conservan como histórico. La calificación docente se registra una sola vez por tema.</p></div><button class="btn" onclick="loadExams(true)">↻ Actualizar</button></div>
-      <div class="note warn" style="margin-bottom:12px">Preparar, abrir, cerrar o liberar revisión continúa realizándose con <b>/examen</b>. Un examen <b>closed</b> debe permanecer cerrado; no es necesario pasarlo a <b>review</b> para calificar. <b>Resultados Tn</b> agrupa todas las convocatorias técnicas del mismo tema y no modifica intentos, no crea nota /10 ni concede PP automáticamente.</div>
+      <div class="note warn" style="margin-bottom:12px">Preparar, abrir, cerrar o liberar revisión continúa realizándose con <b>/examen</b>. Un examen <b>closed</b> debe permanecer cerrado. La <b>calificación real del examen</b> se mantiene separada de la telemetría técnica. Cuando una nota ha sido recuperada tras una incidencia, se usa en Learning Analytics sin reconstruir respuestas inexistentes.</div>
+      <div id="examRecoveredGradesV741" class="card" style="margin-bottom:12px"><span class="loader"></span> Comprobando calificaciones reales recuperadas…</div>
       <div id="examTopicResults" class="card" style="margin-bottom:12px"></div>
       <div class="card"><div class="sectionTitle" style="margin-bottom:10px"><div><h3>Histórico técnico de convocatorias</h3><p>Se muestran todas las convocatorias existentes, aunque pertenezcan al mismo tema.</p></div></div><div class="tablewrap"><table class="table"><thead><tr><th>Código</th><th>Tema</th><th>Título</th><th>Estado</th><th>Apertura</th><th>Cierre</th><th>Resultado académico</th></tr></thead><tbody id="examsBody"></tbody></table></div></div>
     </section>
@@ -1333,6 +1334,8 @@ let state={
   studentGymAdvanced:null,
   studentPlay:null,
   playControl:null,
+  recoveredExamGrades:null,
+  recoveredExamGradesLoadedAt:0,
   currentStudentId:null,
   studentDetail:null
 };
@@ -9192,7 +9195,7 @@ async function generateLearningExecutiveActa(){
   const snapshotPayload={
     snapshot_id:snapshotId,
     generated_at:iso,
-    control_version:'v74.0',
+    control_version:'v74.1',
     course:{
       id:course.id||null,
       academic_year:course.academic_year||null,
@@ -9335,7 +9338,7 @@ async function generateLearningExecutiveActa(){
     '.foot{margin-top:14px;color:#66788e;font-size:8.5px}.pagebreak{break-before:page;page-break-before:always}ol{padding-left:18px}li{margin-bottom:4px}'+
     '</style></head><body>'+
     '<h1>Acta ejecutiva de Learning Analytics</h1>'+
-    '<div class="meta"><b>'+esc(course.subject||'CENQAL')+'</b> · '+esc(course.academic_year||'—')+' · '+esc(course.group_name||'—')+'<br>Corte: '+esc(now.toLocaleString('es-ES'))+' · CENQAL Control v74.0 · tamaño de muestra: '+total+'</div>'+
+    '<div class="meta"><b>'+esc(course.subject||'CENQAL')+'</b> · '+esc(course.academic_year||'—')+' · '+esc(course.group_name||'—')+'<br>Corte: '+esc(now.toLocaleString('es-ES'))+' · CENQAL Control v74.1 · tamaño de muestra: '+total+'</div>'+
     '<div class="grid">'+
       '<div class="k">Alumnado<b>'+total+'</b></div>'+
       '<div class="k">Usuarios Gym<b>'+gymUsers+'</b></div>'+
