@@ -9564,7 +9564,10 @@ async function v741RefreshHomeResearchPulse(force=false){
   }
 
   try{
-    await loadLearning(Boolean(force && state.learning));
+    // Si ya existe una analítica pero ha superado el TTL, forzamos una
+    // consulta real. Así Inicio se actualiza cada ~5 min, no cada 20 s.
+    const shouldForce=Boolean(force || (state.learning && !fresh));
+    await loadLearning(shouldForce);
     v741HomeAnalyticsAt=Date.now();
     renderHomeResearchPulse();
   }catch(e){
@@ -10058,7 +10061,7 @@ function renderLearningStudents(){
     <td><span class="analyticsBadge ${r.cls}" title="${esc(r.label)}">${r.icon}</span></td><td><b>${esc(x.full_name||x.student_code)}</b><div class="subtle">${esc(x.student_code||'')}</div></td>
     <td>${x.gym_sessions||0} sesiones<br><span class="subtle">${x.gym_answers||0} respuestas</span></td><td>${v69Minutes(x.gym_active_minutes||0)}</td>
     <td>${x.gym_accuracy_pct==null?'—':v69Num(x.gym_accuracy_pct,1)+'%'}</td><td>${x.gym_mastery_pct==null?'—':v69Num(x.gym_mastery_pct,1)+'%'}</td>
-    <td>${x.exam_passed||0}/${x.exam_count||0}</td><td>${x.exam_average==null?'—':v69Num(x.exam_average,2)+'/10'}</td><td>${gain}</td>
+    <td>${x.exam_passed||0}/${x.exam_count||0}</td><td>${x.exam_average==null?'—':v69Num(x.exam_average,2)+'/10'}${x._exam_recovered_t1?'<br><span class="subtle">EX1 recuperado</span>':''}</td><td>${gain}</td>
     <td>#${x.pp_rank||'—'}</td><td>#${x.gym_usage_rank||'—'}</td><td>#${x.gym_mastery_rank||'—'}</td><td><button class="btn primary" onclick="event.stopPropagation();openStudent('${esc(x.student_id)}')">Ficha</button></td></tr>`}).join('')||'<tr><td colspan="13" class="empty">Sin datos.</td></tr>';
   body.onclick=e=>{const tr=e.target.closest('tr[data-student-id]');if(tr)openStudent(tr.dataset.studentId)};
 }
