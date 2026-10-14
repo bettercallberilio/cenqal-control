@@ -5478,6 +5478,8 @@ function editChallenge(id){let c=state.challenges.find(x=>x.id==id);if(!c)return
 async function loadExams(force=false){
   if(state.exams.length&&!force){
     renderExams();
+    await loadRecoveredExamGradesV741(false).catch(e=>console.warn('EX1 recuperado:',e));
+    renderRecoveredExamGradesV741();
     return state.exams;
   }
 
@@ -5488,6 +5490,9 @@ async function loadExams(force=false){
 
   state.exams=d.rows||[];
   renderExams();
+
+  await loadRecoveredExamGradesV741(force).catch(e=>console.warn('EX1 recuperado:',e));
+  renderRecoveredExamGradesV741();
 
   return state.exams;
 }
@@ -9342,6 +9347,8 @@ async function loadLearning(force=false){
       loadAnonymousGymHistoryV738(false),
       loadStrategyRawV736(false)
     ]);
+    await loadRecoveredExamGradesV741(false);
+    applyRecoveredExamGradesV741();
     renderLearning();
     renderInitialAssessmentV692();
     renderPlayAnalyticsV735();
@@ -9363,6 +9370,8 @@ async function loadLearning(force=false){
       loadAnonymousGymHistoryV738(force),
       loadStrategyRawV736(force)
     ]);
+    await loadRecoveredExamGradesV741(force);
+    applyRecoveredExamGradesV741();
     renderLearning();
     renderInitialAssessmentV692();
     renderPlayAnalyticsV735();
