@@ -9038,7 +9038,6 @@ async function loadRecoveredExamGradesV741(force=false){
     !force &&
     now-Number(state.recoveredExamGradesLoadedAt||0)<120000
   ){
-    applyRecoveredExamGradesV741();
     renderRecoveredExamGradesV741();
     return state.recoveredExamGrades;
   }
@@ -9104,7 +9103,6 @@ async function loadRecoveredExamGradesV741(force=false){
   };
   state.recoveredExamGradesLoadedAt=now;
 
-  applyRecoveredExamGradesV741();
   renderRecoveredExamGradesV741();
 
   return state.recoveredExamGrades;
@@ -9130,6 +9128,9 @@ function applyRecoveredExamGradesV741(){
   const rg=state.recoveredExamGrades;
   const d=state.learning;
   if(!rg||!Array.isArray(rg.rows)||!d)return;
+
+  const marker=String(rg.loaded_at||'');
+  if(marker && d._v741_recovered_applied===marker)return;
 
   const byKey=new Map();
   for(const x of rg.rows){
@@ -9292,6 +9293,8 @@ function applyRecoveredExamGradesV741(){
 
     state.strategyRaw.exams=[...keep,...synthetic];
   }
+
+  if(marker)d._v741_recovered_applied=marker;
 }
 
 function renderRecoveredExamGradesV741(){
