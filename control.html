@@ -9551,6 +9551,31 @@ function renderDataQualityV740(){
     (recoveredFailures?'<div class="note warn" style="margin-top:10px"><b>Cobertura gradebook:</b> no se pudieron leer '+recoveredFailures+' ficha(s) al comprobar EX1.</div>':'');
 }
 
+let v741HomeAnalyticsAt=0;
+const V741_HOME_ANALYTICS_TTL_MS=5*60*1000;
+
+async function v741RefreshHomeResearchPulse(force=false){
+  const now=Date.now();
+  const fresh=state.learning && (now-v741HomeAnalyticsAt)<V741_HOME_ANALYTICS_TTL_MS;
+
+  if(fresh && !force){
+    renderHomeResearchPulse();
+    return;
+  }
+
+  try{
+    await loadLearning(Boolean(force && state.learning));
+    v741HomeAnalyticsAt=Date.now();
+    renderHomeResearchPulse();
+  }catch(e){
+    console.warn('CENQAL v74.1 home pulse:',e);
+    const box=document.getElementById('homeResearchPulse');
+    if(box && !state.learning){
+      box.innerHTML='<div class="note warn">No se ha podido actualizar todavía el pulso analítico. El resto del Control sigue disponible.</div>';
+    }
+  }
+}
+
 function renderHomeResearchPulse(){
   const box=document.getElementById('homeResearchPulse');
   if(!box)return;
@@ -10312,7 +10337,8 @@ async function v733RefreshActiveView(force=true){
       case 'home':
         await Promise.allSettled([
           refreshSnapshot(),
-          loadTeacherAgenda(true)
+          loadTeacherAgenda(true),
+          v741RefreshHomeResearchPulse(false)
         ]);
         break;
 
@@ -10458,6 +10484,7 @@ startPanel=async function(){
   const shell=document.getElementById('appShell');
   if(TOKEN && shell && !shell.classList.contains('appHidden')){
     v733StartLiveRefresh();
+    setTimeout(()=>v741RefreshHomeResearchPulse(false),120);
   }
 };
 
