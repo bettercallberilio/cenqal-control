@@ -9582,6 +9582,9 @@ async function generateLearningExecutiveActa(){
   const total=Number(sum.students||d.students?.length||0);
   const linked=Number(state.snapshot?.metrics?.linked_students||0);
   const anon=Number(state.anonymousGymHistory?.summary?.responses||0);
+  const recoveredExamRows=state.recoveredExamGrades?.rows||[];
+  const recoveredExamCount=recoveredExamRows.length;
+  const recoveredExamExpected=Number(state.recoveredExamGrades?.expected_students||0);
   const play=state.playAnalytics?.summary||{};
   const topicEffort=v740TopicEffortRows();
   const topicLearning=d.topics||[];
@@ -9642,7 +9645,11 @@ async function generateLearningExecutiveActa(){
     data_quality:{
       measured_sessions:measuredSessions,
       estimated_sessions:estimatedSessions,
-      anonymous_gym_responses:anon
+      anonymous_gym_responses:anon,
+      recovered_exam_1_grades:recoveredExamCount,
+      recovered_exam_1_expected:recoveredExamExpected,
+      recovered_exam_1_item_code:'WEXAM:T1:MANUAL',
+      recovered_exam_1_traceability:'score available; item-level technical trace unavailable'
     },
     intervention_signals:{
       total:alerts.length,
@@ -9723,6 +9730,9 @@ async function generateLearningExecutiveActa(){
   if(highAlerts.length){
     conclusions.push('Intervención docente: '+highAlerts.length+' estudiante(s) presentan señales de prioridad 2 o superior que justifican revisión docente individual.');
   }
+  if(recoveredExamCount){
+    conclusions.push('EX1: '+recoveredExamCount+'/'+(recoveredExamExpected||total)+' calificaciones se recuperaron tras la incidencia técnica y se utilizan como resultado válido del examen. No se reconstruyen respuestas ni aciertos inexistentes.');
+  }
   conclusions.push('Calidad del dato: '+measuredSessions+' sesiones Gym tienen tiempo medido por heartbeat v73 y '+estimatedSessions+' conservan tiempo estimado/legado. '+anon+' respuestas históricas permanecen anónimas.');
 
   const w=window.open('','_blank');
@@ -9764,6 +9774,9 @@ async function generateLearningExecutiveActa(){
     '<div class="pagebreak"></div>'+
     '<h2>3. Aprendizaje y rendimiento por tema</h2>'+
     '<table><thead><tr><th>Tema</th><th>Resp. Gym</th><th>Acierto</th><th>Dominio</th><th>Error persist.</th><th>Examen</th></tr></thead><tbody>'+learningRows+'</tbody></table>'+
+    (recoveredExamCount
+      ?'<div class="note"><b>EX1 · trazabilidad:</b> '+recoveredExamCount+' calificaciones proceden de recuperación docente tras una incidencia de registro. La nota se conserva y se usa en Analytics; las respuestas técnicas del intento no se reconstruyen.</div>'
+      :'')+
 
     '<h2>4. Dificultad de contenidos</h2>'+
     '<table><thead><tr><th>Rango</th><th>Tema</th><th>Índice</th><th>Acierto</th><th>Dominio</th><th>Error persist.</th><th>s/respuesta</th></tr></thead><tbody>'+(diffTable||'<tr><td colspan="7">No hay todavía al menos dos temas con cobertura suficiente para calcular el índice descriptivo.</td></tr>')+'</tbody></table>'+
@@ -9776,10 +9789,10 @@ async function generateLearningExecutiveActa(){
     '<div class="grid">'+
       '<div class="k">Sesiones medidas<b>'+measuredSessions+'</b></div>'+
       '<div class="k">Sesiones estimadas<b>'+estimatedSessions+'</b></div>'+
-      '<div class="k">Histórico anónimo<b>'+anon+'</b></div>'+
+      '<div class="k">EX1 recuperado<b>'+recoveredExamCount+'/'+(recoveredExamExpected||total)+'</b></div>'+
       '<div class="k">Telegram vinculado<b>'+linked+'/'+total+'</b></div>'+
     '</div>'+
-    '<p>La actividad anónima histórica se conserva únicamente de forma agregada y no se atribuye retrospectivamente a ningún alumno.</p>'+
+    '<p>La actividad anónima histórica se conserva únicamente de forma agregada. EX1 conserva la calificación recuperada y documenta por separado la pérdida de trazabilidad técnica.</p>'+
 
     '<h2>Conclusiones descriptivas del corte</h2>'+
     '<ol>'+conclusions.slice(0,6).map(x=>'<li>'+esc(x)+'</li>').join('')+'</ol>'+
