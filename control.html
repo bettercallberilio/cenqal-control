@@ -8342,8 +8342,12 @@ function v736DifficultyRows(){
 
   for(const x of descriptive){
     out.push({
+      kind:'topic_index',
       source:'Gym · tema',
       concept:'Tema '+x.topic_number,
+      topic_number:Number(x.topic_number),
+      difficulty_index:v736Num(x.difficulty_index),
+      difficulty_rank:Number(x.difficulty_rank||999),
       accuracy:v736Num(x.accuracy_pct),
       n:Number(x.responses||0),
       detail:'Índice dificultad '+v69Num(x.difficulty_index,1)+'/100 · '+v69Num(x.active_hours||0,2)+' h activas'
@@ -8358,6 +8362,7 @@ function v736DifficultyRows(){
       const n=Number(c.responses||0);
       if(acc!=null&&n>0){
         out.push({
+          kind:'concept',
           source:'Gym · concepto',
           concept:c.concept||'—',
           accuracy:acc,
@@ -8372,8 +8377,10 @@ function v736DifficultyRows(){
       const n=Number(t.gym_attempts||0);
       if(acc!=null&&n>0){
         out.push({
+          kind:'topic_accuracy',
           source:'Gym',
           concept:`Tema ${t.topic_number}`,
+          topic_number:Number(t.topic_number),
           accuracy:acc,
           n,
           detail:`Dominio ${t.mastery_pct==null?'—':v69Num(t.mastery_pct,1)+'%'}`
@@ -8387,6 +8394,7 @@ function v736DifficultyRows(){
     const n=Number(c.responses||0);
     if(acc!=null&&n>0){
       out.push({
+        kind:'concept',
         source:'Play',
         concept:c.concept_key||'Concepto',
         accuracy:acc,
@@ -8395,7 +8403,17 @@ function v736DifficultyRows(){
       });
     }
   }
-  return out.sort((a,b)=>a.accuracy-b.accuracy||b.n-a.n);
+
+  // Regla v74.1:
+  // el "tema de mayor dificultad" se decide por el índice compuesto v73.
+  // Los conceptos se ordenan después, por menor acierto, como diagnóstico fino.
+  return out.sort((a,b)=>{
+    const ga=a.kind==='topic_index'?0:1;
+    const gb=b.kind==='topic_index'?0:1;
+    if(ga!==gb)return ga-gb;
+    if(ga===0)return Number(a.difficulty_rank||999)-Number(b.difficulty_rank||999);
+    return Number(a.accuracy??999)-Number(b.accuracy??999)||Number(b.n||0)-Number(a.n||0);
+  });
 }
 
 function v736WeeklyRows(){
