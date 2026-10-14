@@ -8482,7 +8482,7 @@ function renderStrategyV736(){
     metric('📲 Uso digital',digitalUsers,total?`${Math.round(100*digitalUsers/total)}% del grupo`:'alumnos con actividad'),
     metric('🔁 Gym + Play',both,total?`${Math.round(100*both/total)}% del grupo`:'usan ambos recursos'),
     metric('🚨 Revisión prioritaria',highPriority,`${alerts.rows.length} señales totales`),
-    metric('🎯 Dificultad principal',difficulties[0]?`${v69Num(difficulties[0].accuracy,1)}%`:'—',difficulties[0]?`${difficulties[0].source} · ${difficulties[0].concept}`:'sin datos')
+    metric('🎯 Dificultad principal',difficulties[0]?(difficulties[0].difficulty_index==null?`${v69Num(difficulties[0].accuracy,1)}%`:`${v69Num(difficulties[0].difficulty_index,1)}/100`):'—',difficulties[0]?`${difficulties[0].source} · ${difficulties[0].concept}`:'sin datos')
   ].join('');
 
   v69Chart('strategyWeekly','strategyWeeklyChart',{
@@ -8550,12 +8550,12 @@ y2:{beginAtZero:true,max:10,position:'right',grid:{drawOnChartArea:false},title:
 
   document.getElementById('strategyDifficulties').innerHTML=difficulties.length
     ?tableHTML(
-      ['#','Fuente','Concepto / tema','Acierto','n','Contexto'],
+      ['#','Fuente','Concepto / tema','Índice / acierto','n','Contexto'],
       difficulties.slice(0,15).map((x,i)=>[
         i+1,
         x.source,
         x.concept,
-        `${v69Num(x.accuracy,1)}%`,
+        x.difficulty_index==null?`${v69Num(x.accuracy,1)}%`:`${v69Num(x.difficulty_index,1)}/100`,
         x.n,
         x.detail
       ])
@@ -9546,12 +9546,19 @@ function renderHomeResearchPulse(){
   const priority=(state.strategyComputed?.alerts||[]).filter(x=>Number(x.priority)>=2).length;
   const diff=state.strategyComputed?.difficulties?.[0];
   const anon=Number(state.anonymousGymHistory?.summary?.responses||0);
+  const recovered=Number(state.recoveredExamGrades?.rows?.length||0);
+  const diffValue=diff
+    ?(diff.difficulty_index==null?v69Num(diff.accuracy,1)+'%':v69Num(diff.difficulty_index,1)+'/100')
+    :'';
 
   box.innerHTML=
     '<div class="note '+(priority?'danger':'')+'"><b>🚨 Revisión docente</b><br>'+(priority?priority+' alumno(s) con señales de atención':'Sin señales prioritarias calculadas')+'</div>'+
     '<div class="note"><b>📲 Adopción</b><br>Gym '+gym+'/'+(total||'—')+' · Play '+play+'/'+(total||'—')+'</div>'+
-    '<div class="note '+(diff?'warn':'')+'"><b>🎯 Mayor dificultad observada</b><br>'+(diff?esc(diff.source+' · '+diff.concept+' · '+v69Num(diff.accuracy,1)+'%'):'Sin datos suficientes')+'</div>'+
-    '<div class="note '+(anon?'warn':'')+'"><b>🧬 Calidad del dato</b><br>'+(anon?anon+' respuestas históricas anónimas':'Sin actividad anónima histórica')+'</div>';
+    '<div class="note '+(diff?'warn':'')+'"><b>🎯 Mayor dificultad observada</b><br>'+(diff?esc(diff.source+' · '+diff.concept+' · '+diffValue):'Sin datos suficientes')+'</div>'+
+    '<div class="note '+((anon||recovered)?'warn':'')+'"><b>🧬 Calidad del dato</b><br>'+
+      (recovered?recovered+' notas EX1 recuperadas · ':'')+
+      (anon?anon+' respuestas Gym históricas anónimas':'sin pérdida anónima adicional')+
+    '</div>';
 }
 
 async function generateLearningExecutiveActa(){
@@ -9797,7 +9804,7 @@ function renderLearning(){
     metric('⏱ Tiempo Gym',v69Minutes(sum.gym_active_minutes||0),`mediana sesión ${v69Num(sum.median_session_active_minutes,0)} min`),
     metric('🎮 Usuarios Play',ps.students??0,`${ps.completed??0} intentos completados`),
     metric('🔬 Transferencia Play',ps.transfer_average==null?'—':`${v69Num(ps.transfer_average,1)}%`,'media de actividades completadas'),
-    metric('🎓 Media examen',sum.exam_average==null?'—':`${v69Num(sum.exam_average,2)}/10`,'T1–T8 con resultado'),
+    metric('🎓 Media examen',sum.exam_average==null?'—':`${v69Num(sum.exam_average,2)}/10`,sum.recovered_exam_grades?`${sum.recovered_exam_grades} EX1 recuperadas · T1–T8`:'T1–T8 con resultado'),
     metric('🧭 PRE / POST',`${preVals.length} / ${postVals.length}`,paired?`${paired} alumnos emparejados`:'línea base PRE disponible')
   ].join('');
 
