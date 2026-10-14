@@ -9503,6 +9503,9 @@ function renderDataQualityV740(){
   const play=Number(state.playAnalytics?.summary?.students||0);
   const linked=Number(state.snapshot?.metrics?.linked_students||0);
   const anon=Number(state.anonymousGymHistory?.summary?.responses||0);
+  const recovered=Number(state.recoveredExamGrades?.rows?.length||0);
+  const recoveredExpected=Number(state.recoveredExamGrades?.expected_students||0);
+  const recoveredFailures=Number(state.recoveredExamGrades?.failures?.length||0);
   const v73=state.gymTopicsV73||{};
   const measuredSessions=(v73.topics||[]).reduce((a,x)=>a+Number(x.measured_sessions||0),0);
   const estimatedSessions=(v73.topics||[]).reduce((a,x)=>a+Number(x.estimated_sessions||0),0);
