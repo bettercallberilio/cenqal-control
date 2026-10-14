@@ -8971,6 +8971,367 @@ function renderAnonymousGymHistoryV738(){
 }
 
 
+
+/* =========================================================
+   CENQAL v74.1 · EX1 RECUPERADO TRAS INCIDENCIA TÉCNICA
+   - La calificación real está en gradebook: WEXAM:T1:MANUAL.
+   - NO reconstruye respuestas ni intentos técnicos inexistentes.
+   - Se usa en Learning Analytics como resultado válido del examen.
+   - WEEKLY_EXAMS continúa con peso 0% en la nota final del curso.
+========================================================= */
+
+function v741GradeNumber(g){
+  if(!g||typeof g!=='object')return null;
+  const raw=g.effective_score??g.teacher_override_score??g.score_out_of_10;
+  const n=Number(raw);
+  return Number.isFinite(n)&&n>=0&&n<=10?n:null;
+}
+
+function v741RecoveredExamGradeFromWorkspace(ws){
+  const grades=ws?.analytics?.grades||[];
+  let g=grades.find(x=>String(x?.item_code||'').toUpperCase()==='WEXAM:T1:MANUAL');
+
+  if(!g){
+    g=grades.find(x=>{
+      const src=String(x?.source_type||'').toLowerCase();
+      const code=String(x?.item_code||'').toUpperCase();
+      const title=String(x?.item_title||x?.title||'').toUpperCase();
+      const topic=Number(x?.topic_number);
+      return src==='manual' &&
+        (topic===1 || code.includes('WEXAM:T1') || title.includes('TEMA 1') || title.includes('EXAMEN 1'));
+    });
+  }
+
+  const score=v741GradeNumber(g);
+  if(!g||score==null)return null;
+
+  return {
+    score,
+    item_code:g.item_code||'WEXAM:T1:MANUAL',
+    item_title:g.item_title||g.title||'Examen semanal · Tema 1',
+    component_code:g.component_code||'WEEKLY_EXAMS',
+    source_type:g.source_type||'manual',
+    graded_at:g.graded_at||g.created_at||g.updated_at||null,
+    teacher_feedback:g.teacher_feedback||null
+  };
+}
+
+function v741StudentKey(x){
+  if(!x)return '';
+  if(x.student_id!=null)return 'id:'+String(x.student_id);
+  if(x.id!=null)return 'id:'+String(x.id);
+  if(x.student_code)return 'code:'+String(x.student_code).toLowerCase();
+  if(x.telegram_user_id!=null)return 'tg:'+String(x.telegram_user_id);
+  return '';
+}
+
+async function loadRecoveredExamGradesV741(force=false){
+  const now=Date.now();
+
+  if(
+    state.recoveredExamGrades &&
+    !force &&
+    now-Number(state.recoveredExamGradesLoadedAt||0)<120000
+  ){
+    applyRecoveredExamGradesV741();
+    renderRecoveredExamGradesV741();
+    return state.recoveredExamGrades;
+  }
+
+  await loadStudents(false);
+
+  const students=(state.students||[]).filter(x=>x.active!==false);
+  const rows=[];
+  const failures=[];
+
+  // Evitamos disparar todas las fichas a la vez.
+  for(let i=0;i<students.length;i+=3){
+    const chunk=students.slice(i,i+3);
+    const results=await Promise.all(
+      chunk.map(async s=>{
+        try{
+          const ws=await rpc(
+            'cenqal_control_student_workspace',
+            {p_token:TOKEN,p_student_id:s.id}
+          );
+          return {student:s,workspace:ws};
+        }catch(e){
+          return {student:s,error:e};
+        }
+      })
+    );
+
+    for(const r of results){
+      if(r.error){
+        failures.push({
+          student_id:r.student?.id||null,
+          student_code:r.student?.student_code||null,
+          error:r.error?.message||String(r.error)
+        });
+        continue;
+      }
+
+      const grade=v741RecoveredExamGradeFromWorkspace(r.workspace);
+      if(!grade)continue;
+
+      const st=r.workspace?.student||r.student||{};
+      rows.push({
+        student_id:st.id||r.student?.id||null,
+        student_code:st.student_code||r.student?.student_code||null,
+        full_name:st.full_name||r.student?.full_name||r.student?.student_code||'Alumno',
+        telegram_user_id:st.telegram_user_id??r.student?.telegram_user_id??null,
+        topic_number:1,
+        exam_date:'2026-10-02',
+        traceability:'CALIFICACION_RECUPERADA',
+        ...grade
+      });
+    }
+  }
+
+  state.recoveredExamGrades={
+    version:'v74.1',
+    item_code:'WEXAM:T1:MANUAL',
+    incident:'EX1_T1_TELEMETRY_LOSS',
+    expected_students:students.length,
+    rows,
+    failures,
+    loaded_at:new Date().toISOString()
+  };
+  state.recoveredExamGradesLoadedAt=now;
+
+  applyRecoveredExamGradesV741();
+  renderRecoveredExamGradesV741();
+
+  return state.recoveredExamGrades;
+}
+
+function v741TechnicalExamRowsForStudent(student,topic=1){
+  const raw=state.strategyRaw?.exams||[];
+  const sid=String(student?.student_id??student?.id??'');
+  const code=String(student?.student_code||'').toLowerCase();
+  const tg=String(student?.telegram_user_id??'');
+
+  return raw.filter(e=>{
+    const sameStudent=
+      (sid && String(e?.student_id??'')===sid) ||
+      (code && String(e?.student_code||'').toLowerCase()===code) ||
+      (tg && String(e?.telegram_user_id??'')===tg);
+
+    return sameStudent && Number(e?.topic_number)===Number(topic);
+  });
+}
+
+function applyRecoveredExamGradesV741(){
+  const rg=state.recoveredExamGrades;
+  const d=state.learning;
+  if(!rg||!Array.isArray(rg.rows)||!d)return;
+
+  const byKey=new Map();
+  for(const x of rg.rows){
+    const keys=[
+      x.student_id!=null?'id:'+String(x.student_id):'',
+      x.student_code?'code:'+String(x.student_code).toLowerCase():'',
+      x.telegram_user_id!=null?'tg:'+String(x.telegram_user_id):''
+    ].filter(Boolean);
+    keys.forEach(k=>byKey.set(k,x));
+  }
+
+  const findGrade=s=>{
+    const keys=[
+      s?.student_id!=null?'id:'+String(s.student_id):'',
+      s?.id!=null?'id:'+String(s.id):'',
+      s?.student_code?'code:'+String(s.student_code).toLowerCase():'',
+      s?.telegram_user_id!=null?'tg:'+String(s.telegram_user_id):''
+    ].filter(Boolean);
+    for(const k of keys){
+      if(byKey.has(k))return byKey.get(k);
+    }
+    return null;
+  };
+
+  // Ajuste por alumno: sustituimos cualquier T1 técnico puntuado por
+  // la calificación recuperada y preservamos los demás temas.
+  for(const s of d.students||[]){
+    const g=findGrade(s);
+    if(!g)continue;
+
+    const techT1=v741TechnicalExamRowsForStudent(s,1)
+      .map(x=>v736ExamScore(x))
+      .filter(x=>x!=null);
+
+    const oldCount=Number(s.exam_count||0);
+    const oldAvg=v736Num(s.exam_average);
+    const oldPassed=Number(s.exam_passed||0);
+
+    const technicalCount=techT1.length;
+    const technicalSum=techT1.reduce((a,b)=>a+b,0);
+    const technicalPassed=techT1.filter(x=>x>=5).length;
+
+    const oldSum=oldAvg==null?0:oldAvg*oldCount;
+    const newCount=Math.max(0,oldCount-technicalCount)+1;
+    const newSum=Math.max(0,oldSum-technicalSum)+Number(g.score);
+
+    s.exam_count=newCount;
+    s.exam_average=newCount?newSum/newCount:null;
+    s.exam_passed=Math.max(0,oldPassed-technicalPassed)+(Number(g.score)>=5?1:0);
+    s._exam_recovered_t1=true;
+    s._exam_recovered_t1_score=Number(g.score);
+    s._exam_recovered_source='gradebook:WEXAM:T1:MANUAL';
+  }
+
+  // Ajuste del tema 1.
+  const t1=(d.topics||[]).find(x=>Number(x.topic_number)===1);
+  if(t1 && rg.rows.length){
+    const rawT1=state.strategyRaw?.exams||[];
+    const technicalScores=rawT1
+      .filter(x=>Number(x?.topic_number)===1)
+      .map(x=>v736ExamScore(x))
+      .filter(x=>x!=null);
+
+    const oldCount=Number(t1.exam_count||0);
+    const oldAvg=v736Num(t1.exam_average);
+    const oldSum=oldAvg==null?0:oldAvg*oldCount;
+    const technicalSum=technicalScores.reduce((a,b)=>a+b,0);
+
+    const count=Math.max(0,oldCount-technicalScores.length)+rg.rows.length;
+    const sum=Math.max(0,oldSum-technicalSum)+rg.rows.reduce((a,x)=>a+Number(x.score||0),0);
+
+    t1.exam_count=count;
+    t1.exam_average=count?sum/count:null;
+    t1._exam_recovered_count=rg.rows.length;
+  }
+
+  // Resumen del grupo recalculado a partir de la capa individual ya corregida.
+  const examVals=(d.students||[])
+    .map(x=>v736Num(x.exam_average))
+    .filter(x=>x!=null);
+
+  if(d.summary){
+    d.summary.exam_average=examVals.length
+      ?examVals.reduce((a,b)=>a+b,0)/examVals.length
+      :null;
+    d.summary.recovered_exam_grades=rg.rows.length;
+  }
+
+  // Export Gym↔examen: para T1 mantenemos una sola fila por alumno,
+  // conservando la telemetría Gym previa cuando exista.
+  if(Array.isArray(d.exam_gym) && rg.rows.length){
+    const untouched=d.exam_gym.filter(x=>Number(x?.topic_number)!==1);
+    const oldT1=d.exam_gym.filter(x=>Number(x?.topic_number)===1);
+
+    const recoveredRows=rg.rows.map(g=>{
+      const base=oldT1.find(x=>{
+        return (
+          (g.student_id!=null && String(x?.student_id??'')===String(g.student_id)) ||
+          (g.student_code && String(x?.student_code||'').toLowerCase()===String(g.student_code).toLowerCase()) ||
+          (g.telegram_user_id!=null && String(x?.telegram_user_id??'')===String(g.telegram_user_id))
+        );
+      })||{};
+
+      return {
+        ...base,
+        student_id:g.student_id??base.student_id??null,
+        telegram_user_id:g.telegram_user_id??base.telegram_user_id??null,
+        student_code:g.student_code??base.student_code??null,
+        full_name:g.full_name??base.full_name??null,
+        topic_number:1,
+        exam_id:'RECOVERED:T1',
+        exam_code:'WEXAM:T1:MANUAL',
+        exam_at:'2026-10-02',
+        score_out_of_10:Number(g.score),
+        exam_source:'recovered_teacher_grade',
+        traceability:'calificación real recuperada; detalle técnico del intento no disponible'
+      };
+    });
+
+    d.exam_gym=[...untouched,...recoveredRows];
+  }
+
+  // Evolución semanal: añadimos una única observación válida de T1 por alumno.
+  if(state.strategyRaw && Array.isArray(state.strategyRaw.exams)){
+    const recoveredKeys=new Set(rg.rows.map(x=>[
+      x.student_id!=null?'id:'+String(x.student_id):'',
+      x.student_code?'code:'+String(x.student_code).toLowerCase():'',
+      x.telegram_user_id!=null?'tg:'+String(x.telegram_user_id):''
+    ].filter(Boolean).join('|')));
+
+    const keep=state.strategyRaw.exams.filter(e=>{
+      if(Number(e?.topic_number)!==1)return true;
+      const score=v736ExamScore(e);
+      if(score==null)return true;
+
+      const keys=[
+        e?.student_id!=null?'id:'+String(e.student_id):'',
+        e?.student_code?'code:'+String(e.student_code).toLowerCase():'',
+        e?.telegram_user_id!=null?'tg:'+String(e.telegram_user_id):''
+      ].filter(Boolean).join('|');
+
+      return !recoveredKeys.has(keys);
+    });
+
+    const synthetic=rg.rows.map(g=>({
+      student_id:g.student_id,
+      telegram_user_id:g.telegram_user_id,
+      student_code:g.student_code,
+      full_name:g.full_name,
+      topic_number:1,
+      exam_id:'RECOVERED:T1',
+      exam_code:'WEXAM:T1:MANUAL',
+      exam_title:'Examen semanal · Tema 1 · calificación recuperada',
+      exam_date:'2026-10-02',
+      status:'recovered',
+      score_out_of_10:Number(g.score),
+      source_type:'manual',
+      traceability:'telemetría técnica no registrada'
+    }));
+
+    state.strategyRaw.exams=[...keep,...synthetic];
+  }
+}
+
+function renderRecoveredExamGradesV741(){
+  const box=document.getElementById('examRecoveredGradesV741');
+  if(!box)return;
+
+  const d=state.recoveredExamGrades;
+  if(!d){
+    box.innerHTML='<div class="empty">No se ha comprobado todavía el gradebook de EX1.</div>';
+    return;
+  }
+
+  const rows=d.rows||[];
+  const expected=Number(d.expected_students||0);
+  const ok=expected>0 && rows.length===expected;
+  const allTen=rows.length>0 && rows.every(x=>Number(x.score)===10);
+
+  box.innerHTML=
+    '<div class="sectionTitle"><div>'+
+      '<h3>🧾 EX1 · calificación real recuperada</h3>'+
+      '<p>Incidencia técnica: el examen no conservó la trazabilidad necesaria. Se mantienen las notas reales recuperadas y validadas por la profesora.</p>'+
+    '</div><span class="status '+(ok?'ok':'warn')+'">'+rows.length+'/'+expected+' alumnos</span></div>'+
+    '<div class="metrics grid" style="margin-top:12px">'+
+      metric('🎓 Notas recuperadas',rows.length,allTen?'todas 10/10':'escala 0–10')+
+      metric('🧪 Intento técnico','No reconstruido','se conserva la incidencia')+
+      metric('📊 Uso en Analytics',rows.length?'Sí':'Pendiente','sustituye T1 técnico cuando falta')+
+      metric('⚖️ Peso final','0%','WEEKLY_EXAMS no modifica la nota final del curso')+
+    '</div>'+
+    (rows.length
+      ?tableHTML(
+        ['Alumno','Código','Nota','Origen','Trazabilidad'],
+        rows.map(x=>[
+          x.full_name||'Alumno',
+          x.student_code||'—',
+          v69Num(x.score,2)+'/10',
+          'Recuperación docente',
+          'Nota real disponible · respuestas técnicas no reconstruidas'
+        ])
+      )
+      :'<div class="note warn" style="margin-top:10px">No se ha encontrado WEXAM:T1:MANUAL en las fichas del alumnado.</div>')+
+    ((d.failures||[]).length
+      ?'<div class="note warn" style="margin-top:10px">No se pudieron leer '+d.failures.length+' ficha(s) al comprobar el gradebook.</div>'
+      :'');
+}
+
 async function loadLearning(force=false){
   if(state.learning&&!force){
     await Promise.all([
