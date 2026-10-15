@@ -1221,7 +1221,18 @@ details.card>.detailBody{padding:0 16px 16px}
       <div class="viewHeader"><div><h2>🏆 Ranking de Prestigio y economía</h2><p>La posición depende exclusivamente de los PP: +100 PP por cada prueba semanal T1–T8 aprobada. Los Óganesones son moneda y no alteran el ranking.</p></div><button class="btn" onclick="loadGame(true)">↻ Actualizar</button></div>
       <div class="note warn" style="margin-bottom:12px">Control de coherencia: se compara el marcador PP con las pruebas aprobadas registradas. Las diferencias nunca se corrigen automáticamente; cualquier corrección exige motivo, confirmación y queda en Auditoría.</div>
       <div id="gameMetrics" class="cards"></div>
-      <div class="card"><div class="tablewrap"><table class="table"><thead><tr><th>Pos.</th><th>Código</th><th>Alumno</th><th>Pruebas aprob.</th><th>PP actuales</th><th>PP de referencia</th><th>Control</th><th>Og</th><th>Medallas</th><th>Nivel</th><th></th></tr></thead><tbody id="gameBody"></tbody></table></div></div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="sectionTitle">
+          <div>
+            <h3>🪙 Economía de Óganesones</h3>
+            <p>Visualización acumulada por alumno: obtenidos, gastados y saldo actual. El ranking académico sigue dependiendo solo de PP.</p>
+          </div>
+          <button class="btn" onclick="loadOgEconomyV741(true)">↻ Actualizar Og</button>
+        </div>
+        <div id="ogEconomyMetricsV741" class="metrics grid" style="margin-top:12px"></div>
+        <div id="ogEconomyTableV741" style="margin-top:12px"><div class="empty">Cargando economía de Óganesones…</div></div>
+      </div>
+      <div class="card"><div class="tablewrap"><table class="table"><thead><tr><th>Pos.</th><th>Código</th><th>Alumno</th><th>Pruebas aprob.</th><th>PP actuales</th><th>PP de referencia</th><th>Control</th><th>Saldo Og</th><th>Medallas</th><th>Nivel</th><th></th></tr></thead><tbody id="gameBody"></tbody></table></div></div>
     </section>
 
     <section class="view" id="view-evidence">
@@ -1334,6 +1345,7 @@ let state={
   studentGymAdvanced:null,
   studentPlay:null,
   playControl:null,
+  ogEconomyV741:null,
   recoveredExamGrades:null,
   recoveredExamGradesLoadedAt:0,
   currentStudentId:null,
