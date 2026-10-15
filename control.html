@@ -1930,6 +1930,7 @@ function clearCourseScopedState(){
   state.challenges=[];
   state.exams=[];
   state.game=[];
+state.ogEconomyV741=null;
   state.evidence=[];
   state.audit=[];
   state.courses=[];
@@ -6103,6 +6104,7 @@ async function showAtlasHistoryV735(id){
 async function loadGame(force=false){
   if(state.game.length&&!force){
     renderGame();
+    await loadOgEconomyV741(false).catch(e=>console.warn('Og economy:',e));
     return state.game;
   }
 
@@ -6114,6 +6116,7 @@ async function loadGame(force=false){
 
   state.game=d.rows||[];
   renderGame();
+  await loadOgEconomyV741(force).catch(e=>console.warn('Og economy:',e));
 
   return state.game;
 }
@@ -6450,6 +6453,7 @@ function adjustGame(code,name,suggestedPP=0){
         );
 
         state.game=[];
+state.ogEconomyV741=null;
 
         await loadGame(true);
 
@@ -6920,6 +6924,7 @@ async function refreshAll(){
   state.challenges=[];
   state.exams=[];
   state.game=[];
+state.ogEconomyV741=null;
   state.evidence=[];
   state.audit=[];
   state.courses=[];
