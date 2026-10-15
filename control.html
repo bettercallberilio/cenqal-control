@@ -1197,7 +1197,7 @@ details.card>.detailBody{padding:0 16px 16px}
       <div class="note warn" style="margin-bottom:12px">Preparar, abrir, cerrar o liberar revisión continúa realizándose con <b>/examen</b>. Un examen <b>closed</b> debe permanecer cerrado. La <b>calificación real del examen</b> se mantiene separada de la telemetría técnica. Cuando una nota ha sido recuperada tras una incidencia, se usa en Learning Analytics sin reconstruir respuestas inexistentes.</div>
       <div id="examRecoveredGradesV741" class="card" style="margin-bottom:12px"><span class="loader"></span> Comprobando calificaciones reales recuperadas…</div>
       <div id="examTopicResults" class="card" style="margin-bottom:12px"></div>
-      <div class="card"><div class="sectionTitle" style="margin-bottom:10px"><div><h3>Histórico técnico de convocatorias</h3><p>Se muestran todas las convocatorias existentes, aunque pertenezcan al mismo tema.</p></div></div><div class="tablewrap"><table class="table"><thead><tr><th>Código</th><th>Tema</th><th>Título</th><th>Estado</th><th>Apertura</th><th>Cierre</th><th>Resultado académico</th></tr></thead><tbody id="examsBody"></tbody></table></div></div>
+      <div class="card"><div class="sectionTitle" style="margin-bottom:10px"><div><h3>Histórico técnico de convocatorias</h3><p>Se muestran todas las convocatorias existentes, aunque pertenezcan al mismo tema.</p></div></div><div class="tablewrap"><table class="table"><thead><tr><th>Código</th><th>Tema</th><th>Título</th><th>Estado</th><th>Apertura</th><th>Cierre</th><th>Seguimiento APTO/NO APTO</th></tr></thead><tbody id="examsBody"></tbody></table></div></div>
     </section>
 
     <section class="view" id="view-groups">
@@ -5559,7 +5559,7 @@ function renderExamTopicResults(){
             </div>
             <div>
               ${allowed
-                ?`<button class="btn primary" onclick="openExamManualResults(${topic})">Resultados T${topic}</button>`
+                ?`<button class="btn" onclick="openExamManualResults(${topic})">Seguimiento T${topic}</button>`
                 :'<span class="subtle">Bloqueado hasta cierre</span>'}
             </div>
           </div>`;
@@ -5589,7 +5589,7 @@ function renderExams(){
           <td>${fmtDate(e.closed_at)}</td>
           <td>
             ${allowed
-              ?`<span class="subtle">Gestionado en Resultados T${esc(topic)}</span>`
+              ?`<span class="subtle">Gestionado en Seguimiento T${esc(topic)}</span>`
               :'<span class="subtle">Bloqueado hasta cierre</span>'}
           </td>
         </tr>`;
@@ -5685,7 +5685,7 @@ function renderExamManualResultsModal(){
     </div>
 
     <div class="note" style="margin:12px 0">
-      Registro docente independiente de los intentos técnicos del examen. Aquí solo se guarda <b>APTO</b> o <b>NO APTO</b>; si no existe registro, el alumno aparece como <b>Pendiente</b>. No se genera nota /10 ni PP automático.
+      Seguimiento docente auxiliar independiente de la calificación. Aquí solo se guarda <b>APTO</b> o <b>NO APTO</b>; no sustituye la nota real /10, no modifica los intentos técnicos y no concede PP automáticamente.
     </div>
 
     <div class="tablewrap">
