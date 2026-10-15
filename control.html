@@ -6140,6 +6140,153 @@ function gameIsActive(g){
   return !!(s&&s.active!==false);
 }
 
+
+function v741OgRowFromWorkspace(student,workspace){
+  const events=Array.isArray(workspace?.gamification_events)
+    ?workspace.gamification_events
+    :[];
+  const profile=workspace?.gamification_profile||workspace?.official_gamification_profile||{};
+
+  let earned=0;
+  let spent=0;
+  let movements=0;
+
+  for(const ev of events){
+    const delta=Number(ev?.oganeson_delta||0);
+    if(!Number.isFinite(delta)||delta===0)continue;
+    movements++;
+    if(delta>0)earned+=delta;
+    else spent+=Math.abs(delta);
+  }
+
+  const balance=Number(profile.oganeson_balance??0);
+  const computed=earned-spent;
+  const hasLedger=events.length>0 || balance===0;
+  const coherent=hasLedger ? computed===balance : null;
+
+  return {
+    student_id:student?.id||workspace?.student?.id||null,
+    student_code:student?.student_code||workspace?.student?.student_code||'',
+    full_name:student?.full_name||workspace?.student?.full_name||student?.student_code||'Alumno',
+    telegram_user_id:student?.telegram_user_id??workspace?.student?.telegram_user_id??null,
+    earned,
+    spent,
+    balance,
+    computed,
+    movements,
+    has_ledger:hasLedger,
+    coherent
+  };
+}
+
+async function loadOgEconomyV741(force=false){
+  if(state.ogEconomyV741&&!force){
+    renderOgEconomyV741();
+    return state.ogEconomyV741;
+  }
+
+  const metrics=document.getElementById('ogEconomyMetricsV741');
+  const table=document.getElementById('ogEconomyTableV741');
+  if(metrics)metrics.innerHTML='<div class="card"><span class="loader"></span> Calculando Óganesones…</div>';
+  if(table)table.innerHTML='<div class="empty">Leyendo movimientos oficiales de cada alumno…</div>';
+
+  await loadStudents(false);
+  const students=(state.students||[]).filter(x=>x.active!==false);
+  const rows=[];
+  const failures=[];
+
+  for(let i=0;i<students.length;i+=3){
+    const chunk=students.slice(i,i+3);
+    const results=await Promise.all(
+      chunk.map(async s=>{
+        try{
+          const ws=await rpc(
+            'cenqal_control_student_workspace',
+            {p_token:TOKEN,p_student_id:s.id}
+          );
+          return {student:s,workspace:ws};
+        }catch(e){
+          return {student:s,error:e};
+        }
+      })
+    );
+
+    for(const r of results){
+      if(r.error){
+        failures.push({
+          student_id:r.student?.id||null,
+          student_code:r.student?.student_code||null,
+          full_name:r.student?.full_name||r.student?.student_code||'Alumno',
+          error:r.error?.message||String(r.error)
+        });
+        continue;
+      }
+      rows.push(v741OgRowFromWorkspace(r.student,r.workspace));
+    }
+  }
+
+  state.ogEconomyV741={
+    rows,
+    failures,
+    loaded_at:new Date().toISOString()
+  };
+
+  renderOgEconomyV741();
+  return state.ogEconomyV741;
+}
+
+function renderOgEconomyV741(){
+  const metrics=document.getElementById('ogEconomyMetricsV741');
+  const table=document.getElementById('ogEconomyTableV741');
+  if(!metrics||!table)return;
+
+  const d=state.ogEconomyV741||{rows:[],failures:[]};
+  const rows=[...(d.rows||[])].sort((a,b)=>
+    Number(b.earned||0)-Number(a.earned||0) ||
+    Number(b.balance||0)-Number(a.balance||0) ||
+    String(a.full_name||'').localeCompare(String(b.full_name||''),'es')
+  );
+
+  const totalEarned=rows.reduce((a,x)=>a+Number(x.earned||0),0);
+  const totalSpent=rows.reduce((a,x)=>a+Number(x.spent||0),0);
+  const totalBalance=rows.reduce((a,x)=>a+Number(x.balance||0),0);
+  const discrepancies=rows.filter(x=>x.coherent===false).length;
+
+  metrics.innerHTML=[
+    metric('🪙 Og ganados',totalEarned,'acumulado de movimientos positivos'),
+    metric('🛍️ Og gastados',totalSpent,'canjes y movimientos negativos'),
+    metric('💰 Saldo actual',totalBalance,'disponible ahora'),
+    metric(discrepancies?'⚠️ Diferencias':'✅ Coherencia',discrepancies,discrepancies?'revisar historial':'saldo = ganados − gastados')
+  ].join('');
+
+  table.innerHTML=rows.length
+    ?tableHTML(
+      ['#','Alumno','Código','Ganados','Gastados','Saldo','Mov.','Control'],
+      rows.map((x,i)=>[
+        i+1,
+        x.full_name||'Alumno',
+        x.student_code||'—',
+        x.has_ledger?Number(x.earned||0)+' Og':'—',
+        x.has_ledger?Number(x.spent||0)+' Og':'—',
+        Number(x.balance||0)+' Og',
+        x.movements||0,
+        x.coherent===true
+          ?'✓ Coherente'
+          :x.coherent===false
+            ?'⚠ Saldo ≠ historial'
+            :'Sin historial suficiente'
+      ])
+    )
+    :'<div class="empty">No hay datos de Óganesones para el alumnado activo.</div>';
+
+  if((d.failures||[]).length){
+    table.insertAdjacentHTML(
+      'beforeend',
+      '<div class="note warn" style="margin-top:10px">No se pudieron leer '+d.failures.length+' ficha(s) al calcular los Óganesones. El saldo general del ranking no se modifica.</div>'
+    );
+  }
+}
+
 function renderGame(){
   let rows=state.game.filter(gameIsActive).sort((a,b)=>Number(b.xp_total||0)-Number(a.xp_total||0)||String(a.student_name||'').localeCompare(String(b.student_name||''),'es'));
   let discrepancies=rows.filter(g=>gameReference(g).difference!==0).length;
