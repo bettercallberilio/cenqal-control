@@ -10144,6 +10144,135 @@ function v69Dictionary(){return [
 ]}
 function v69AlertRows(alerts){const a=Array.isArray(alerts?.students)?alerts.students:[];return a.map(x=>({student_code:x.student_code,full_name:x.full_name,group_name:x.group_name,alert_status:x.alert_status,signals:(x.alert_signals||x.signals||[]).map(s=>s.detail||s.title||s.code).filter(Boolean).join(' | ')}))}
 
+
+/* =========================================================
+   CENQAL Control · Excel compatible con Android / Telegram
+   Vista real, preserva los cálculos y el gradebook actuales.
+   EX1 usa exclusivamente WEXAM:T1:MANUAL si está recuperado.
+========================================================= */
+const V742_EXCEL_MIME='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+let v742ExcelObjectUrl=null;
+
+function v742AppendRecoveredEx1Sheet(workbook,anonymized=false,anonMap=null,studentOnly=null){
+  const fromCache=Array.isArray(state.recoveredExamGrades?.rows)?
+    state.recoveredExamGrades.rows:[];
+  let rows=studentOnly==null?fromCache:fromCache.filter(x=>
+    String(x.student_id||'')===String(studentOnly)||
+    String(x.student_code||'')===String(studentOnly)
+  );
+  if(studentOnly!=null && !rows.length && state.studentDetail){
+    const st=state.studentDetail?.student||{};
+    const id=st.id||st.student_id;
+    if(String(id||'')===String(studentOnly)||String(st.student_code||'')===String(studentOnly)){
+      const grade=v741RecoveredExamGradeFromWorkspace(state.studentDetail);
+      if(grade)rows=[{
+        student_id:id,student_code:st.student_code,
+        full_name:st.full_name,topic_number:1,exam_date:'2026-10-02',
+        traceability:'CALIFICACION_RECUPERADA',...grade
+      }];
+    }
+  }
+  const exportRows=rows.map(r=>{
+    const code=String(r.student_code||'');
+    const alias=anonymized?(anonMap?.get(code)||'ANON'):code;
+    return {
+      alumno:anonymized?alias:String(r.full_name||''),
+      codigo:alias,
+      tema:'T1',
+      nota_ex1_sobre_10:r.score??'',
+      tipo_registro:'CALIFICACION_MANUAL_RECUPERADA',
+      item_code:r.item_code||'WEXAM:T1:MANUAL',
+      fecha_examen:r.exam_date||'2026-10-02',
+      trazabilidad:r.traceability||'CALIFICACION_RECUPERADA',
+      observacion:'Nota del libro oficial CENQAL; no reconstruye respuestas ni intentos técnicos.'
+    };
+  });
+  if(!exportRows.length){
+    exportRows.push({
+      alumno:'',codigo:'',tema:'T1',nota_ex1_sobre_10:'',
+      tipo_registro:'SIN_NOTAS_EX1_RECUPERADAS',
+      item_code:'WEXAM:T1:MANUAL',fecha_examen:'',
+      trazabilidad:'SIN_REGISTRO_VERIFICABLE',
+      observacion:'No se han localizado notas oficiales de EX1 para este corte. No se infieren calificaciones.'
+    });
+  }
+  v69AddSheet(workbook,'EX1_OFICIAL',exportRows,[30,20,10,19,34,24,18,30,75]);
+}
+
+function v742PrepareExcel(workbook,filename){
+  if(typeof XLSX==='undefined'||typeof XLSX.write!=='function'){
+    throw Error('No se ha cargado el generador Excel.');
+  }
+  const bytes=XLSX.write(workbook,{bookType:'xlsx',type:'array',compression:true});
+  const blob=new Blob([bytes],{type:V742_EXCEL_MIME});
+  if(!blob.size)throw Error('El archivo Excel está vacío.');
+  const safeName=String(filename||'CENQAL_Analytics.xlsx')
+    .replace(/[\\/:*?"<>|]+/g,'_').slice(0,140);
+  const url=URL.createObjectURL(blob);
+  const previous=v742ExcelObjectUrl;
+  v742ExcelObjectUrl=url;
+  if(previous)URL.revokeObjectURL(previous);
+
+  let card=document.getElementById('v742ExcelDownloadCard');
+  if(!card){
+    card=document.createElement('section');
+    card.id='v742ExcelDownloadCard';
+    card.setAttribute('role','dialog');
+    card.setAttribute('aria-label','Guardar Excel CENQAL');
+    card.style.cssText='position:fixed;bottom:max(12px,env(safe-area-inset-bottom));'+
+      'left:12px;right:12px;max-width:530px;margin:0 auto;'+
+      'background:#fff;color:#183553;border:2px solid #276ba1;'+
+      'padding:16px;border-radius:16px;box-shadow:0 10px 32px #0005;'+
+      'z-index:99999;font:14px/1.5 system-ui,sans-serif';
+    document.body.appendChild(card);
+  }
+  card.innerHTML=[
+    '<div style="display:flex;justify-content:space-between;gap:12px;align-items:center">',
+      '<b style="font-size:17px">📊 Excel listo para guardar</b>',
+      '<button type="button" id="v742ExcelClose" aria-label="Cerrar" style="border:0;background:transparent;color:#183553;font-size:25px">×</button>',
+    '</div>',
+    '<p id="v742ExcelFilename" style="overflow-wrap:anywhere"></p>',
+    '<div style="display:flex;flex-wrap:wrap;gap:10px;margin:12px 0">',
+      '<a id="v742ExcelDownload" href="#" style="background:#215b8e;color:#fff;font-weight:700;',
+        'padding:11px 14px;border-radius:9px;text-decoration:none">⬇ Descargar Excel</a>',
+      '<button type="button" id="v742ExcelShare" style="padding:11px 14px;font-weight:700;',
+        'border-radius:9px;border:1px solid #215b8e;background:#edf5fa;color:#183553">',
+        'Compartir / Guardar</button>',
+    '</div>',
+    '<p id="v742ExcelStatus" role="status" style="font-size:13px;color:#365b75">',
+      'El Excel está preparado. Pulsa un botón para guardarlo en tu dispositivo.',
+    '</p>'
+  ].join('');
+  const nameNode=document.getElementById('v742ExcelFilename');
+  nameNode.textContent=safeName;
+  const statusNode=document.getElementById('v742ExcelStatus');
+  const download=document.getElementById('v742ExcelDownload');
+  download.href=url;download.download=safeName;
+  download.addEventListener('click',()=>{
+    statusNode.textContent='Descarga solicitada. Comprueba Descargas. Si no aparece, usa Compartir / Guardar.';
+  });
+
+  const share=document.getElementById('v742ExcelShare');
+  const file=typeof File==='function'?new File([blob],safeName,{type:V742_EXCEL_MIME}):null;
+  let canShare=false;
+  try{
+    canShare=Boolean(file&&typeof navigator.share==='function'&&
+      typeof navigator.canShare==='function'&&navigator.canShare({files:[file]}));
+  }catch(_){canShare=false}
+  share.hidden=!canShare;
+  if(canShare)share.addEventListener('click',async()=>{
+    try{
+      await navigator.share({files:[file],title:'CENQAL Analytics'});
+      statusNode.textContent='Se abrió el menú de compartir. Comprueba el destino elegido.';
+    }catch(err){
+      if(err?.name!=='AbortError')
+        statusNode.textContent='El navegador no pudo compartir el Excel. Utiliza Descargar Excel.';
+    }
+  });
+  document.getElementById('v742ExcelClose').addEventListener('click',()=>card.remove());
+  return {filename:safeName,bytes:blob.size,canShare};
+}
+
 async function exportLearningExcel(anonymized=false){
   try{
     toast('Preparando Excel…');if(!state.learning)await loadLearning();
@@ -10201,8 +10330,10 @@ async function exportLearningExcel(anonymized=false){
     v69AddSheet(wb,'DIFICULTADES',strat.difficulties||[],Array(12).fill(18));
     v69AddSheet(wb,'GYM_PLAY_EXAMEN',clean(strat.students||[]),Array(14).fill(18));
     v69AddSheet(wb,'DICCIONARIO',v69Dictionary(),[24,70]);
-    const year=String(raw.course?.academic_year||'curso').replace(/[^0-9A-Za-z_-]+/g,'_');XLSX.writeFile(wb,`CENQAL_Learning_Analytics_${year}${anonymized?'_ANON':''}.xlsx`);
-    toast('Excel generado.');
+    v742AppendRecoveredEx1Sheet(wb,anonymized,map);
+    const year=String(raw.course?.academic_year||'curso').replace(/[^0-9A-Za-z_-]+/g,'_');
+    v742PrepareExcel(wb,`CENQAL_Learning_Analytics_${year}${anonymized?'_ANON':''}.xlsx`);
+    toast('Excel preparado. Pulsa Descargar Excel en el cuadro que aparece.');
   }catch(e){toast(e.message||'No se pudo generar el Excel.',true)}
 }
 
@@ -10221,7 +10352,9 @@ function exportStudentLearningExcel(){
     v69AddSheet(wb,'PLAY_CONCEPTOS',play.concepts||[],Array(10).fill(18));
     v69AddSheet(wb,'PLAY_FEEDBACK',play.feedback?.rows||[],Array(12).fill(18));
     v69AddSheet(wb,'DICCIONARIO',v69Dictionary(),[24,70]);
-    XLSX.writeFile(wb,`CENQAL_${String(s.student_code||'alumno').replace(/[^0-9A-Za-z_-]+/g,'_')}_Learning_Analytics.xlsx`);
+    v742AppendRecoveredEx1Sheet(wb,false,null,s.id||s.student_id||s.student_code);
+    v742PrepareExcel(wb,`CENQAL_${String(s.student_code||'alumno').replace(/[^0-9A-Za-z_-]+/g,'_')}_Learning_Analytics.xlsx`);
+    toast('Excel preparado. Pulsa Descargar Excel en el cuadro que aparece.');
   }catch(e){toast(e.message||'No se pudo exportar el alumno.',true)}
 }
 
