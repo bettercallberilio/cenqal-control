@@ -634,7 +634,7 @@ details.card>.detailBody{padding:0 16px 16px}
       <div class="sectionGrid">
         <div class="card"><h3>📝 Evaluación y seguimiento</h3><div class="actions"><button class="btn primary" onclick="go('exams')">Exámenes</button><button class="btn" onclick="go('deliveries')">Entregas</button><button class="btn" onclick="go('challenges')">Retos</button><button class="btn" onclick="go('weekly-grade')">Nota de retos</button><button class="btn" onclick="go('progress')">Progreso</button></div></div>
         <div class="card"><h3>🎮 Aprendizaje activo</h3><div class="actions"><button class="btn primary" onclick="go('play-control')">CENQAL Play</button><button class="btn" onclick="go('groups')">Gran Atlas</button><button class="btn" onclick="go('calendar')">Calendario</button></div></div>
-        <div class="card"><h3>🏆 Gamificación</h3><p class="subtle">Prestigio, Óganesones y coherencia de marcadores.</p><button class="btn" onclick="go('game')">Ranking / economía</button></div>
+        <div class="card"><h3>🏆 Gamificación</h3><p class="subtle">Prestigio, Oganesones y coherencia de marcadores.</p><button class="btn" onclick="go('game')">Ranking / economía</button></div>
         <div class="card"><h3>📌 Pendientes docentes</h3><p class="subtle">La agenda ya forma parte del Inicio; aquí puedes abrir su vista completa.</p><button class="btn" onclick="go('agenda')">Abrir agenda completa</button></div>
       </div>
     </section>
@@ -1218,9 +1218,15 @@ details.card>.detailBody{padding:0 16px 16px}
     </section>
 
     <section class="view" id="view-game">
-      <div class="viewHeader"><div><h2>🏆 Ranking de Prestigio y economía</h2><p>La posición depende exclusivamente de los PP: +100 PP por cada prueba semanal T1–T8 aprobada. Los Óganesones son moneda y no alteran el ranking.</p></div><button class="btn" onclick="loadGame(true)">↻ Actualizar</button></div>
+      <div class="viewHeader"><div><h2>🏆 Ranking de Prestigio y economía</h2><p>La posición depende exclusivamente de los PP: +100 PP por cada prueba semanal T1–T8 aprobada. Los Oganesones son moneda y no alteran el ranking.</p></div><button class="btn" onclick="loadGame(true)">↻ Actualizar</button></div>
       <div class="note warn" style="margin-bottom:12px">Control de coherencia: se compara el marcador PP con las pruebas aprobadas registradas. Las diferencias nunca se corrigen automáticamente; cualquier corrección exige motivo, confirmación y queda en Auditoría.</div>
       <div id="gameMetrics" class="cards"></div>
+      <div class="card" style="margin-bottom:16px">
+        <div class="sectionTitle"><h3>🪙 Score de Oganesones por alumno</h3><span class="subtle">Vista docente · solo lectura</span></div>
+        <p class="subtle">Ordenado por Oganesones ganados. El ranking de prestigio (PP) sigue siendo independiente. Los movimientos nunca se corrigen automáticamente.</p>
+        <div id="gameOgStatus" class="note">Actualiza para consultar el historial de Oganesones.</div>
+        <div class="tablewrap"><table class="table"><thead><tr><th>Og #</th><th>Alumno</th><th>Ganados</th><th>Descontados</th><th>Disponibles</th><th>Constancia</th><th>Excelencia</th><th>Porfolios</th><th>Otros</th><th>Conciliación</th><th></th></tr></thead><tbody id="gameOgBody"><tr><td colspan="11">Esperando datos…</td></tr></tbody></table></div>
+      </div>
       <div class="card"><div class="tablewrap"><table class="table"><thead><tr><th>Pos.</th><th>Código</th><th>Alumno</th><th>Pruebas aprob.</th><th>PP actuales</th><th>PP de referencia</th><th>Control</th><th>Og</th><th>Medallas</th><th>Nivel</th><th></th></tr></thead><tbody id="gameBody"></tbody></table></div></div>
     </section>
 
@@ -6084,6 +6090,132 @@ async function showAtlasHistoryV735(id){
 }
 
 
+
+/* CENQAL Control v76.2 · Score docente Oganesones. SOLO LECTURA.
+   Reproduce los ajustes efectivos v66, sin modificar historial, PP ni saldos.
+   Diferencias o datos incompletos se señalan sin inventar cifras. */
+let v762OgScore = new Map();
+let v762OgLoaded = false;
+
+function v762OgKey(g){
+  const uid=String(g?.telegram_user_id??'').trim();
+  return uid?('uid:'+uid):('code:'+String(g?.student_code||'').trim().toLowerCase());
+}
+function v762StudentForGame(g){
+  const uid=String(g?.telegram_user_id??'').trim();
+  const code=String(g?.student_code||'').trim().toLowerCase();
+  return (state.students||[]).find(s=>
+    (uid&&String(s.telegram_user_id??'')===uid)||
+    (code&&String(s.student_code||'').trim().toLowerCase()===code)
+  )||null;
+}
+function v762OgInt(v){
+  const n=Number(v);return Number.isFinite(n)?Math.trunc(n):0;
+}
+function v762OgEffective(events,progressRows){
+  const lookup=new Map();
+  for(const item of progressRows||[]){
+    const p=item?.progress||item||{};
+    const id=p.challenge_id??item?.challenge?.id??item?.challenge_id;
+    if(id!=null)lookup.set(String(id),p);
+  }
+  const out={earned:0,spent:0,constancia:0,excelencia:0,porfolios:0,otros:0,incomplete:false};
+  for(const e of events){
+    const kind=String(e?.event_type||'');
+    let delta=v762OgInt(e?.oganeson_delta);
+    if(['weekly_exam_passed','contribution_validated','achievement'].includes(kind))delta=0;
+    else if(kind==='contribution_first5')delta=10;
+    else if(kind==='contribution_excellence')delta=5;
+    else if(kind==='portfolio_approved'){
+      const id=e?.challenge_id;
+      if(id==null||!lookup.has(String(id)))out.incomplete=true;
+      const p=lookup.get(String(id))||{};
+      delta=(p.status==='approved'&&Number(p.final_score||0)>=90)?50:0;
+    }
+    if(delta>0){
+      out.earned+=delta;
+      const bucket=kind==='contribution_first5'?'constancia':
+        kind==='contribution_excellence'?'excelencia':
+        kind==='portfolio_approved'?'porfolios':'otros';
+      out[bucket]+=delta;
+    }
+    if(delta<0)out.spent-=delta;
+  }
+  out.computedBalance=out.earned-out.spent;
+  return out;
+}
+async function v762OgLoad(rows){
+  const status=document.getElementById('gameOgStatus');
+  if(status)status.textContent='Comprobando el libro de movimientos de Oganesones…';
+  v762OgLoaded=false;
+  const map=new Map(),todo=(rows||[]).filter(gameIsActive);
+  for(let i=0;i<todo.length;i+=3){
+    const batch=await Promise.all(todo.slice(i,i+3).map(async g=>{
+      const st=v762StudentForGame(g);
+      const sid=st?studentIdOf(st):null;
+      if(!sid)return {g,error:'Sin ficha de alumno vinculada'};
+      try{
+        const data=await rpc('cenqal_control_student_workspace',{
+          p_token:TOKEN,p_student_id:sid
+        });
+        if(!Array.isArray(data?.gamification_events))
+          throw Error('Sin historial de movimientos verificable');
+        const details=v762OgEffective(data.gamification_events,data.portfolio_progress||[]);
+        const balance=Number(g.oganeson_balance);
+        if(!Number.isFinite(balance))throw Error('Sin saldo oficial verificable');
+        return {g,sid,...details,balance,
+          verified:!details.incomplete&&details.computedBalance===balance,
+          note:details.incomplete?'Faltan datos para evaluar un porfolio':
+            details.computedBalance===balance?'Coincide con libro oficial':
+            'Movimientos y saldo oficial no coinciden'};
+      }catch(e){return {g,error:e.message||String(e)}}
+    }));
+    for(const d of batch)map.set(v762OgKey(d.g),d);
+  }
+  v762OgScore=map;v762OgLoaded=true;v762OgRender();
+}
+function v762OgRender(){
+  const body=document.getElementById('gameOgBody');
+  if(!body)return;
+  const status=document.getElementById('gameOgStatus');
+  const rows=(state.game||[]).filter(gameIsActive).map(g=>({
+    g,d:v762OgScore.get(v762OgKey(g))
+  }));
+  rows.sort((a,b)=>{
+    const ag=a.d&&!a.d.error?a.d.earned:-1;
+    const bg=b.d&&!b.d.error?b.d.earned:-1;
+    return bg-ag||String(a.g.student_name||'').localeCompare(String(b.g.student_name||''),'es');
+  });
+  const failures=rows.filter(x=>!x.d||!x.d.verified).length;
+  if(status)status.textContent=!v762OgLoaded?'Cargando datos por alumno…':
+    failures?('⚠️ '+failures+' alumno(s) con saldo por verificar; no se ha cambiado ningún dato.'):
+    '✅ Saldos de Oganesones conciliados con los movimientos efectivos.';
+  body.innerHTML=rows.map((r,i)=>{
+    const g=r.g,d=r.d||{},available=!!r.d&&!d.error;
+    const st=v762StudentForGame(g);
+    const sid=st?studentUuid(studentIdOf(st)):'';
+    const val=(k)=>available?String(d[k]):'—';
+    const badge=available&&d.verified?'✓ Conciliado':'⚠️ Revisar';
+    const reason=available?d.note:(d.error||'Sin verificar');
+    return '<tr>'+
+      '<td>'+String(i+1)+'</td>'+
+      '<td><b>'+esc(g.student_name||g.student_code||'Alumno')+'</b><div class="subtle">'+esc(g.student_code||'')+'</div></td>'+
+      '<td><b>+'+val('earned')+'</b></td>'+
+      '<td>−'+val('spent')+'</td>'+
+      '<td><b>'+esc(g.oganeson_balance??'—')+' Og</b></td>'+
+      '<td>'+val('constancia')+'</td>'+
+      '<td>'+val('excelencia')+'</td>'+
+      '<td>'+val('porfolios')+'</td>'+
+      '<td>'+val('otros')+'</td>'+
+      '<td><span class="status '+(available&&d.verified?'ok':'bad')+'">'+badge+'</span><div class="subtle">'+esc(reason)+'</div></td>'+
+      '<td>'+(sid?'<button class="btn" data-og-sid="'+esc(sid)+'">Ficha</button>':'—')+'</td>'+
+    '</tr>';
+  }).join('')||'<tr><td colspan="11" class="empty">Sin alumnos activos.</td></tr>';
+  body.querySelectorAll('button[data-og-sid]').forEach(b=>{
+    b.onclick=()=>openStudent(b.dataset.ogSid);
+  });
+}
+
 /* =========================================================
    PP / OGANESONES
 ========================================================= */
@@ -6102,7 +6234,12 @@ async function loadGame(force=false){
 
   state.game=d.rows||[];
   renderGame();
-
+  try{await v762OgLoad(state.game)}
+  catch(e){
+    console.warn('No fue posible consultar el score Og:',e);
+    const node=document.getElementById('gameOgStatus');
+    if(node)node.textContent='⚠️ Score Og no disponible temporalmente; saldos oficiales intactos.';
+  }
   return state.game;
 }
 
