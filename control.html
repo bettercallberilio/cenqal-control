@@ -2902,17 +2902,28 @@ function showContributionDetail(id){
 
 function portfolioAutoScore(x){
   const ev=x?.automatic_evaluation;
-  if(ev && typeof ev==='object' && Number.isFinite(Number(ev.total))){
-    return Number(ev.total);
+  if(!ev||typeof ev!=='object'||['not_available','error','failed','incomplete','pending'].includes(String(ev.status||'').toLowerCase()))return null;
+  const crit=ev.criteria;
+  if(!crit||typeof crit!=='object'||Object.keys(crit).length<3)return null;
+  let total=0,maxTotal=0;
+  for(const row of Object.values(crit)){
+    if(!row||typeof row!=='object'||row.score==null||row.max_points==null||typeof row.score==='boolean')return null;
+    const n=Number(row.score),max=Number(row.max_points);
+    if(!Number.isFinite(n)||!Number.isFinite(max)||max<=0||n<0||n>max)return null;
+    if(!String(row.feedback||'').trim())return null;
+    total+=n;maxTotal+=max;
   }
-  return null;
+  if(Math.abs(maxTotal-100)>.01||ev.total==null)return null;
+  const declared=Number(ev.total);
+  if(!Number.isFinite(declared)||declared<0||declared>100||Math.abs(declared-total)>.01)return null;
+  return declared;
 }
 
 function portfolioRawTeacherScore(x){
   const ev=x?.teacher_evaluation;
   if(ev && typeof ev==='object'){
-    if(Number.isFinite(Number(ev.raw_score)))return Number(ev.raw_score);
-    if(Number.isFinite(Number(ev.score)))return Number(ev.score);
+    if(ev.raw_score!=null&&Number.isFinite(Number(ev.raw_score)))return Number(ev.raw_score);
+    if(ev.score!=null&&Number.isFinite(Number(ev.score)))return Number(ev.score);
   }
   return null;
 }
@@ -2927,7 +2938,7 @@ function portfolioDefaultFeedback(x){
   if(current)return current;
 
   const ev=x?.automatic_evaluation;
-  if(!ev || typeof ev!=='object')return '';
+  if(!ev || typeof ev!=='object'||portfolioAutoScore(x)==null)return '';
 
   const parts=[];
   if(ev.summary)parts.push(String(ev.summary).trim());
@@ -2942,6 +2953,7 @@ function portfolioDefaultFeedback(x){
 }
 
 function portfolioScorePreviewText(x,raw){
+  if(raw==null||String(raw).trim()==='')return '⏳ Pendiente de evaluación docente. Introduce una nota tras revisar el PDF.';
   const n=Number(raw);
   if(!Number.isFinite(n)||n<0||n>100){
     return 'Introduce una nota entre 0 y 100.';
@@ -3026,7 +3038,10 @@ async function submitPortfolioDecision(id,action){
   }
 
   if(action==='validate' && rawScore===null){
-    return toast('Introduce la nota docente entre 0 y 100 antes de validarla.',true);
+    return toast('Introduce una nota docente fundada en la rúbrica antes de validarla.',true);
+  }
+  if(action==='validate'&&rawScore===0&&feedback.length<20){
+    return toast('Un cero docente requiere justificación explícita de la rúbrica. Añade un comentario concreto.',true);
   }
 
   if((action==='changes'||action==='reject')&&!feedback){
@@ -3132,13 +3147,14 @@ function showPortfolioDetail(id){
       <div class="miniRow"><span>Versión</span><b>v${esc(x.version||'—')}</b></div>
       <div class="miniRow"><span>Archivo</span><b>${esc(x.file_name||'PDF')}</b></div>
       <div class="miniRow"><span>Estado</span><b><span class="status ${statusClass(x.status)}">${esc(x.status||'—')}</span></b></div>
-      <div class="miniRow"><span>Preevaluación CENQAL</span><b>${auto==null?'—':`${esc(auto)}/100`}</b></div>
+      <div class="miniRow"><span>Preevaluación CENQAL</span><b>${auto==null?'⏳ Pendiente de evaluación docente':`${esc(auto)}/100`}</b></div>
     </div>
 
     ${portfolioLate(x)?`<div class="note warn" style="margin-top:12px">⏰ Esta versión se entregó fuera de plazo. Berilio aplicará automáticamente una penalización del 15 % después de la nota por rúbrica.</div>`:''}
 
     <div class="field" style="margin-top:12px">
       <label>Preevaluación / rúbrica automática</label>
+      ${auto===null?'<div class="note warn">⏳ Evaluación automática no válida. El cero técnico no debe utilizarse como calificación. Revisa el PDF y cumplimenta la rúbrica docente.</div>':''}
       <div class="note" style="white-space:pre-wrap">${esc(prettyObject(x.automatic_evaluation))}</div>
     </div>
 
