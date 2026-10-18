@@ -1332,8 +1332,11 @@ let TOKEN=qs.get('token')||'';
 // El parámetro ?bot= sigue teniendo prioridad, pero si falta usamos
 // directamente el bot oficial. Así Control funciona también como PWA/navegador
 // y no depende de un valor antiguo guardado en localStorage.
-const BOT_FALLBACK='foodchemboot';
-let BOT=(qs.get('bot')||BOT_FALLBACK).replace(/^@/,'');
+const BOT_FALLBACK='Foodchembot';
+let BOT=(qs.get('bot')||BOT_FALLBACK).replace(/^@/,'').trim();
+// Cuando Control se abre desde Berilio, el parámetro bot procede del get_me()
+// real de Telegram. En la PWA sin ese parámetro usamos el mismo fallback del bot.
+if(!/^[a-zA-Z][a-zA-Z0-9_]{4,31}$/.test(BOT))BOT=BOT_FALLBACK;
 localStorage.setItem('cenqal_bot',BOT);
 const TELEGRAM_MODE=Boolean(qs.get('token'));
 
@@ -3246,7 +3249,7 @@ renderStudentDetail=function(){
   }
 
   if(c.length)html+=detailCard('🔎 Respuestas y rúbricas de aportaciones',tableHTML(['Fecha','Título','Estado','Preeval.','Acción'],c.map(x=>[fmtDate(x.created_at),x.title||x.primary_topic||'Sin título',x.status||'—',x.preliminary_score??'—',`<button class="btn" onclick="showContributionDetail('${x.id}')">Ver respuestas y rúbrica</button>`]),'html'));
-  if(p.length)html+=detailCard('🔎 Rúbricas de portfolios',tableHTML(['Fecha','Reto','Estado','Nota','Acción'],p.map(x=>[fmtDate(x.created_at),x.challenge_code||x.challenge_id||'—',x.status||'—',x.teacher_evaluation?.score??'—',`<button class="btn" onclick="showPortfolioDetail('${x.id}')">Ver evaluación</button>`]),'html'));
+  if(p.length)html+=detailCard('🔎 Rúbricas de portfolios',tableHTML(['Fecha','Reto','Estado','Nota','Acción'],p.map(x=>[fmtDate(x.created_at),x.challenge_code||x.challenge_id||'—',x.status||'—',x.teacher_evaluation?.score??'—',`<button class="btn" type="button" onclick="event.preventDefault();event.stopPropagation();showPortfolioDetail('${x.id}')">Ver evaluación</button>`]),'html'));
 
   if(html)document.getElementById('studentSections').insertAdjacentHTML('beforeend',html);
 };
@@ -4610,7 +4613,7 @@ function renderDeliveries(){
 
             `<button
               class="btn"
-              onclick="showPortfolioDetail('${x.id}')">
+              type="button" onclick="event.preventDefault();event.stopPropagation();showPortfolioDetail('${x.id}')">
 
               Ver evaluación
 
