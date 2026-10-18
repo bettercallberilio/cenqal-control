@@ -495,6 +495,7 @@ details.card>.detailBody{padding:0 16px 16px}
       <button data-view="students">👥 Alumnado</button>
       <button data-view="learning">📊 Learning Analytics</button>
       <button data-view="management">🎓 Gestión docente</button>
+      <button data-view="deliveries">📥 Entregas</button>
       <button data-view="records">📁 Actas y evidencias</button>
       <button data-view="admin">⚙️ Administración</button>
     </nav>
@@ -1126,6 +1127,33 @@ details.card>.detailBody{padding:0 16px 16px}
       </div>
       <div class="note warn" style="margin-bottom:14px">Las preevaluaciones son orientativas. Ver una entrega aquí no concede puntos: usa <b>Revisar en Berilio</b> para validar, devolver o rechazar.</div>
       <div class="metrics grid" id="deliveryMetrics"><div class="card"><span class="loader"></span> Cargando entregas…</div></div>
+
+      <div class="card" style="margin-top:14px">
+        <div class="sectionTitle">
+          <div><h3>✅ Control global de entregas por alumno</h3><p>Quién tiene un registro por actividad y qué queda por revisar. No modifica las calificaciones ni las recompensas.</p></div>
+          <button class="btn" onclick="exportDeliveryAuditCSV()">⬇ Informe CSV</button>
+        </div>
+        <div class="note warn" style="margin:10px 0">
+          «Sin registro» significa que no se ha localizado una entrega en los datos consultados; no prueba por sí solo un incumplimiento. En porfolios debe confirmarse también la asignación al alumno. Los fallos de consulta aparecerán como «Sin confirmar».
+        </div>
+        <div class="searchrow" style="flex-wrap:wrap">
+          <select id="deliveryAuditKind" aria-label="Tipo de actividad" onchange="renderDeliveryAudit()"><option value="portfolio">📄 Porfolios</option><option value="weekly">🏆 Retos semanales</option></select>
+          <select id="deliveryAuditActivity" aria-label="Actividad" onchange="renderDeliveryAudit()"><option value="">Todas las actividades detectadas</option></select>
+          <select id="deliveryAuditStatus" aria-label="Estado de comprobación" onchange="renderDeliveryAudit()">
+            <option value="">Todos los estados</option>
+            <option value="sin_registro">Sin registro</option>
+            <option value="sin_confirmar">Sin confirmar</option>
+            <option value="recibido">Recibidos / por corregir</option>
+            <option value="validado">Validados</option>
+            <option value="devuelto">Devueltos</option>
+          </select>
+          <input id="deliveryAuditStudent" aria-label="Buscar alumno" placeholder="Buscar alumno" oninput="renderDeliveryAudit()">
+        </div>
+        <div class="metrics grid" id="deliveryAuditMetrics"></div>
+        <div id="deliveryAuditWarning"></div>
+        <div id="deliveryAuditTable" class="tablewrap"><div class="empty">Cargando control global…</div></div>
+      </div>
+
       <div class="searchrow"><input id="deliverySearch" placeholder="Buscar alumno, título o tema" oninput="renderDeliveries()"><select id="deliveryStatus" onchange="renderDeliveries()"><option value="">Todos los estados</option><option value="pending">Pendientes</option><option value="validated">Validadas</option><option value="rejected">Rechazadas/devueltas</option></select></div>
       <div class="card"><h3>🧪 Aportaciones a CENQAL</h3><div id="contributionsInbox"></div></div>
       <div class="card" style="margin-top:14px"><h3>📄 Portfolios</h3><div id="portfoliosInbox"></div></div>
@@ -10780,6 +10808,186 @@ startPanel=async function(){
 /* Evita dejar el temporizador vivo al cerrar la página. */
 window.addEventListener('pagehide',v733StopLiveRefresh);
 
+
+
+/* =========================================================
+   CENQAL · Control global de entregas (solo lectura)
+   - Reutiliza RPC docentes existentes y sus filtros de curso.
+   - No escribe en Supabase ni altera calificaciones, Og o PP.
+   - Nunca interpreta un error de consulta como no entrega.
+========================================================= */
+function auditKey(value){return String(value??'').trim().toLowerCase();}
+function auditStudentKey(s){return String(studentIdOf(s)??'');}
+function auditStudentFor(record,students){
+  const raw=record.participation||record;
+  const nested=record._student||record.student||raw.student||{};
+  const ids=[nested.student_id,nested.id,record.student_id,raw.student_id,record.cenqal_student_id]
+    .filter(v=>v!=null).map(v=>String(v));
+  const byId=students.find(s=>ids.includes(auditStudentKey(s)));
+  if(byId)return byId;
+  const uids=[nested.telegram_user_id,record.telegram_user_id,raw.telegram_user_id]
+    .filter(v=>v!=null).map(v=>String(v));
+  const byUid=students.find(s=>s.telegram_user_id!=null&&uids.includes(String(s.telegram_user_id)));
+  if(byUid)return byUid;
+  const codes=[nested.student_code,record.student_code,raw.student_code].filter(Boolean).map(auditKey);
+  const byCode=students.find(s=>codes.includes(auditKey(s.student_code)));
+  if(byCode)return byCode;
+  const names=[nested.full_name,nested.student_name,record.full_name,record.student_name,raw.student_name]
+    .filter(Boolean).map(auditKey);
+  const matches=students.filter(s=>names.includes(auditKey(studentName(s))));
+  return matches.length===1?matches[0]:null;
+}
+function auditRecordActivity(record,kind){
+  const raw=kind==='weekly'?(record.participation||record):record;
+  if(kind==='weekly')return auditKey(record.challenge?.id??raw.challenge_id);
+  return auditKey(record.challenge_code||record.challenge_id);
+}
+function auditActivities(kind){
+  if(kind==='weekly'){
+    return (state.challenges||[])
+      .filter(c=>['published','closed'].includes(c.status)&&c.telegram_message_id)
+      .map(c=>({key:auditKey(c.id),label:'T'+(c.topic_number||'?')+' · '+(c.title||'Reto'),status:c.status}))
+      .filter(c=>c.key);
+  }
+  const all=new Map();
+  (state.deliveries?.portfolios||[]).forEach(x=>{
+    const key=auditRecordActivity(x,'portfolio');
+    if(key&&!all.has(key))all.set(key,{key,label:x.challenge_code||('Porfolio '+(x.portfolio_number||key)),status:'registrado'});
+  });
+  return [...all.values()].sort((a,b)=>a.label.localeCompare(b.label,'es',{numeric:true}));
+}
+function auditRows(kind){
+  const students=(state.students||[]).filter(s=>s.active!==false&&auditStudentKey(s));
+  const activities=auditActivities(kind);
+  const records=kind==='weekly'?(state.deliveries?.weekly||[]):(state.deliveries?.portfolios||[]);
+  const grouped=new Map();
+  let unmatched=0;
+  records.forEach(x=>{
+    const student=auditStudentFor(x,students);
+    const activity=auditRecordActivity(x,kind);
+    if(!student||!activity){unmatched++;return}
+    const key=auditStudentKey(student)+'|'+activity;
+    if(!grouped.has(key))grouped.set(key,[]);
+    grouped.get(key).push(x);
+  });
+  const uncertain=Boolean((state.deliveries?.failed||0)>0||(state.deliveryAuditIssues||[]).length);
+  const rows=[];
+  for(const s of students)for(const activity of activities){
+    const list=(grouped.get(auditStudentKey(s)+'|'+activity.key)||[]).slice()
+      .sort((a,b)=>new Date(b.participation?.created_at||b.created_at||0)-new Date(a.participation?.created_at||a.created_at||0));
+    const record=list[0]||null;
+    const raw=kind==='weekly'?(record?.participation||record):record;
+    let status='sin_registro',label='Sin registro';
+    if(!record){
+      if(uncertain){status='sin_confirmar';label='Sin confirmar: consulta incompleta'}
+      else if(kind==='portfolio')label='Sin registro · confirmar asignación';
+      else label=activity.status==='closed'?'No consta respuesta':'Sin respuesta registrada todavía';
+    }else{
+      const st=deliveryGroup(raw?.status);
+      if(st==='validated'){status='validado';label='Validado'}
+      else if(st==='rejected'){status='devuelto';label='Devuelto / cambios'}
+      else{status='recibido';label='Recibido / por revisar'}
+    }
+    const grade=kind==='weekly'
+      ?(raw?.teacher_score==null?'—':String(raw.teacher_score)+'/5')
+      :((raw?.teacher_evaluation?.validated===true||raw?.status==='approved')
+          &&raw?.teacher_evaluation?.score!=null?String(raw.teacher_evaluation.score)+'/100':'—');
+    rows.push({student:s,activity,record,status,label,grade,count:list.length});
+  }
+  return {rows,students,activities,unmatched,uncertain};
+}
+function renderDeliveryAudit(){
+  const box=document.getElementById('deliveryAuditTable');
+  if(!box)return;
+  if(!state.deliveries){
+    box.innerHTML='<div class="empty">Aún no se han cargado las entregas.</div>';
+    return;
+  }
+  const kind=document.getElementById('deliveryAuditKind')?.value||'portfolio';
+  const source=auditRows(kind);
+  const select=document.getElementById('deliveryAuditActivity');
+  const old=select.dataset.kind===kind?select.value:'';
+  select.innerHTML='<option value="">Todas las actividades detectadas</option>'
+    +source.activities.map(a=>'<option value="'+esc(a.key)+'">'+esc(a.label)+'</option>').join('');
+  select.dataset.kind=kind;
+  select.value=source.activities.some(a=>a.key===old)?old:'';
+  const current=select.value;
+  const status=document.getElementById('deliveryAuditStatus')?.value||'';
+  const search=auditKey(document.getElementById('deliveryAuditStudent')?.value);
+  const rows=source.rows.filter(x=>(!current||x.activity.key===current)
+    &&(!status||x.status===status)
+    &&(!search||auditKey(studentName(x.student)).includes(search)||auditKey(x.student.student_code).includes(search)));
+  const total=source.rows.filter(x=>!current||x.activity.key===current);
+  const delivered=total.filter(x=>x.record).length;
+  const unresolved=total.filter(x=>x.status==='sin_registro'||x.status==='sin_confirmar').length;
+  const toReview=total.filter(x=>x.status==='recibido'||x.status==='devuelto').length;
+  document.getElementById('deliveryAuditMetrics').innerHTML=[
+    metric('👥 Alumnos activos',source.students.length,'curso seleccionado'),
+    metric('📚 Actividades',current?1:source.activities.length,kind==='portfolio'?'detectadas en registros':'retos publicados en Telegram'),
+    metric('📥 Con registro',delivered,'alumno × actividad'),
+    metric('🔎 Sin constancia',unresolved,'no equivale automáticamente a falta'),
+    metric('📝 Por revisar / devueltos',toReview,'registros existentes')
+  ].join('');
+  const warnings=(state.deliveryAuditIssues||[]).slice();
+  if(state.deliveries.failed)warnings.push(state.deliveries.failed+' fichas o consultas no pudieron cargarse.');
+  if(source.unmatched)warnings.push(source.unmatched+' registros sin alumno identificable: comprobar vinculación de datos.');
+  if(kind==='portfolio')warnings.push('Solo se comparan porfolios ya detectados en las entregas. Para certificar todas las obligaciones faltaría el catálogo completo de porfolios asignados por grupo.');
+  if(!source.activities.length)warnings.push(kind==='portfolio'?'No hay porfolios identificables: no se puede concluir que todos hayan entregado.':'No hay retos publicados identificables en el curso; no se puede calcular completitud.');
+  document.getElementById('deliveryAuditWarning').innerHTML=warnings.length
+    ?'<div class="note warn" style="margin:10px 0"><b>Alcance de la comprobación</b><div>'+warnings.map(esc).join('</div><div>')+'</div></div>':'';
+  if(!source.students.length||!source.activities.length){
+    box.innerHTML='<div class="empty">No hay datos suficientes para construir la comparación por alumno y actividad. Actualiza la vista y comprueba el curso.</div>';
+    return;
+  }
+  box.innerHTML='<table class="table"><thead><tr><th>Alumno</th><th>Actividad</th><th>Estado de entrega</th><th>Fecha / versión</th><th>Nota docente</th></tr></thead><tbody>'
+    +(rows.map(x=>{
+      const r=x.record, raw=kind==='weekly'?(r?.participation||r):r;
+      const date=raw?.created_at?fmtDate(raw.created_at):'—';
+      const version=kind==='portfolio'&&r?.version?' · v'+r.version:'';
+      return '<tr><td>'+esc(studentName(x.student))+'</td><td>'+esc(x.activity.label)
+        +'</td><td><span class="status '+(x.status==='validado'?'ok':x.status==='sin_registro'?'bad':'warn')+'">'
+        +esc(x.label)+'</span></td><td>'+esc(date+version)+'</td><td>'+esc(x.grade)+'</td></tr>';
+    }).join('')||'<tr><td colspan="5">Ningún alumno coincide con los filtros.</td></tr>')
+    +'</tbody></table>';
+}
+function exportDeliveryAuditCSV(){
+  if(!state.deliveries||!state.students?.length){toast('No hay una consulta completa para exportar.',true);return}
+  const kind=document.getElementById('deliveryAuditKind')?.value||'portfolio';
+  const data=auditRows(kind);
+  const selected=document.getElementById('deliveryAuditActivity')?.value||'';
+  const rows=[['tipo','alumno','codigo_alumno','actividad','estado','fecha','version','nota_docente','aviso']];
+  data.rows.filter(x=>!selected||x.activity.key===selected).forEach(x=>{
+    const rec=x.record,raw=kind==='weekly'?(rec?.participation||rec):rec;
+    rows.push([kind,studentName(x.student),x.student.student_code,x.activity.label,x.label,
+      raw?.created_at||'',kind==='portfolio'?rec?.version||'':'',x.grade,
+      kind==='portfolio'?'Comprobar asignación cuando falte registro':'No consta en consulta docente']);
+  });
+  const blob=new Blob(['\ufeff'+rows.map(r=>r.map(csvCell).join(';')).join('\n')],{type:'text/csv;charset=utf-8'});
+  const link=document.createElement('a');
+  link.href=URL.createObjectURL(blob);
+  link.download='cenqal_control_entregas_'+kind+'.csv';
+  link.click();
+  setTimeout(()=>URL.revokeObjectURL(link.href),1000);
+}
+const auditLoadDeliveriesBase=loadDeliveries;
+loadDeliveries=async function(force=false){
+  let data;
+  try{
+    data=await auditLoadDeliveriesBase(force);
+  }catch(e){
+    state.deliveryAuditIssues=['No se ha podido consultar la lista de entregas: '+(e.message||String(e))];
+    const metrics=document.getElementById('deliveryMetrics');
+    if(metrics)metrics.innerHTML='<div class="note danger">'+esc(state.deliveryAuditIssues[0])+'</div>';
+    renderDeliveryAudit();
+    throw e;
+  }
+  const reads=await Promise.allSettled([loadStudents(force),loadChallenges(force)]);
+  state.deliveryAuditIssues=[];
+  if(reads[0].status==='rejected')state.deliveryAuditIssues.push('No se ha podido consultar la lista de alumnos: '+reads[0].reason);
+  if(reads[1].status==='rejected')state.deliveryAuditIssues.push('No se ha podido consultar el listado de retos: '+reads[1].reason);
+  renderDeliveryAudit();
+  return data;
+};
 
 /* =========================================================
    LANZAR
