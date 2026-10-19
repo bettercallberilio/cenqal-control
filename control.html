@@ -15,6 +15,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
 
 <style>
 :root{--navy:#0c3f82;--blue:#277bdc;--pale:#eef6ff;--green:#18a66a;--amber:#e9a51b;--red:#d84b4b;--ink:#17304f;--muted:#6d7f96;--line:#dbe7f4;--card:#fff;--bg:#f5f9fd;--violet:#7444c7;--shadow:0 10px 30px rgba(34,67,105,.08)}
@@ -4720,7 +4721,6 @@ function renderDeliveries(){
           'Estado',
           'Preeval.',
           'Nota docente',
-          'Respuesta',
           'Acciones'
         ],
 w.map(x=>{
@@ -4741,6 +4741,11 @@ w.map(x=>{
 
 
           let actions=[];
+          const weeklyText=String(participation.response_text||'').trim();
+          const weeklyId=Number(participation.id);
+          if(weeklyText&&Number.isSafeInteger(weeklyId)&&weeklyId>0){
+            actions.push('<button type="button" class="btn" onclick="downloadWeeklyResponsePDF('+weeklyId+')">📄 Descargar PDF</button>');
+          }
           const oralUid=x._student?.telegram_user_id??participation.telegram_user_id??x.telegram_user_id;
           const oralCid=challenge.id??participation.challenge_id;
           if(Number(oralUid)>0&&Number(oralCid)>0){
@@ -4822,9 +4827,6 @@ w.map(x=>{
               ?'—'
               :`${teacher}/5`,
 
-            participation.response_text||
-              '—',
-
             `<div class="actions">
               ${actions.join('')}
             </div>`
@@ -4840,6 +4842,75 @@ w.map(x=>{
 
 }
 
+
+
+/* PDF local, generado a petición desde la respuesta registrada del reto.
+   No se crea un archivo en Supabase ni se modifica la respuesta original. */
+function downloadWeeklyResponsePDF(participationId){
+  const rows=state.deliveries?.weekly||[];
+  const entry=rows.find(x=>String((x.participation||x).id)===String(participationId));
+  if(!entry){toast('No se ha localizado la respuesta. Actualiza las entregas.',true);return}
+  const response=entry.participation||entry;
+  const content=String(response.response_text||'').trim();
+  if(!content){toast('Este reto no tiene una respuesta textual disponible para exportar.',true);return}
+  const jsPDF=window.jspdf?.jsPDF;
+  if(!jsPDF){toast('No se ha podido cargar el generador de PDF. Abre Control en el navegador y vuelve a intentarlo.',true);return}
+  try{
+    const student=entry._student||entry.student||{};
+    const challenge=entry.challenge||{};
+    const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+    const margin=18, maxWidth=174, pageBottom=276;
+    let y=19, page=1;
+    const nextPage=()=>{doc.addPage();page++;y=19};
+    const line=(text,fontSize=10,bold=false,gap=5)=>{
+      doc.setFont('helvetica',bold?'bold':'normal');
+      doc.setFontSize(fontSize);
+      const paragraphs=String(text??'').replace(/\r\n?/g,'\n').split('\n');
+      for(const para of paragraphs){
+        const lines=para?doc.splitTextToSize(para,maxWidth):[''];
+        for(const segment of lines){
+          if(y+gap>pageBottom)nextPage();
+          if(segment)doc.text(String(segment),margin,y);
+          y+=gap;
+        }
+      }
+    };
+    doc.setTextColor(12,63,130);
+    line('CENQAL | RESPUESTA A RETO SEMANAL',14,true,7);
+    doc.setTextColor(35,57,85);
+    line('Reto: '+String(challenge.title||'Tema '+(challenge.topic_number||'—')),11,true,6);
+    line('Alumno: '+studentName(student),10,false,5);
+    if(student.student_code)line('Codigo de alumno: '+student.student_code,9,false,5);
+    line('Fecha de entrega: '+fmtDate(response.created_at||entry.created_at),9,false,5);
+    line('Estado: '+String(response.status||'—'),9,false,5);
+    if(response.teacher_score!=null)line('Nota docente escrita: '+response.teacher_score+'/5',9,false,5);
+    y+=6;
+    doc.setTextColor(12,63,130);
+    line('RESPUESTA DEL ALUMNO',11,true,7);
+    doc.setTextColor(30,43,63);
+    line(content,10,false,5.5);
+    const total=doc.getNumberOfPages();
+    for(let p=1;p<=total;p++){
+      doc.setPage(p);
+      doc.setDrawColor(220,230,240);
+      doc.line(margin,283,192,283);
+      doc.setFont('helvetica','normal');
+      doc.setFontSize(8);
+      doc.setTextColor(106,122,143);
+      doc.text('CENQAL · Copia exportada de la respuesta registrada',margin,289);
+      doc.text(p+'/'+total,191,289,{align:'right'});
+    }
+    const plain=(s)=>String(s||'')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+      .replace(/[^a-zA-Z0-9_-]+/g,'_').replace(/^_+|_+$/g,'').slice(0,60);
+    const name=['CENQAL_Reto',plain(challenge.topic_number||challenge.id||''),plain(student.student_code||studentName(student)),plain(participationId)]
+      .filter(Boolean).join('_')+'.pdf';
+    doc.save(name);
+  }catch(e){
+    console.error('CENQAL weekly PDF:',e);
+    toast('No se pudo generar el PDF de esta respuesta. Inténtalo desde el navegador.',true);
+  }
+}
 
 function csvCell(v){
 
