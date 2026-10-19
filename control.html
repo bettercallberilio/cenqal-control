@@ -10950,7 +10950,8 @@ function renderDeliveryAudit(){
   const viewedCourse=state.snapshot?.course||{};
   const courseDescription=[viewedCourse.subject||'CENQAL',viewedCourse.academic_year||'curso sin año',viewedCourse.group_name||'',viewedCourse.id!=null?('ID '+viewedCourse.id):'ID no disponible'].filter(Boolean).join(' · ');
   const accessDescription=TELEGRAM_MODE?'sesión de Telegram':'aplicación instalada / navegador';
-  const courseBanner='<div class="note" style="margin:10px 0"><b>Curso que estás consultando:</b> '+esc(courseDescription)+'<br><b>Acceso:</b> '+esc(accessDescription)+'. Comprueba que ambas ventanas indiquen el mismo curso y el mismo ID.</div>';
+  const sourceHost=(()=>{try{return new URL(SBURL).host}catch(e){return 'no identificable'}})();
+  const courseBanner='<div class="note" style="margin:10px 0"><b>Curso que estás consultando:</b> '+esc(courseDescription)+'<br><b>Origen de datos:</b> '+esc(sourceHost)+'<br><b>Acceso:</b> '+esc(accessDescription)+'. Comprueba que ambas ventanas indiquen el mismo curso, ID y origen de datos.</div>';
   document.getElementById('deliveryAuditWarning').innerHTML=courseBanner+(warnings.length
     ?'<div class="note warn" style="margin:10px 0"><b>Alcance de la comprobación</b><div>'+warnings.map(esc).join('</div><div>')+'</div></div>':'');
   if(!source.students.length||!source.activities.length){
