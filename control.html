@@ -3219,6 +3219,8 @@ function showPortfolioDetail(id){
         <button class="btn warn" data-portfolio-action onclick="submitPortfolioDecision('${x.id}','changes')">🛠️ Pedir cambios</button>
         <button class="btn danger" data-portfolio-action onclick="submitPortfolioDecision('${x.id}','reject')">🔴 Rechazar versión</button>
       `:''}
+      ${st==='approved'&&previous!=null&&previous>=90?`<button class="btn primary" type="button" onclick="botPayload('pb_${x.id}')">🎁 Premio docente extra · +25 Og</button>`:''}
+      ${st==='approved'&&previous!=null&&previous>=90?'<div class="subtle">Se confirma en Berilio. Solo una vez por alumno y porfolio, sin modificar la nota. Para escribir tu propio motivo: /premiarportfolio ID | motivo.</div>':''}
       ${x.storage_path?`<button class="btn" onclick="botPayload('cp_${x.id}')">📄 Enviarme PDF</button>`:''}
     </div>`);
 
