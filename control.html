@@ -4749,7 +4749,7 @@ w.map(x=>{
           const oralUid=x._student?.telegram_user_id??participation.telegram_user_id??x.telegram_user_id;
           const oralCid=challenge.id??participation.challenge_id;
           if(Number(oralUid)>0&&Number(oralCid)>0){
-            actions.push('<button class="btn" type="button" onclick="weeklyOralLaunch('+Number(oralUid)+','+Number(oralCid)+')">🗣️ Defensa oral</button>');
+            actions.push('<button class="btn primary" type="button" onclick="weeklyOralFromDelivery('+Number(weeklyId)+')">🗣️ Corregir oral</button>');
           }
 
           if(
@@ -5585,6 +5585,101 @@ function weeklyOralResult(written,oral){
   const w=Number(written),o=Number(oral);
   return Number.isFinite(w)&&Number.isFinite(o)&&w>=0&&w<=5&&o>=0&&o<=5?1.2*w+0.8*o:null;
 }
+
+const ORAL_LABELS_V78=[
+ ['comprension','Comprensión y rigor químico'],
+ ['fuentes','Uso crítico de fuentes científicas'],
+ ['contexto','Contextualización en Química de los Alimentos'],
+ ['claridad','Claridad y orden de la exposición'],
+ ['argumentacion','Argumentación y respuesta a preguntas']
+];
+let oralDialogV78=null;
+function weeklyOralFromDelivery(participationId){
+ const x=(state.deliveries?.weekly||[]).find(x=>Number(x.participation?.id)===Number(participationId));
+ if(!x||!x._student?.id||!x.challenge?.id)return toast('No se ha podido identificar alumno y reto. Actualiza entregas.',true);
+ return weeklyOralOpen(x._student.id,x.challenge.id);
+}
+async function weeklyOralOpen(studentId,challengeId){
+ if(!/^[0-9a-f-]{36}$/i.test(String(studentId))||!Number.isSafeInteger(Number(challengeId)))
+   return toast('Identificador de alumno o reto no válido.',true);
+ try{
+  const d=await rpc('cenqal_control_weekly_oral_v78',{
+   p_token:TOKEN,p_student_id:studentId,p_challenge_id:Number(challengeId),p_action:'read'
+  });
+  if(!d?.ok)throw Error('No se pudo verificar la evaluación oral.');
+  oralDialogV78={studentId,challengeId:Number(challengeId),version:Number(d.oral?.version||0),data:d};
+  const controls=ORAL_LABELS_V78.map(([key,label],i)=>{
+    const value=d.oral?.criteria?.[key];
+    return '<div class="field"><label for="oral78_'+key+'">'+(i+1)+'. '+esc(label)+'</label>'+
+      '<select id="oral78_'+key+'" onchange="weeklyOralPreviewV78()">'+
+      '<option value="" '+(value==null?'selected':'')+'>Pendiente</option>'+
+      [0,.5,1].map(n=>'<option value="'+n+'" '+(Number(value)===n&&value!=null?'selected':'')+'>'+n.toLocaleString('es-ES')+' / 1</option>').join('')+
+      '</select></div>';
+  }).join('');
+  const name=(state.students||[]).find(x=>x.id===studentId);
+  modal('<h3>🗣️ Defensa oral · '+esc(d.challenge_title||'Reto')+'</h3>'+
+    '<p class="subtle">'+esc(name?studentName(name):'Alumno vinculado')+' · Rúbrica sobre 5 · versión '+(d.oral?.version||0)+'</p>'+
+    '<div class="formgrid">'+controls+'</div>'+
+    '<div class="note" id="oral78_preview" style="margin-top:14px"></div>'+
+    '<p class="subtle">El guardado conserva la nota escrita. El premio +5 Og es opcional, una sola vez por alumno y reto. Si Berilio guardó otra versión entretanto, el sistema solicitará actualizar.</p>'+
+    '<div class="modalFooter"><button class="btn" onclick="closeModal()">Cancelar</button>'+
+    '<button class="btn" onclick="weeklyOralLaunch('+Number(d.telegram_user_id)+','+Number(challengeId)+')">Abrir Berilio</button>'+
+    '<button class="btn primary" id="oral78_save" onclick="weeklyOralSaveV78(false)">Guardar defensa</button></div>'+
+    '<div class="modalFooter"><button class="btn warn" id="oral78_bonus" '+(d.bonus_awarded?'disabled':'')+
+    ' onclick="weeklyOralSaveV78(true)">'+(d.bonus_awarded?'🎁 +5 Og ya concedidos':'🎁 Guardar y conceder +5 Og')+'</button></div>');
+  weeklyOralPreviewV78();
+ }catch(e){toast('No se pudo abrir la corrección oral: '+(e.message||e),true)}
+}
+function weeklyOralMarksV78(){
+ const marks={};
+ for(const [key] of ORAL_LABELS_V78){
+   const v=document.getElementById('oral78_'+key)?.value;
+   if(v==null||v==='')return null;
+   marks[key]=Number(v);
+ }
+ return marks;
+}
+function weeklyOralPreviewV78(){
+ const m=weeklyOralMarksV78(), d=oralDialogV78?.data;
+ const note=document.getElementById('oral78_preview');
+ if(!note)return;
+ if(!m){
+   note.textContent='⏳ Completa los cinco criterios. No se registrará un cero automático.';
+   return;
+ }
+ const oral=Object.values(m).reduce((a,b)=>a+b,0);
+ const written=d?.written_score_5;
+ const total=written==null?null:(1.2*Number(written)+0.8*oral);
+ note.textContent='Defensa oral: '+oral.toFixed(1)+'/5 · Escrito: '+
+   (written==null?'Pendiente':written+'/5')+
+   ' · 60/40: '+(total==null?'Pendiente':total.toFixed(2)+'/10');
+}
+async function weeklyOralSaveV78(withBonus){
+ const ctx=oralDialogV78,criteria=weeklyOralMarksV78();
+ if(!ctx||!criteria)return toast('Completa los cinco criterios antes de guardar.',true);
+ if(!confirm(withBonus?'¿Guardar la defensa y conceder el premio extraordinario de +5 Og?':'¿Guardar la evaluación oral en CENQAL?'))return;
+ const save=document.getElementById('oral78_save'),bonus=document.getElementById('oral78_bonus');
+ if(save)save.disabled=true;
+ if(bonus)bonus.disabled=true;
+ try{
+  const d=await rpc('cenqal_control_weekly_oral_v78',{
+    p_token:TOKEN,p_student_id:ctx.studentId,p_challenge_id:ctx.challengeId,
+    p_action:withBonus?'save_bonus':'save',p_criteria:criteria,
+    p_expected_version:ctx.version,p_confirmation:withBonus?'PREMIAR DEFENSA':'GUARDAR DEFENSA'
+  });
+  if(!d?.ok)throw Error('No se pudo confirmar el registro.');
+  closeModal();oralDialogV78=null;
+  state.weeklyGrades=null;
+  toast('Defensa guardada'+(d.bonus_just_created?' · +5 Og concedidos':d.bonus_awarded?' · premio ya registrado':'')+'.');
+  if(state.deliveries)await loadDeliveries(true);
+  if(document.getElementById('view-weekly-grade')?.classList.contains('active'))await loadWeeklyGrades(true);
+ }catch(e){
+  toast('No se guardó la defensa: '+(e.message||e)+'. Actualiza y vuelve a abrirla.',true);
+  if(save)save.disabled=false;
+  if(bonus)bonus.disabled=Boolean(ctx.data?.bonus_awarded);
+ }
+}
+
 function weeklyOralLaunch(uid,cid){
   if(!uid||!cid)return toast('Se necesita alumno vinculado y reto válido.',true);
   botPayload('wo_'+uid+'_'+cid);
@@ -5637,7 +5732,7 @@ function renderWeeklyGrades(){
     const mean=fn=>evaluated.length?(evaluated.reduce((z,x)=>z+fn(x),0)/evaluated.length).toFixed(2):'—';
     const details=r.items.map(x=>{
       const c=x.challenge;
-      const action=r.uid?'<button class="btn" type="button" onclick="weeklyOralLaunch(\''+esc(r.uid)+'\',\''+esc(c.id)+'\')">🗣️ Evaluar defensa</button>':'Sin Telegram vinculado';
+      const action=r.uid?'<button class="btn" type="button" onclick="weeklyOralOpen(\''+esc(studentIdOf(s))+'\','+Number(c.id)+')">🗣️ Corregir en CENQAL</button>':'Sin Telegram vinculado';
       return '<div class="miniRow"><span><b>T'+esc(c.topic_number||'?')+' · '+esc(c.title||'Reto')+'</b><div class="subtle">Escrito: '+
         (x.written==null?'Pendiente':esc(x.written)+'/5')+' · Oral: '+(x.oral?' '+esc(x.oral.score_5)+'/5':'Pendiente')+
         ' · 60/40: '+(x.combined==null?'Pendiente':x.combined.toFixed(2)+'/10')+(x.bonus?' · 🎁 +5 Og':'')+'</div></span>'+action+'</div>';
