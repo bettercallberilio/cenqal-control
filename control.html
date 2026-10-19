@@ -4741,7 +4741,11 @@ w.map(x=>{
 
 
           let actions=[];
-
+          const oralUid=x._student?.telegram_user_id??participation.telegram_user_id??x.telegram_user_id;
+          const oralCid=challenge.id??participation.challenge_id;
+          if(Number(oralUid)>0&&Number(oralCid)>0){
+            actions.push('<button class="btn" type="button" onclick="weeklyOralLaunch('+Number(oralUid)+','+Number(oralCid)+')">🗣️ Defensa oral</button>');
+          }
 
           if(
             teacher==null &&
