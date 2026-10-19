@@ -3175,7 +3175,8 @@ function showPortfolioDetail(id){
 
     <div class="miniList">
       <div class="miniRow"><span>Reto</span><b>${esc(x.challenge_code||x.challenge_id||'—')}</b></div>
-      <div class="miniRow"><span>Versión</span><b>v${esc(x.version||'—')}</b></div>
+      <div class="miniRow"><span>ID de entrega</span><b>${esc(x.id)}</b></div>
+       <div class="miniRow"><span>Versión</span><b>v${esc(x.version||'—')}</b></div>
       <div class="miniRow"><span>Archivo</span><b>${esc(x.file_name||'PDF')}</b></div>
       <div class="miniRow"><span>Estado</span><b><span class="status ${statusClass(x.status)}">${esc(x.status||'—')}</span></b></div>
       <div class="miniRow"><span>Preevaluación CENQAL</span><b>${auto==null?'⏳ Pendiente de evaluación docente':`${esc(auto)}/100`}</b></div>
