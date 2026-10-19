@@ -1209,10 +1209,10 @@ details.card>.detailBody{padding:0 16px 16px}
     </section>
 
     <section class="view" id="view-weekly-grade">
-      <div class="viewHeader"><div><h2>✅ Nota de retos semanales</h2><p>Participación sí/no en los retos publicados del curso. Cada reto cuenta una sola vez; la preevaluación no afecta a la nota.</p></div><button class="btn" onclick="loadWeeklyGrades(true)">↻ Actualizar</button></div>
-      <div class="note warn" style="margin-bottom:14px">Cálculo provisional mientras existan retos publicados pendientes de cierre. Una participación que el bot no haya registrado debe comprobarse en Telegram. Esta vista no escribe la calificación oficial.</div>
+      <div class="viewHeader"><div><h2>✅ Nota de retos semanales</h2><p>60 % preparación escrita y 40 % defensa oral. Cada dimensión se valora sobre 5 puntos. Premio excepcional de +5 Og opcional.</p></div><div class="actions"><button class="btn" onclick="exportWeeklyOralCSV()">⬇ Notas CSV</button><button class="btn" onclick="loadWeeklyGrades(true)">↻ Actualizar</button></div></div>
+      <div class="note warn" style="margin-bottom:14px">Los registros y las notas escritas anteriores permanecen intactos. Se muestra pendiente si falta preparación o defensa. El cálculo 60/40 y su aportación al 10 % son provisionales para el cierre académico: no reescriben aún las calificaciones oficiales guardadas.</div>
       <div class="card" id="weeklyGradeSummary">Pulsa Actualizar para calcular la nota.</div>
-      <div class="card" style="margin-top:14px"><div class="tablewrap"><table class="table"><thead><tr><th>Alumno</th><th>Participación por reto</th><th>Realizados</th><th>Nota /10</th><th>Aporta al curso</th></tr></thead><tbody id="weeklyGradeBody"></tbody></table></div></div>
+      <div class="card" style="margin-top:14px"><div class="tablewrap"><table class="table"><thead><tr><th>Alumno</th><th>Retos completos</th><th>Escrito /5</th><th>Oral /5</th><th>Nota retos /10</th><th>10 % del curso</th><th>Rúbricas y evaluación</th></tr></thead><tbody id="weeklyGradeBody"></tbody></table></div></div>
     </section>
 
     <section class="view" id="view-challenges">
@@ -5487,47 +5487,106 @@ function saveEventFlow(id){let data=collectEvent();if(!data.title||!data.starts_
 
 function retireEvent(id){let e=state.calendar.find(x=>x.id==id);if(!e)return;confirmModal({title:'Retirar evento del calendario',summary:`<b>${esc(e.title)}</b><br>No se borrará físicamente: quedará desactivado y el cambio se registrará.`,phrase:`RETIRAR EVENTO ${id}`,button:'Retirar evento',danger:true,onConfirm:async typed=>{await rpc('cenqal_control_retire_calendar_event',{p_token:TOKEN,p_event_id:id,p_confirmation:typed,p_reason:'Retirada desde CENQAL Control'});state.calendar=[];await loadCalendar(true);await refreshSnapshot();toast('Evento retirado.')}})}
 
+
+/* CENQAL: valoración escrita (60 %) y defensa oral (40 %) por reto. */
+function weeklyOralEvent(workspace,uid,cid){
+  if(!uid||!Array.isArray(workspace?.gamification_events))return null;
+  const key='weekly_oral:'+uid+':'+cid;
+  const rows=workspace.gamification_events.filter(e=>e.event_key===key&&e.event_type==='weekly_oral_review');
+  if(rows.length!==1)return null;
+  try{
+    const d=JSON.parse(rows[0].description||'');
+    const keys=['comprension','fuentes','contexto','claridad','argumentacion'];
+    if(d.type!=='weekly_oral_rubric_v1'||String(d.student_uid)!==String(uid)||
+       String(d.challenge_id)!==String(cid)||!d.criteria)return null;
+    const marks=keys.map(k=>Number(d.criteria[k]));
+    if(marks.some(n=>!Number.isFinite(n)||n<0||n>1||n*2!==Math.trunc(n*2)))return null;
+    const score=marks.reduce((t,v)=>t+v,0);
+    return Math.abs(score-Number(d.score_5))<=0.001?{...d,score_5:score}:null;
+  }catch(e){return null}
+}
+function weeklyOralResult(written,oral){
+  if(written==null||oral==null)return null;
+  const w=Number(written),o=Number(oral);
+  return Number.isFinite(w)&&Number.isFinite(o)&&w>=0&&w<=5&&o>=0&&o<=5?1.2*w+0.8*o:null;
+}
+function weeklyOralLaunch(uid,cid){
+  if(!uid||!cid)return toast('Se necesita alumno vinculado y reto válido.',true);
+  botPayload('wo_'+uid+'_'+cid);
+}
 async function loadWeeklyGrades(force=false){
   const summary=document.getElementById('weeklyGradeSummary');
-  const body=document.getElementById('weeklyGradeBody');
-  if(!force && state.weeklyGrades){renderWeeklyGrades();return}
-  summary.textContent='Calculando participaciones…';
-  body.innerHTML='';
+  if(!force&&state.weeklyGrades?.mode==='oral60_40'){renderWeeklyGrades();return}
+  summary.textContent='Contrastando notas escritas y rúbricas de defensa oral…';
+  document.getElementById('weeklyGradeBody').innerHTML='';
   try{
-    // Both RPCs restrict the data to the teacher's selected course.
-    const [challenges, students]=await Promise.all([loadChallenges(force),loadStudents(force)]);
-    const eligible=challenges.filter(c=>['published','closed'].includes(c.status) && c.telegram_message_id);
-    const active=students.filter(s=>s.active!==false);
+    const [challenges,students]=await Promise.all([loadChallenges(force),loadStudents(force)]);
+    const eligible=challenges.filter(c=>['published','closed'].includes(c.status)&&c.telegram_message_id);
     const rows=[];
-    for(const s of active){
-      const sid=studentIdOf(s);
-      if(!sid){rows.push({student:s,error:'No se ha podido identificar al alumno'});continue}
+    for(const student of students.filter(s=>s.active!==false)){
+      const sid=studentIdOf(student),uid=student.telegram_user_id;
+      if(!sid){rows.push({student,error:'No se pudo identificar al alumno'});continue}
       try{
-        const workspace=await rpc('cenqal_control_student_workspace',{p_token:TOKEN,p_student_id:sid});
-        // The workspace contains only this student's recorded weekly participations.
-        const participation=new Set((workspace.weekly||[]).filter(x=>
-          x.participation && !['rejected','deleted','withdrawn','cancelled'].includes(x.participation.status)
-        ).map(x=>String(x.challenge?.id ?? x.participation.challenge_id)));
-        rows.push({student:s,participation});
-      }catch(e){rows.push({student:s,error:e.message||'No se pudo consultar'})}
+        const ws=await rpc('cenqal_control_student_workspace',{p_token:TOKEN,p_student_id:sid});
+        if(!Array.isArray(ws.weekly)||!Array.isArray(ws.gamification_events))
+          throw Error('La ficha no contiene ambas fuentes verificables');
+        const items=eligible.map(challenge=>{
+          const matches=ws.weekly.filter(x=>String(x.challenge?.id??x.participation?.challenge_id??'')===String(challenge.id)&&
+            !['rejected','deleted','withdrawn','cancelled'].includes(String(x.participation?.status||'').toLowerCase()));
+          matches.sort((a,b)=>new Date(b.participation?.created_at||0)-new Date(a.participation?.created_at||0));
+          const p=matches[0]?.participation;
+          const written=p?.teacher_score==null?null:Number(p.teacher_score);
+          const oral=weeklyOralEvent(ws,uid,challenge.id);
+          const combined=weeklyOralResult(written,oral?.score_5);
+          const bonus=ws.gamification_events.some(e=>e.event_key==='weekly_oral_bonus:'+uid+':'+challenge.id
+            &&e.event_type==='weekly_oral_bonus'&&Number(e.oganeson_delta)===5);
+          return {challenge,written,oral,combined,bonus};
+        });
+        const done=items.filter(x=>x.combined!=null);
+        const grade=done.length?done.reduce((n,x)=>n+x.combined,0)/done.length:null;
+        rows.push({student,uid,items,complete:done.length,grade});
+      }catch(e){rows.push({student,error:e.message||String(e)})}
     }
-    state.weeklyGrades={eligible,rows};
-    renderWeeklyGrades();
-  }catch(e){summary.textContent='No se pudo calcular: '+(e.message||e);toast(e.message,true)}
+    state.weeklyGrades={mode:'oral60_40',eligible,rows};renderWeeklyGrades();
+  }catch(e){summary.textContent='No fue posible verificar la evaluación 60/40: '+(e.message||e);toast(e.message,true)}
 }
-
 function renderWeeklyGrades(){
-  const {eligible,rows}=state.weeklyGrades;
-  const pending=eligible.some(c=>c.status!=='closed');
-  document.getElementById('weeklyGradeSummary').innerHTML=`<b>${eligible.length} retos publicados</b> · ${rows.length} alumnos · ${pending?'Cálculo provisional: quedan retos abiertos':'Cálculo de los retos publicados'}<br><span class="subtle">Nota = 10 × retos realizados / retos publicados; aportación máxima al curso: 1 punto (10%). Los retos futuros aún no publicados no cuentan.</span>`;
-  document.getElementById('weeklyGradeBody').innerHTML=rows.map(({student:s,participation,error})=>{
-    const name=s.full_name||s.student_name||s.student_code||'Alumno';
-    if(error)return `<tr><td>${esc(name)}</td><td colspan="4" class="note warn">${esc(error)}</td></tr>`;
-    const done=eligible.filter(c=>participation.has(String(c.id))).length;
-    const marks=eligible.map(c=>`<span title="${esc(c.title||'')} (${esc(c.week_start||'')})">T${esc(c.topic_number||'?')}: ${participation.has(String(c.id))?'Sí':'No'}</span>`).join(' · ');
-    const grade=eligible.length?10*done/eligible.length:null;
-    return `<tr><td><b>${esc(name)}</b></td><td>${marks||'No hay retos publicados'}</td><td>${done}/${eligible.length}</td><td>${grade==null?'—':n(grade,2)}</td><td>${grade==null?'—':n(grade*0.1,2)} / 1</td></tr>`;
-  }).join('')||'<tr><td colspan="5" class="empty">No hay alumnos activos.</td></tr>';
+  const {eligible=[],rows=[]}=state.weeklyGrades||{};
+  const total=eligible.length;
+  document.getElementById('weeklyGradeSummary').innerHTML='<b>'+total+' retos publicados · '+rows.length+
+    ' alumnos.</b><div class="subtle">Por reto: 1,2 × escrito /5 + 0,8 × oral /5 = nota /10. Media de retos evaluados ÷10 = aportación provisional al 10 % de la asignatura. Ausencias de evaluación quedan pendientes, nunca como 0 automático.</div>';
+  document.getElementById('weeklyGradeBody').innerHTML=rows.map(r=>{
+    const s=r.student,name=studentName(s);
+    if(r.error)return '<tr><td>'+esc(name)+'</td><td colspan="6">'+esc(r.error)+'</td></tr>';
+    const evaluated=r.items.filter(x=>x.combined!=null);
+    const mean=fn=>evaluated.length?(evaluated.reduce((z,x)=>z+fn(x),0)/evaluated.length).toFixed(2):'—';
+    const details=r.items.map(x=>{
+      const c=x.challenge;
+      const action=r.uid?'<button class="btn" type="button" onclick="weeklyOralLaunch(\''+esc(r.uid)+'\',\''+esc(c.id)+'\')">🗣️ Evaluar defensa</button>':'Sin Telegram vinculado';
+      return '<div class="miniRow"><span><b>T'+esc(c.topic_number||'?')+' · '+esc(c.title||'Reto')+'</b><div class="subtle">Escrito: '+
+        (x.written==null?'Pendiente':esc(x.written)+'/5')+' · Oral: '+(x.oral?' '+esc(x.oral.score_5)+'/5':'Pendiente')+
+        ' · 60/40: '+(x.combined==null?'Pendiente':x.combined.toFixed(2)+'/10')+(x.bonus?' · 🎁 +5 Og':'')+'</div></span>'+action+'</div>';
+    }).join('')||'Sin retos publicados';
+    return '<tr><td><b>'+esc(name)+'</b></td><td>'+r.complete+'/'+total+(r.complete===total&&total?' ✓':' · pendiente')+'</td>'+
+      '<td>'+mean(x=>x.written)+'</td><td>'+mean(x=>x.oral.score_5)+'</td>'+
+      '<td>'+(r.grade==null?'Pendiente':r.grade.toFixed(2)+(r.complete===total?'':' · provisional'))+'</td>'+
+      '<td>'+(r.grade==null?'—':(r.grade/10).toFixed(3)+'/1'+(r.complete===total?'':' · provisional'))+'</td>'+
+      '<td><details><summary>Ver defensas</summary><div class="miniList">'+details+'</div></details></td></tr>';
+  }).join('')||'<tr><td colspan="7" class="empty">No hay alumnos.</td></tr>';
+}
+function exportWeeklyOralCSV(){
+  if(state.weeklyGrades?.mode!=='oral60_40')return toast('Primero debes consultar el cálculo 60/40.',true);
+  const rows=[['alumno','codigo','reto','nota_escrita_5','nota_oral_5','combinada_10','premio_og','estado']];
+  for(const r of state.weeklyGrades.rows){
+    if(r.error){rows.push([studentName(r.student),r.student?.student_code,'','','','','',r.error]);continue}
+    for(const x of r.items)rows.push([studentName(r.student),r.student?.student_code,x.challenge.title,
+      x.written??'',x.oral?.score_5??'',x.combined==null?'':x.combined.toFixed(2),x.bonus?5:0,
+      x.combined==null?'Pendiente':'Evaluado']);
+  }
+  const blob=new Blob(['\ufeff'+rows.map(r=>r.map(csvCell).join(';')).join('\n')],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='CENQAL_retos_60_escrito_40_oral.csv';a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
 
 async function loadChallenges(force=false){if(state.challenges.length&&!force){renderChallenges();return state.challenges}let d=await rpc('cenqal_control_challenges',{p_token:TOKEN});state.challenges=d.rows||[];renderChallenges();return state.challenges}
