@@ -1134,15 +1134,15 @@ details.card>.detailBody{padding:0 16px 16px}
           <button class="btn" onclick="exportDeliveryAuditCSV()">⬇ Informe CSV</button>
         </div>
         <div class="note warn" style="margin:10px 0">
-          «Sin registro» significa que no se ha localizado una entrega en los datos consultados; no prueba por sí solo un incumplimiento. En porfolios debe confirmarse también la asignación al alumno. Los fallos de consulta aparecerán como «Sin confirmar».
+          La tabla de entregas no es el libro de calificaciones. La ausencia de un PDF en el listado no significa que se haya borrado una nota ni que el alumno no lo haya enviado. Para verificarlo, abre su ficha académica. Los alumnos sin Telegram vinculado se identifican aparte.
         </div>
         <div class="searchrow" style="flex-wrap:wrap">
           <select id="deliveryAuditKind" aria-label="Tipo de actividad" onchange="renderDeliveryAudit()"><option value="portfolio">📄 Porfolios</option><option value="weekly">🏆 Retos semanales</option></select>
           <select id="deliveryAuditActivity" aria-label="Actividad" onchange="renderDeliveryAudit()"><option value="">Todas las actividades detectadas</option></select>
           <select id="deliveryAuditStatus" aria-label="Estado de comprobación" onchange="renderDeliveryAudit()">
             <option value="">Todos los estados</option>
-            <option value="sin_registro">Sin registro</option>
-            <option value="sin_confirmar">Sin confirmar</option>
+            <option value="sin_registro">Sin constancia verificada</option>
+            <option value="sin_confirmar">Pendiente de contraste</option>
             <option value="recibido">Recibidos / por corregir</option>
             <option value="validado">Validados</option>
             <option value="devuelto">Devueltos</option>
@@ -10883,17 +10883,25 @@ function auditRows(kind){
       .sort((a,b)=>new Date(b.participation?.created_at||b.created_at||0)-new Date(a.participation?.created_at||a.created_at||0));
     const record=list[0]||null;
     const raw=kind==='weekly'?(record?.participation||record):record;
-    let status='sin_registro',label='Sin registro';
+    let status='sin_confirmar',label='Pendiente de contraste';
     if(!record){
-      if(uncertain){status='sin_confirmar';label='Sin confirmar: consulta incompleta'}
-      else if(kind==='portfolio')label='Sin registro · confirmar asignación';
-      else label=activity.status==='closed'?'No consta respuesta':'Sin respuesta registrada todavía';
+      if(s.telegram_user_id==null||String(s.telegram_user_id).trim()===''){
+        status='sin_confirmar';
+        label='Sin vincular a Telegram · revisar ficha';
+      }else if(uncertain){
+        label='Consulta incompleta · abrir ficha';
+      }else if(kind==='portfolio'){
+        label='No localizado en este listado · abrir ficha';
+      }else{
+        label='Sin respuesta localizada · abrir ficha';
+      }
     }else{
       const st=deliveryGroup(raw?.status);
       if(st==='validated'){status='validado';label='Validado'}
       else if(st==='rejected'){status='devuelto';label='Devuelto / cambios'}
       else{status='recibido';label='Recibido / por revisar'}
     }
+    // No confundimos ausencia de nota en la ENTREGA con ausencia de nota académica.
     const grade=kind==='weekly'
       ?(raw?.teacher_score==null?'—':String(raw.teacher_score)+'/5')
       :((raw?.teacher_evaluation?.validated===true||raw?.status==='approved')
@@ -10937,23 +10945,28 @@ function renderDeliveryAudit(){
   const warnings=(state.deliveryAuditIssues||[]).slice();
   if(state.deliveries.failed)warnings.push(state.deliveries.failed+' fichas o consultas no pudieron cargarse.');
   if(source.unmatched)warnings.push(source.unmatched+' registros sin alumno identificable: comprobar vinculación de datos.');
-  if(kind==='portfolio')warnings.push('Solo se comparan porfolios ya detectados en las entregas. Para certificar todas las obligaciones faltaría el catálogo completo de porfolios asignados por grupo.');
+  if(kind==='portfolio')warnings.push('Esta vista comprueba únicamente PDF localizados en el listado general. Las calificaciones y el progreso pueden constar en la ficha individual incluso si el PDF no aparece aquí. No se puede concluir que falte una entrega sin contrastar su expediente y la asignación.');
   if(!source.activities.length)warnings.push(kind==='portfolio'?'No hay porfolios identificables: no se puede concluir que todos hayan entregado.':'No hay retos publicados identificables en el curso; no se puede calcular completitud.');
-  document.getElementById('deliveryAuditWarning').innerHTML=warnings.length
-    ?'<div class="note warn" style="margin:10px 0"><b>Alcance de la comprobación</b><div>'+warnings.map(esc).join('</div><div>')+'</div></div>':'';
+  const viewedCourse=state.snapshot?.course||{};
+  const courseDescription=[viewedCourse.subject||'CENQAL',viewedCourse.academic_year||'curso sin año',viewedCourse.group_name||'',viewedCourse.id!=null?('ID '+viewedCourse.id):'ID no disponible'].filter(Boolean).join(' · ');
+  const accessDescription=TELEGRAM_MODE?'sesión de Telegram':'aplicación instalada / navegador';
+  const courseBanner='<div class="note" style="margin:10px 0"><b>Curso que estás consultando:</b> '+esc(courseDescription)+'<br><b>Acceso:</b> '+esc(accessDescription)+'. Comprueba que ambas ventanas indiquen el mismo curso y el mismo ID.</div>';
+  document.getElementById('deliveryAuditWarning').innerHTML=courseBanner+(warnings.length
+    ?'<div class="note warn" style="margin:10px 0"><b>Alcance de la comprobación</b><div>'+warnings.map(esc).join('</div><div>')+'</div></div>':'');
   if(!source.students.length||!source.activities.length){
     box.innerHTML='<div class="empty">No hay datos suficientes para construir la comparación por alumno y actividad. Actualiza la vista y comprueba el curso.</div>';
     return;
   }
-  box.innerHTML='<table class="table"><thead><tr><th>Alumno</th><th>Actividad</th><th>Estado de entrega</th><th>Fecha / versión</th><th>Nota docente</th></tr></thead><tbody>'
+  box.innerHTML='<table class="table"><thead><tr><th>Alumno</th><th>Actividad</th><th>Registro localizado</th><th>Fecha / versión</th><th>Nota en la entrega</th><th>Comprobar</th></tr></thead><tbody>'
     +(rows.map(x=>{
       const r=x.record, raw=kind==='weekly'?(r?.participation||r):r;
       const date=raw?.created_at?fmtDate(raw.created_at):'—';
       const version=kind==='portfolio'&&r?.version?' · v'+r.version:'';
       return '<tr><td>'+esc(studentName(x.student))+'</td><td>'+esc(x.activity.label)
         +'</td><td><span class="status '+(x.status==='validado'?'ok':x.status==='sin_registro'?'bad':'warn')+'">'
-        +esc(x.label)+'</span></td><td>'+esc(date+version)+'</td><td>'+esc(x.grade)+'</td></tr>';
-    }).join('')||'<tr><td colspan="5">Ningún alumno coincide con los filtros.</td></tr>')
+        +esc(x.label)+'</span></td><td>'+esc(date+version)+'</td><td>'+esc(x.grade)
+        +'</td><td><button class="btn" type="button" onclick="openStudent(\''+esc(auditStudentKey(x.student))+'\')">👤 Ver ficha</button></td></tr>';
+    }).join('')||'<tr><td colspan="6">Ningún alumno coincide con los filtros.</td></tr>')
     +'</tbody></table>';
 }
 function exportDeliveryAuditCSV(){
@@ -10961,12 +10974,12 @@ function exportDeliveryAuditCSV(){
   const kind=document.getElementById('deliveryAuditKind')?.value||'portfolio';
   const data=auditRows(kind);
   const selected=document.getElementById('deliveryAuditActivity')?.value||'';
-  const rows=[['tipo','alumno','codigo_alumno','actividad','estado','fecha','version','nota_docente','aviso']];
+  const rows=[['tipo','alumno','codigo_alumno','actividad','estado','fecha','version','nota_en_registro_entrega','aviso']];
   data.rows.filter(x=>!selected||x.activity.key===selected).forEach(x=>{
     const rec=x.record,raw=kind==='weekly'?(rec?.participation||rec):rec;
     rows.push([kind,studentName(x.student),x.student.student_code,x.activity.label,x.label,
       raw?.created_at||'',kind==='portfolio'?rec?.version||'':'',x.grade,
-      kind==='portfolio'?'Comprobar asignación cuando falte registro':'No consta en consulta docente']);
+      kind==='portfolio'?'Contrastar PDF y calificación en la ficha; consulta general no es expediente':'Contrastar en la ficha; consulta general no es expediente']);
   });
   const blob=new Blob(['\ufeff'+rows.map(r=>r.map(csvCell).join(';')).join('\n')],{type:'text/csv;charset=utf-8'});
   const link=document.createElement('a');
