@@ -1129,6 +1129,22 @@ details.card>.detailBody{padding:0 16px 16px}
       <div class="note warn" style="margin-bottom:14px">Las preevaluaciones son orientativas. Ver una entrega aquí no concede puntos: usa <b>Revisar en Berilio</b> para validar, devolver o rechazar.</div>
       <div class="metrics grid" id="deliveryMetrics"><div class="card"><span class="loader"></span> Cargando entregas…</div></div>
 
+      <div class="sectionTitle" style="margin-top:18px">
+        <div><h3>📬 Entregas registradas</h3><p>Estas cuatro bandejas muestran las aportaciones, porfolios, entregas del Gran Atlas y respuestas a retos que CENQAL ha localizado. Filtra por alumno o estado para revisarlas.</p></div>
+      </div>
+      <div class="actions" style="margin:10px 0 14px; flex-wrap:wrap">
+        <button class="btn" type="button" onclick="document.getElementById('contributionsInbox').parentElement.scrollIntoView({behavior:'smooth',block:'start'})">🧪 Ver aportaciones</button>
+        <button class="btn" type="button" onclick="document.getElementById('portfoliosInbox').parentElement.scrollIntoView({behavior:'smooth',block:'start'})">📄 Ver porfolios</button>
+        <button class="btn" type="button" onclick="document.getElementById('atlasInbox').parentElement.scrollIntoView({behavior:'smooth',block:'start'})">🗺️ Ver Gran Atlas</button>
+        <button class="btn" type="button" onclick="document.getElementById('challengesInbox').parentElement.scrollIntoView({behavior:'smooth',block:'start'})">🏆 Ver retos</button>
+      </div>
+      <div class="searchrow"><input id="deliverySearch" placeholder="Buscar alumno, título o tema" oninput="renderDeliveries()"><select id="deliveryStatus" onchange="renderDeliveries()"><option value="">Todos los estados</option><option value="pending">Pendientes</option><option value="validated">Validadas</option><option value="rejected">Rechazadas/devueltas</option></select></div>
+      <div class="card"><h3>🧪 Aportaciones a CENQAL</h3><div id="contributionsInbox"></div></div>
+      <div class="card" style="margin-top:14px"><h3>📄 Portfolios</h3><div id="portfoliosInbox"></div></div>
+      <div class="card" style="margin-top:14px"><h3>🗺️ Gran Atlas · entregas de equipo</h3><div id="atlasInbox"></div></div>
+      <div class="card" style="margin-top:14px"><h3>🏆 Retos y respuestas</h3><div id="challengesInbox"></div></div>
+      <details id="deliveryAuditDetails" style="margin-top:18px">
+        <summary class="btn" style="display:list-item;cursor:pointer;padding:14px">🔎 Comprobación global por alumno (opcional) · No determina por sí sola si falta una entrega</summary>
       <div class="card" style="margin-top:14px">
         <div class="sectionTitle">
           <div><h3>✅ Control global de entregas por alumno</h3><p>Quién tiene un registro por actividad y qué queda por revisar. No modifica las calificaciones ni las recompensas.</p></div>
@@ -1155,11 +1171,7 @@ details.card>.detailBody{padding:0 16px 16px}
         <div id="deliveryAuditTable" class="tablewrap"><div class="empty">Cargando control global…</div></div>
       </div>
 
-      <div class="searchrow"><input id="deliverySearch" placeholder="Buscar alumno, título o tema" oninput="renderDeliveries()"><select id="deliveryStatus" onchange="renderDeliveries()"><option value="">Todos los estados</option><option value="pending">Pendientes</option><option value="validated">Validadas</option><option value="rejected">Rechazadas/devueltas</option></select></div>
-      <div class="card"><h3>🧪 Aportaciones a CENQAL</h3><div id="contributionsInbox"></div></div>
-      <div class="card" style="margin-top:14px"><h3>📄 Portfolios</h3><div id="portfoliosInbox"></div></div>
-      <div class="card" style="margin-top:14px"><h3>🗺️ Gran Atlas · entregas de equipo</h3><div id="atlasInbox"></div></div>
-      <div class="card" style="margin-top:14px"><h3>🏆 Retos y respuestas</h3><div id="challengesInbox"></div></div>
+      </details>
     </section>
 
     <section class="view" id="view-student">
