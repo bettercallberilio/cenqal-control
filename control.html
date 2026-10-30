@@ -203,6 +203,16 @@ details.card>.detailBody{padding:0 16px 16px}
   .desktopHideMobile{display:none}
 }
 
+/* CENQAL · hábitos de estudio: lectura docente, sin nuevas acciones */
+.gymHabitHeader{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+.gymHabitHeader select{min-width:190px;max-width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--ink)}
+.gymHabitCaption{font-size:12px;line-height:1.55;color:var(--muted);margin-top:8px}
+.gymHabitMetrics{margin:10px 0 14px}
+.analyticsMore{position:relative}
+.analyticsMore summary{list-style:none;cursor:pointer}
+.analyticsMore summary::-webkit-details-marker{display:none}
+.analyticsMore[open] .analyticsMorePanel{display:flex;gap:8px;flex-wrap:wrap;padding:8px;border:1px solid var(--line);border-radius:10px;margin-top:8px;background:#fff}
+@media(min-width:901px){.gymHabitTwo{grid-template-columns:1fr 1fr}.gymHabitTwo .analyticsWide{grid-column:auto}}
 /* ===== CENQAL v69 · Learning Analytics ===== */
 .analyticsToolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .analyticsGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:14px}
@@ -715,35 +725,56 @@ details.card>.detailBody{padding:0 16px 16px}
           <p>Rendimiento, evolución semanal, Gym, CENQAL Play, alertas formativas, PRE↔POST y relación práctica–examen. Uso exclusivamente docente · actualización automática de la vista.</p>
         </div>
         <div class="analyticsToolbar">
-          <button class="btn primary" onclick="generateLearningExecutiveActa()">📄 Acta ejecutiva</button>
-          <button class="btn" onclick="botPayload('cg_course')">🧾 Informe integral</button>
-          <button class="btn" onclick="exportLearningExcel(false)">⬇ Excel completo</button>
-          <button class="btn" onclick="exportLearningExcel(true)">🔬 Excel anonimizado</button>
+          <button class="btn primary" onclick="exportLearningExcel(false)">⬇ Excel</button>
           <button class="btn" onclick="loadLearning(true)">↻ Actualizar</button>
+          <details class="analyticsMore">
+            <summary class="btn">Más informes</summary>
+            <div class="analyticsMorePanel">
+              <button class="btn" onclick="generateLearningExecutiveActa()">📄 Acta ejecutiva</button>
+              <button class="btn" onclick="botPayload('cg_course')">🧾 Informe integral</button>
+              <button class="btn" onclick="exportLearningExcel(true)">🔬 Excel anonimizado</button>
+            </div>
+          </details>
         </div>
       </div>
       <div class="note warn" style="margin-bottom:14px">Las asociaciones entre uso del Gym/Play y resultados son descriptivas: ayudan a observar patrones, pero no demuestran causalidad. En Gym el tiempo activo es una estimación; en Play se registra la duración de cada intento.</div>
 
-      <div class="card" style="margin-bottom:14px">
-        <div class="sectionTitle">
-          <div>
-            <h3>🔬 Dimensiones de investigación</h3>
-            <p>La analítica se organiza alrededor de las preguntas del proyecto, no de las herramientas.</p>
-          </div>
-        </div>
-        <div class="actions" style="margin-top:10px">
-          <button class="btn" onclick="laScroll('la-participation')">Participación</button>
-          <button class="btn" onclick="laScroll('la-effort')">Esfuerzo</button>
-          <button class="btn" onclick="laScroll('la-learning')">Aprendizaje</button>
-          <button class="btn" onclick="laScroll('la-difficulty')">Dificultad</button>
-          <button class="btn" onclick="laScroll('la-transfer')">Transferencia</button>
-          <button class="btn" onclick="laScroll('la-intervention')">Intervención</button>
-          <button class="btn" onclick="laScroll('la-quality')">Calidad del dato</button>
-        </div>
-      </div>
-
       <div id="la-participation"></div>
       <div class="metrics grid analyticsKpis" id="learningMetrics"><div class="card"><span class="loader"></span> Calculando analítica…</div></div>
+
+      <section class="card" id="gymHabitSection" style="margin:14px 0">
+        <div class="sectionTitle">
+          <div>
+            <h3>📅 Hábitos de estudio · Gimnasio</h3>
+            <p>Quién practica, qué días y cuánto. Las respuestas son registros reales; el tiempo es una estimación a partir de intervalos entre respuestas, no tiempo conectado.</p>
+          </div>
+          <span class="subtle">Curso seleccionado · solo profesora</span>
+        </div>
+        <div id="gymHabitSummary" class="gymHabitCaption">Calculando hábitos de estudio…</div>
+        <div class="analyticsGrid gymHabitTwo" style="margin-top:14px">
+          <div class="card analyticsChart analyticsWide">
+            <h3>Actividad según el día de la semana</h3>
+            <canvas id="gymHabitWeekdayChart"></canvas>
+            <p class="gymHabitCaption">Número de respuestas. Comparar jueves y viernes no implica conocer la hora del examen.</p>
+          </div>
+          <div class="card analyticsChart analyticsWide">
+            <div class="gymHabitHeader">
+              <h3>Historia de práctica individual</h3>
+              <select id="gymHabitStudent" aria-label="Seleccionar alumno para ver su actividad" onchange="renderGymHabitDetailV80()"></select>
+            </div>
+            <canvas id="gymHabitStudentChart"></canvas>
+            <p id="gymHabitStudentCaption" class="gymHabitCaption"></p>
+          </div>
+        </div>
+        <div class="sectionTitle" style="margin-top:8px">
+          <div><h3>Comparativa por alumno</h3><p>Días distintos de práctica, volumen, regularidad y concentración en jueves/viernes.</p></div>
+        </div>
+        <div id="gymHabitStudentTable"><div class="empty">Cargando actividad individual…</div></div>
+        <div class="note" style="margin-top:12px">
+          <b>Interpretación:</b> un día activo exige al menos una respuesta registrada. El tiempo activo aproximado se estima mediante intervalos entre respuestas; <b>no es un cronómetro de estudio</b>. No se asignan etiquetas de rendimiento ni se modifican notas, PP u Og.
+        </div>
+      </section>
+
 
       <div id="la-effort"></div>
       <div class="card" style="margin-bottom:14px">
@@ -9798,6 +9829,178 @@ function renderRecoveredExamGradesV741(){
       :'');
 }
 
+
+/* CENQAL · hábitos Gym v80: visualización exclusivamente lectora.
+   Usa el export ya autenticado de Learning Analytics; no llama a ninguna RPC adicional.
+   No confundir respuestas ni tiempo activo estimado con tiempo de conexión. */
+function v80GymDate(x){
+  const value=String(x||"").slice(0,10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(value)?value:null;
+}
+function v80GymDayOfWeek(day){
+  const t=new Date(day+"T12:00:00Z");
+  const n=t.getUTCDay();
+  return n===0?7:n;
+}
+function v80GymStudyRows(){
+  const raw=state.strategyRaw||{};
+  if(!Array.isArray(raw.gym_attempts)||!Array.isArray(raw.students))return null;
+  const map=new Map();
+  for(const s of raw.students){
+    if(!s||!s.student_id)continue;
+    const id=String(s.student_id);
+    map.set(id,{
+      id:id, name:String(s.full_name||s.student_code||"Alumno"),
+      code:String(s.student_code||""), dayMap:new Map(),
+      answers:0, correct:0, sessions:new Set(), weeks3:0, days:0,
+      minutes:0, timedSessions:0, lastDate:null, thufri:0, streak:0
+    });
+  }
+  const weekdays=Array(7).fill(0), weekdayStudents=Array.from({length:7},()=>new Set());
+  const ensure=(stu,day)=>{
+    let d=stu.dayMap.get(day);
+    if(!d){d={date:day,answers:0,correct:0,minutes:0,sessions:new Set(),hasTime:false};stu.dayMap.set(day,d)}
+    return d;
+  };
+  let missing=0;
+  for(const a of raw.gym_attempts){
+    const stu=map.get(String(a.student_id||"")),day=v80GymDate(a.local_date||a.created_at);
+    if(!stu||!day){missing++;continue}
+    const d=ensure(stu,day);
+    d.answers++;stu.answers++;
+    if(a.is_correct===true){d.correct++;stu.correct++}
+    if(a.session_id!=null&&a.session_id!==""){stu.sessions.add(String(a.session_id));d.sessions.add(String(a.session_id))}
+    const dow=Number(a.iso_dow)||v80GymDayOfWeek(day);
+    if(dow>=1&&dow<=7){
+      weekdays[dow-1]++;weekdayStudents[dow-1].add(stu.id);
+      if(dow===4||dow===5)stu.thufri++;
+    }
+  }
+  for(const ses of (raw.gym_sessions||[])){
+    const stu=map.get(String(ses.student_id||"")),day=v80GymDate(ses.local_date||ses.started_at);
+    if(!stu||!day)continue;
+    const d=ensure(stu,day);
+    const mins=v736Num(ses.active_minutes);
+    if(mins!=null&&mins>=0){
+      d.minutes+=mins;d.hasTime=true;stu.minutes+=mins;stu.timedSessions++;
+    }
+    if(ses.session_id!=null&&ses.session_id!==""){stu.sessions.add(String(ses.session_id));d.sessions.add(String(ses.session_id))}
+  }
+  const rows=Array.from(map.values()).sort((a,b)=>a.name.localeCompare(b.name,"es"));
+  for(const stu of rows){
+    const dates=Array.from(stu.dayMap.values()).filter(x=>x.answers>0).map(x=>x.date).sort();
+    stu.days=dates.length;
+    stu.lastDate=dates.length?dates[dates.length-1]:null;
+    const weeks=new Map();
+    for(const date of dates){
+      const key=v736WeekStart(new Date(date+"T12:00:00"));
+      if(key)weeks.set(key,(weeks.get(key)||0)+1);
+    }
+    stu.weeks3=Array.from(weeks.values()).filter(n=>n>=3).length;
+    let cur=0,prev=null;
+    for(const day of dates){
+      const yesterday=new Date(day+"T12:00:00Z");
+      yesterday.setUTCDate(yesterday.getUTCDate()-1);
+      const prevKey=yesterday.toISOString().slice(0,10);
+      cur=prev===prevKey?cur+1:1;
+      stu.streak=Math.max(stu.streak,cur);
+      prev=day;
+    }
+  }
+  return {rows,weekdays,weekdayStudents:weekdayStudents.map(x=>x.size),missing};
+}
+function renderGymHabitsV80(){
+  const box=document.getElementById("gymHabitStudentTable");
+  const summary=document.getElementById("gymHabitSummary");
+  const chooser=document.getElementById("gymHabitStudent");
+  if(!box||!summary||!chooser)return;
+  const model=v80GymStudyRows();
+  if(!model){
+    box.innerHTML='<div class="empty">La fuente temporal del Gym no está disponible. Utiliza Actualizar para reintentar; no se interpreta como ausencia de uso.</div>';
+    summary.textContent="No hay datos suficientes para elaborar esta comparación.";
+    v69DestroyChart("gymHabitWeekday");v69DestroyChart("gymHabitStudent");
+    return;
+  }
+  state.gymHabitModelV80=model;
+  const rows=model.rows;
+  const total=rows.reduce((sum,r)=>sum+r.answers,0);
+  const active=rows.filter(r=>r.answers>0).length;
+  const thu=model.weekdays[3]||0,fri=model.weekdays[4]||0;
+  summary.innerHTML="<b>"+total.toLocaleString("es-ES")+" respuestas</b> registradas por <b>"+active+" alumnos</b> · "+
+    "jueves: <b>"+thu.toLocaleString("es-ES")+"</b> · viernes: <b>"+fri.toLocaleString("es-ES")+"</b>."+
+    (model.missing?" "+model.missing+" respuestas no atribuibles; se omiten de la comparativa.":"");
+  v69Chart("gymHabitWeekday","gymHabitWeekdayChart",{
+    type:"bar",
+    data:{labels:["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"],datasets:[{
+      label:"Respuestas registradas",data:model.weekdays
+    }]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{y:{beginAtZero:true,title:{display:true,text:"Respuestas"}}}}
+  });
+  const selected=chooser.value;
+  chooser.innerHTML=rows.map(r=>'<option value="'+esc(r.id)+'">'+esc(r.name)+(r.code?" · "+esc(r.code):"")+'</option>').join("");
+  if(rows.some(r=>r.id===selected))chooser.value=selected;
+  box.innerHTML=rows.length?tableHTML(
+    ["Alumno","Días activos","Preguntas","Sesiones","Tiempo aprox.","Semanas ≥3 días","Jue+Vie","Última práctica"],
+    rows.map(r=>[
+      r.name+(r.code?" · "+r.code:""),
+      r.days,
+      r.answers,
+      r.sessions.size,
+      r.timedSessions?"≈ "+v69Minutes(r.minutes):"—",
+      r.weeks3,
+      r.answers?Math.round(100*r.thufri/r.answers)+" %":"—",
+      r.lastDate||"Sin respuestas"
+    ])
+  ):'<div class="empty">No hay alumnado en este curso.</div>';
+  renderGymHabitDetailV80();
+}
+function renderGymHabitDetailV80(){
+  const chooser=document.getElementById("gymHabitStudent");
+  const caption=document.getElementById("gymHabitStudentCaption");
+  const model=state.gymHabitModelV80;
+  if(!chooser||!caption||!model)return;
+  const stu=model.rows.find(r=>r.id===chooser.value);
+  if(!stu||stu.answers===0){
+    v69DestroyChart("gymHabitStudent");
+    caption.textContent="Este alumno no tiene respuestas identificadas en el periodo consultado.";
+    return;
+  }
+  const days=Array.from(stu.dayMap.values()).filter(x=>x.answers>0).map(x=>x.date).sort();
+  const first=days[0],last=days[days.length-1];
+  const dates=[];
+  let cursor=new Date(first+"T12:00:00Z");
+  const end=new Date(last+"T12:00:00Z");
+  while(cursor<=end&&dates.length<150){
+    dates.push(cursor.toISOString().slice(0,10));
+    cursor.setUTCDate(cursor.getUTCDate()+1);
+  }
+  const hasTime=stu.timedSessions>0;
+  const datasets=[{
+    type:"bar",label:"Preguntas respondidas",
+    data:dates.map(x=>stu.dayMap.get(x)?.answers||0),yAxisID:"y"
+  }];
+  if(hasTime)datasets.push({
+    type:"line",label:"Tiempo activo aprox. (min)",
+    data:dates.map(x=>{
+      const d=stu.dayMap.get(x);
+      return d&&d.hasTime?Math.round(d.minutes*10)/10:null;
+    }),yAxisID:"y2",tension:.18,spanGaps:false
+  });
+  v69Chart("gymHabitStudent","gymHabitStudentChart",{
+    type:"bar",
+    data:{labels:dates.map(x=>x.slice(8,10)+"/"+x.slice(5,7)),datasets},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},
+      scales:{
+        y:{beginAtZero:true,title:{display:true,text:"Preguntas"}},
+        y2:{display:hasTime,beginAtZero:true,position:"right",grid:{drawOnChartArea:false},title:{display:true,text:"Min aprox."}}
+      }}
+  });
+  caption.textContent=stu.days+" días de práctica · "+stu.answers+" respuestas · "+
+    stu.sessions.size+" sesiones · mayor racha: "+stu.streak+" días consecutivos. "+
+    (hasTime?"Tiempo activo estimado: "+v69Minutes(stu.minutes)+".":"Sin estimación de tiempo para este alumno.");
+}
+
 async function loadLearning(force=false){
   if(state.learning&&!force){
     await Promise.all([
@@ -9816,6 +10019,7 @@ async function loadLearning(force=false){
     renderGymAdvancedV737();
     renderAnonymousGymHistoryV738();
     renderStrategyV736();
+    renderGymHabitsV80();
     return state.learning;
   }
   const box=document.getElementById('learningMetrics');
@@ -9839,6 +10043,7 @@ async function loadLearning(force=false){
     renderGymAdvancedV737();
     renderAnonymousGymHistoryV738();
     renderStrategyV736();
+    renderGymHabitsV80();
     return d;
   }catch(e){
     if(box)box.innerHTML=`<div class="card note danger">${esc(e.message)}</div>`;
