@@ -1364,7 +1364,7 @@ details.card>.detailBody{padding:0 16px 16px}
 <div class="modalBack" id="modalBack"><div class="modal" id="modal"></div></div>
 <div class="toast" id="toast"></div>
 
-<script src="./atlas-control.js?v=20261120-2"></script>
+<script src="./atlas-control.js?v=20261120-3"></script>
 <script>
 const qs=new URLSearchParams(location.search);
 const PUBLIC_SUPABASE_URL='https://aibtvkjlmpezjsujlkvn.supabase.co';
@@ -5144,7 +5144,8 @@ function v702AutoTasks(){
     });
   });
 
-  (d.atlas||[]).forEach(x=>{
+  if(state.atlasBoard)out.push(...atlasAgendaRows());
+  else (d.atlas||[]).forEach(x=>{
     if(atlasDeliveryGroup(x.status)!=='pending')return;
     out.push({
       key:'atlas:'+x.id,
