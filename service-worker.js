@@ -1,10 +1,10 @@
-const CACHE_NAME = 'cenqal-control-static-v67';
+const CACHE_NAME = 'cenqal-control-static-20261120';
 
 const STATIC_ASSETS = [
   './manifest.webmanifest',
   './cenqal-icon-192.png',
   './cenqal-icon-512.png',
-  './cenqal-apple-touch-icon.png'
+  './cenqal-apple-touch-icon-1.png'
 ];
 
 self.addEventListener('install', event => {
@@ -21,7 +21,7 @@ self.addEventListener('activate', event => {
       .then(keys =>
         Promise.all(
           keys
-            .filter(key => key !== CACHE_NAME)
+            .filter(key => key.startsWith('cenqal-control-static-') && key !== CACHE_NAME)
             .map(key => caches.delete(key))
         )
       )
