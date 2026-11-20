@@ -1276,7 +1276,7 @@ details.card>.detailBody{padding:0 16px 16px}
       <div class="viewHeader">
         <div>
           <h2>🗺️ Gran Atlas · Equipos reales</h2>
-          <p>Equipos A/B del Atlas, miembros, entregas, sesiones, documentos escritos y pósteres. Desde el Centro de Evidencias podrás descargar por grupo las fichas, fotografías de entrega, evaluaciones y los PDF de póster archivados. Los enlaces externos se conservan como referencia.</p>
+          <p>Seguimiento de los equipos, todas las actividades previstas y sus estados. Consulta el contenido escrito, el póster original, el acta y la rúbrica desde cada entrega. Comprueba la nota individual de cada integrante.</p>
         </div>
         <button class="btn" onclick="loadAtlasOverviewV735(true)">↻ Actualizar</button>
       </div>
@@ -1364,6 +1364,7 @@ details.card>.detailBody{padding:0 16px 16px}
 <div class="modalBack" id="modalBack"><div class="modal" id="modal"></div></div>
 <div class="toast" id="toast"></div>
 
+<script src="./atlas-control.js?v=20261120-2"></script>
 <script>
 const qs=new URLSearchParams(location.search);
 const PUBLIC_SUPABASE_URL='https://aibtvkjlmpezjsujlkvn.supabase.co';
@@ -2008,7 +2009,7 @@ function clearCourseScopedState(){
   state.selectedCourseId=null;
   state.progress=null;
   state.deliveries=null;
-  state.atlasOverview=null;
+  state.atlasOverview=null;state.atlasBoard=null;
   state.teacherTasks=null;
   state.teacherAgenda=null;
   state.learning=null;
@@ -3530,10 +3531,7 @@ function showAtlasDetail(id){
     ['13 · Evidencia científica',x.sources_text]
   ];
 
-  const defaultScore=
-    x.teacher_score??
-    x.ai_score??
-    '';
+  const defaultScore=x.teacher_score??'';
 
   modal(`
 
@@ -3628,23 +3626,8 @@ function showAtlasDetail(id){
     </div>
 
 
-    ${
-      x.poster_url
-        ?`
-          <div class="actions" style="margin-top:12px">
-            ${
-              x.poster_ok===false
-                ?`<span class="status bad">⚠️ Enlace de póster no compartible</span>`
-                :`<a class="btn" href="${esc(x.poster_url)}" target="_blank" rel="noopener">↗ Abrir póster</a>`
-            }
-            <button class="btn" onclick="requestAtlasPosterV7322('${x.id}')">⬇ Descargar PDF del póster</button>
-            <button class="btn" onclick="showAtlasHistoryV735('${x.id}')">🕘 Historial de entregas</button>
-          </div>
-          ${x.poster_ok===false?`<div class="note danger" style="margin-top:8px">El equipo ha guardado una ruta local o un enlace no web. Debe sustituirlo por un enlace https:// accesible para la profesora.</div>`:''}
-        `
-        :`<div class="actions" style="margin-top:12px"><button class="btn" onclick="requestAtlasPosterV7322('${x.id}')">⬇ Buscar PDF del póster</button><button class="btn" onclick="showAtlasHistoryV735('${x.id}')">🕘 Historial de entregas</button></div>`
-    }
-
+    ${atlasDetailExtra(x)}
+    <div class="actions" style="margin-top:8px"><button class="btn" onclick="showAtlasHistoryV735('${x.id}')">Historial de entregas y evaluaciones</button></div>
 
     <details
       class="card"
@@ -3720,7 +3703,7 @@ function showAtlasDetail(id){
         <div class="field">
 
           <label>
-            Nota final /100
+            Nota docente de todo el equipo /100
           </label>
 
           <input
@@ -3835,7 +3818,8 @@ async function reviewAtlasV734(id,status){
 
   try{
 
-    await rpc(
+    if(status==='final'&&!window.confirm('Validar '+score+'/100 para todos los integrantes activos de '+atlasGroupLabel(x.group_code)+'?'))return;
+    const result=await rpc(
       'cenqal_control_atlas_review_v734',
       {
         p_token:TOKEN,
@@ -3847,19 +3831,20 @@ async function reviewAtlasV734(id,status){
       }
     );
 
+    if(!result?.ok)throw Error('No se confirmó el guardado de la evaluación.');
     closeModal();
-
     state.deliveries=null;
-
+    state.atlasOverview=null;
+    state.atlasBoard=null;
     await loadDeliveries(true);
-
+    if(document.getElementById('view-groups')?.classList.contains('active'))await loadAtlasOverviewV735(true);
     state.teacherAgenda=null;
 
     await loadTeacherAgenda(true);
 
     toast(
       status==='final'
-        ?'✅ Gran Atlas validado como final.'
+        ?'✅ Nota de equipo validada: '+String(result.graded_members??'—')+' integrantes · '+String(result.score_out_of_10??'—')+'/10.'
         :status==='in_progress'
           ?'↩️ Ficha devuelta al equipo.'
           :'✅ Revisión docente guardada.'
@@ -3877,6 +3862,7 @@ async function reviewAtlasV734(id,status){
 
 
 async function loadDeliveries(force=false){
+  if(!state.atlasBoard||force)await loadAtlasBoard();
 
   if(state.deliveries&&!force){
     renderDeliveries();
@@ -4741,80 +4727,7 @@ function renderDeliveries(){
       :'<div class="empty">No hay portfolios con estos filtros.</div>';
 
 
-  document
-    .getElementById('atlasInbox')
-    .innerHTML=
-
-      a.length
-
-      ?tableHTML(
-
-        [
-          'Fecha',
-          'N.º',
-          'Equipo',
-          'Alimento',
-          'Estado',
-          'IA',
-          'Docente',
-          'Sesiones',
-          'Póster',
-          'Acción'
-        ],
-
-        a.map(
-          x=>[
-
-            fmtDate(
-              x.submitted_at||
-              x.updated_at
-            ),
-
-            x.delivery_number==null
-              ?'—'
-              :`#${x.delivery_number}`,
-
-            `${x.group_code||'—'} · ${atlasMembersText(x)}`,
-
-            x.food_name||
-              x.food_code||
-              '—',
-
-            x.status||
-              '—',
-
-            x.ai_score==null
-              ?'Pendiente'
-              :`${x.ai_score}/100`,
-
-            x.teacher_score==null
-              ?'—'
-              :`${x.teacher_score}/100`,
-
-            x.session_count??'—',
-
-            x.poster_ok===false
-              ?'<span class="status bad">⚠️ No válido</span>'
-              :x.poster_url
-                ?`<a class="btn" href="${esc(x.poster_url)}" target="_blank" rel="noopener">🎨 Abrir</a>`
-                :'—',
-
-            `<button
-              class="btn primary"
-              onclick="showAtlasDetail('${x.id}')">
-
-              Revisar entrega
-
-            </button>`
-
-          ]
-        ),
-
-        'html'
-      )
-
-      :'<div class="empty">No hay entregas del Gran Atlas con estos filtros.</div>';
-
+  renderAtlasInboxGrouped(a,Boolean(q||st));
 
   document
     .getElementById('challengesInbox')
@@ -6189,7 +6102,9 @@ function editExamManualResult(index){
 
 async function loadAtlasOverviewV735(force=false){
   if(state.atlasOverview&&!force){
+    await loadAtlasBoard();
     renderAtlasOverviewV735();
+    renderAtlasBoardMain();
     return state.atlasOverview;
   }
 
@@ -6201,7 +6116,9 @@ async function loadAtlasOverviewV735(force=false){
       'cenqal_control_atlas_overview_v735',
       {p_token:TOKEN}
     );
+    await loadAtlasBoard();
     renderAtlasOverviewV735();
+    renderAtlasBoardMain();
     return state.atlasOverview;
   }catch(e){
     state.atlasOverview={_error:e.message||String(e),groups:[],students:[],open_sessions:[]};
@@ -6384,7 +6301,7 @@ async function assignAtlasGroupV735(uid,group){
         p_group_code:group
       }
     );
-    state.atlasOverview=null;
+    state.atlasOverview=null;state.atlasBoard=null;
     await loadAtlasOverviewV735(true);
     toast(`✅ Equipo Atlas actualizado: ${group}.`);
   }catch(e){
@@ -6411,7 +6328,7 @@ async function closeAtlasSessionV735(id){
         p_reason:reason.trim()
       }
     );
-    state.atlasOverview=null;
+    state.atlasOverview=null;state.atlasBoard=null;
     await loadAtlasOverviewV735(true);
     toast('✅ Sesión Atlas cerrada.');
   }catch(e){
