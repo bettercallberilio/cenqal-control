@@ -1161,7 +1161,7 @@ details.card>.detailBody{padding:0 16px 16px}
       <div class="metrics grid" id="deliveryMetrics"><div class="card"><span class="loader"></span> Cargando entregas…</div></div>
 
       <div class="sectionTitle" style="margin-top:18px">
-        <div><h3>📬 Entregas registradas</h3><p>Estas cuatro bandejas muestran las aportaciones, porfolios, entregas del Gran Atlas y respuestas a retos que CENQAL ha localizado. Filtra por alumno o estado para revisarlas.</p></div>
+        <div><h3>📬 Entregas registradas</h3><p class="subtle">Vista por temas · PDF privado · actualización 20/11/2026</p><p>Estas cuatro bandejas muestran las aportaciones, porfolios, entregas del Gran Atlas y respuestas a retos que CENQAL ha localizado. Filtra por alumno o estado para revisarlas.</p></div>
       </div>
       <div class="actions" style="margin:10px 0 14px; flex-wrap:wrap">
         <button class="btn" type="button" onclick="document.getElementById('contributionsInbox').parentElement.scrollIntoView({behavior:'smooth',block:'start'})">🧪 Ver aportaciones</button>
@@ -1880,6 +1880,8 @@ document.querySelectorAll('.nav button')
   );
 
 function closeModal(){
+  releaseControlPDF();
+  document.getElementById('controlPortfolioPDF')?.replaceChildren();
   document.getElementById('modalBack')
     .classList.remove('show');
 }
@@ -1894,6 +1896,7 @@ document.getElementById('modalBack')
   );
 
 function modal(html){
+  releaseControlPDF();
   document.getElementById('modal').innerHTML=html;
   document.getElementById('modalBack')
     .classList.add('show');
@@ -3226,6 +3229,7 @@ function showPortfolioDetail(id){
       <div class="miniRow"><span>Preevaluación CENQAL</span><b>${auto==null?'⏳ Pendiente de evaluación docente':`${esc(auto)}/100`}</b></div>
     </div>
 
+    ${x.storage_path?`<div class="field" style="margin-top:12px"><label>Documento original</label><div class="actions"><button class="btn primary" type="button" onclick="openControlPortfolioPDF(${Number(x.id)})">📄 Ver PDF</button><button class="btn" type="button" onclick="openControlPortfolioPDF(${Number(x.id)},true)">⬇ Descargar PDF</button></div><div id="controlPortfolioPDF" data-id="${Number(x.id)}" style="margin-top:8px"></div></div>`:'' }
     ${portfolioLate(x)?`<div class="note warn" style="margin-top:12px">⏰ Esta versión se entregó fuera de plazo. Berilio aplicará automáticamente una penalización del 15 % después de la nota por rúbrica.</div>`:''}
 
     <div class="field" style="margin-top:12px">
@@ -4176,6 +4180,7 @@ function deliveryMatches(
     x.topic,
     x.challenge_code,
     x.challenge?.title,
+    controlDeliveryTopic(x,type)==null?'':`T${controlDeliveryTopic(x,type)} Tema ${controlDeliveryTopic(x,type)} Reto ${controlDeliveryTopic(x,type)}`,
     raw.response_text
   ]
   .join(' ')
@@ -4407,6 +4412,68 @@ async function reviewWeeklyScore(
 }
 
 
+
+function controlDeliveryTopic(x,kind){
+  const ch=x.challenge||{}, raw=x.participation||x;
+  const values=kind==='contribution'?[x.macrotheme_number,x.topic_number,x.challenge_code,x.primary_topic,x.topic]:kind==='portfolio'?[x.topic_number,x.portfolio_number,x.challenge_code,x.challenge_id]:[ch.topic_number,x.topic_number,ch.challenge_code,ch.title,raw.challenge_code];
+  for(const v of values){
+    const t=String(v??'').trim();
+    if(/^\d{1,2}$/.test(t)&&Number(t)>0)return Number(t);
+    const m=t.match(/(?:^|[^a-z0-9])(?:tema\s*|t\s*|reto\s*|porfolio\s*|portfolio\s*)(\d{1,2})(?!\d)/i);
+    if(m&&Number(m[1])>0)return Number(m[1]);
+  }
+  return null;
+}
+function controlDeliveryGroups(rows,kind,build,filtering){
+  const map=new Map(), id={contribution:'contributionsInbox',portfolio:'portfoliosInbox',weekly:'challengesInbox'}[kind];
+  for(const x of rows){
+    const topic=controlDeliveryTopic(x,kind),key=topic===null?'unknown':String(topic);
+    if(!map.has(key))map.set(key,[]);map.get(key).push(x);
+  }
+  const open=new Set(Array.from(document.getElementById(id)?.querySelectorAll('details[data-delivery-topic][open]')||[],el=>el.dataset.deliveryTopic));
+  return [...map.keys()].sort((a,b)=>a==='unknown'?1:b==='unknown'?-1:Number(a)-Number(b)).map(key=>{
+    const list=map.get(key),name=key==='unknown'?'Sin tema identificado':kind==='portfolio'?'Porfolio T'+key:kind==='weekly'?'Reto '+key:'Tema '+key;
+    const pending=list.filter(x=>deliveryGroup((kind==='weekly'?x.participation||{}:x).status)==='pending').length;
+    return '<details class="card" data-delivery-topic="'+key+'" style="margin:8px 0;padding:10px" '+(filtering||open.has(key)?'open':'')+'><summary style="cursor:pointer;font-weight:700;padding:5px 0">'+esc(name)+' · '+list.length+' entrega'+(list.length===1?'':'s')+' <span class="subtle">· '+pending+' pendientes</span></summary><div style="margin-top:10px">'+build(list)+'</div></details>';
+  }).join('');
+}
+let controlPDFUrl=null,controlPDFRequest=0;
+function releaseControlPDF(){
+  controlPDFRequest++;if(controlPDFUrl){URL.revokeObjectURL(controlPDFUrl);controlPDFUrl=null;}
+}
+function controlPortfolioPDFButtons(id){
+  const n=Number(id);if(!Number.isSafeInteger(n)||n<=0)return '';
+  return '<button class="btn primary" type="button" onclick="showPortfolioDetail('+n+');openControlPortfolioPDF('+n+')">📄 Ver PDF</button> <button class="btn" type="button" onclick="showPortfolioDetail('+n+');openControlPortfolioPDF('+n+',true)">⬇ Descargar PDF</button>';
+}
+async function openControlPortfolioPDF(id,download=false){
+  const entry=portfolioById(id),panel=document.getElementById('controlPortfolioPDF');
+  if(!entry||!panel||panel.dataset.id!==String(id))return toast('Abre primero la ficha del porfolio.',true);
+  if(!TOKEN)return toast('Inicia sesión docente para consultar el PDF.',true);
+  releaseControlPDF();const request=controlPDFRequest;panel.textContent='Cargando PDF privado…';
+  const stillHere=()=>request===controlPDFRequest&&document.getElementById('controlPortfolioPDF')===panel&&document.getElementById('modalBack')?.classList.contains('show');
+  try{
+    if(new URL(SBURL).origin!==new URL(PUBLIC_SUPABASE_URL).origin)throw Error('Servicio disponible en el proyecto oficial de CENQAL.');
+    const response=await fetch(PUBLIC_SUPABASE_URL+'/functions/v1/cenqal-portfolio-pdf',{method:'POST',headers:{apikey:PUBLIC_SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify({p_token:TOKEN,submission_id:Number(id)}),cache:'no-store',referrerPolicy:'no-referrer'});
+    const data=await response.json();
+    if(!response.ok||!data.ok||!data.signed_url)throw Error(response.status===401||response.status===403?'Sesión no autorizada. Vuelve a iniciar sesión.':'No se ha podido localizar o autorizar el PDF.');
+    const url=new URL(data.signed_url);
+    if(url.origin!==new URL(PUBLIC_SUPABASE_URL).origin||!url.pathname.startsWith('/storage/v1/object/sign/'))throw Error('Enlace de documento no válido.');
+    const file=await fetch(url.href,{cache:'no-store',referrerPolicy:'no-referrer'});
+    if(!file.ok)throw Error('El archivo privado no está disponible.');
+    const bytes=await file.arrayBuffer();
+    if(new TextDecoder().decode(bytes.slice(0,5))!=='%PDF-')throw Error('El archivo no tiene formato PDF.');
+    if(!stillHere())return;
+    controlPDFUrl=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));panel.textContent='';
+    const links=document.createElement('div');links.className='actions';
+    const save=document.createElement('a');save.className='btn primary';save.textContent='⬇ Descargar PDF';save.href=controlPDFUrl;save.download=String(data.file_name||'Porfolio.pdf').replace(/[\\/]/g,'_');
+    const external=document.createElement('a');external.className='btn';external.textContent='Abrir en visor del dispositivo';external.href=controlPDFUrl;external.target='_blank';external.rel='noopener noreferrer';
+    links.append(save,external);panel.append(links);
+    const frame=document.createElement('iframe');frame.title='PDF del porfolio';frame.style.cssText='width:100%;height:65vh;min-height:300px;border:1px solid #ddd;border-radius:8px;margin-top:10px;background:white';frame.src=controlPDFUrl;panel.append(frame);
+    const hint=document.createElement('p');hint.className='subtle';hint.textContent='Si el visor integrado no aparece en tu móvil, usa Abrir en visor del dispositivo o Descargar PDF.';panel.append(hint);
+    if(download)save.click();
+  }catch(e){if(stillHere()){panel.textContent=e.message||'No se ha podido abrir el PDF.';const retry=document.createElement('button');retry.className='btn';retry.textContent='Reintentar';retry.onclick=()=>openControlPortfolioPDF(id,download);panel.append(' ',retry);}}
+}
+
 function renderDeliveries(){
 
   let d=
@@ -4587,7 +4654,7 @@ function renderDeliveries(){
 
       c.length
 
-      ?tableHTML(
+      ?controlDeliveryGroups(c,'contribution',rows=>tableHTML(
 
         [
           'Fecha',
@@ -4598,7 +4665,7 @@ function renderDeliveries(){
           'Acciones'
         ],
 
-        c.map(
+        rows.map(
           x=>[
             fmtDate(x.created_at),
             studentName(x._student),
@@ -4626,7 +4693,7 @@ function renderDeliveries(){
         ),
 
         'html'
-      )
+      ),Boolean(q||st))
 
       :'<div class="empty">No hay aportaciones con estos filtros.</div>';
 
@@ -4637,7 +4704,7 @@ function renderDeliveries(){
 
       p.length
 
-      ?tableHTML(
+      ?controlDeliveryGroups(p,'portfolio',rows=>tableHTML(
 
         [
           'Fecha',
@@ -4648,7 +4715,7 @@ function renderDeliveries(){
           'Acciones'
         ],
 
-        p.map(
+        rows.map(
           x=>[
             fmtDate(x.created_at),
             studentName(x._student),
@@ -4664,12 +4731,12 @@ function renderDeliveries(){
 
               Ver evaluación
 
-            </button>`
+            </button> ${x.storage_path?controlPortfolioPDFButtons(x.id):''}`
           ]
         ),
 
         'html'
-      )
+      ),Boolean(q||st))
 
       :'<div class="empty">No hay portfolios con estos filtros.</div>';
 
@@ -4755,7 +4822,7 @@ function renderDeliveries(){
 
       w.length
 
-      ?tableHTML(
+      ?controlDeliveryGroups(w,'weekly',rows=>tableHTML(
 
         [
           'Fecha',
@@ -4766,7 +4833,7 @@ function renderDeliveries(){
           'Nota docente',
           'Acciones'
         ],
-w.map(x=>{
+rows.map(x=>{
 
           let participation=
             x.participation||{};
@@ -4879,7 +4946,7 @@ w.map(x=>{
         }),
 
         'html'
-      )
+      ),Boolean(q||st))
 
       :'<div class="empty">No hay respuestas a retos con estos filtros.</div>';
 
@@ -7552,7 +7619,7 @@ if('serviceWorker' in navigator){
     ()=>{
 
       navigator.serviceWorker
-        .register('./service-worker.js')
+        .register('./service-worker.js?v=20261120')
         .then(
           ()=>console.log(
             'CENQAL Control PWA activa'
