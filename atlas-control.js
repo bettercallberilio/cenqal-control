@@ -51,7 +51,7 @@ function atlasRenderGroups(containerId,groups,expand=false){
  const prev=atlasOpenState.get(containerId)||new Set();
  root.innerHTML=groups.map(g=>{
  const t=atlasStats(g),m=g.members||[],key='g:'+g.group_code;
- return '<details class="card" data-atlas-group="'+esc(g.group_code)+'" '+(expand||prev.has(key)?'open':'')+' style="margin:10px 0"><summary style="font-weight:700;cursor:pointer;padding:6px 0">'+esc(atlasGroupLabel(g.group_code))+' · '+t.final+'/'+t.total+' calificadas <span class="status '+(t.review?'warn':'ok')+'">'+t.review+' por corregir / validar</span></summary><div style="margin-top:12px"><h3>'+esc(g.name||g.group_code)+'</h3><div class="note"><b>'+m.length+' integrantes · nota común</b><br>'+m.map(x=>esc(x.full_name||x.student_code||x.telegram_user_id)).join(' · ')+'</div>'+(/^[A-Za-z0-9_-]+$/.test(String(g.group_code||''))?'<div class="actions" style="margin-top:8px"><button class="btn" onclick="requestAtlasGroupEvidenceV7322(\''+g.group_code+'\')">Paquete de evidencias del grupo (Berilio)</button></div>':'')+'<p class="subtle">'+t.work+' en curso o perfiladas · '+t.notStarted+' previstas sin iniciar. No equivalen a retraso sin plazo acreditado.</p>'+(g.foods||[]).slice().sort((a,b)=>Number(a.display_order??a.delivery_number)-Number(b.display_order??b.delivery_number)).map(atlasFoodHTML).join('')+'</div></details>';
+ return '<details class="card" data-atlas-group="'+esc(g.group_code)+'" '+(expand||prev.has(key)?'open':'')+' style="margin:10px 0"><summary style="font-weight:700;cursor:pointer;padding:6px 0">'+esc(atlasGroupLabel(g.group_code))+' · '+t.final+'/'+t.total+' calificadas <span class="status '+(t.review?'warn':'ok')+'">'+t.review+' por corregir / validar</span></summary><div style="margin-top:12px"><h3>'+esc(g.name||g.group_code)+'</h3><div class="note"><b>'+m.length+' integrantes · nota común</b><br>'+m.map(x=>esc(x.full_name||x.student_code||x.telegram_user_id)).join(' · ')+'</div>'+(/^[A-Za-z0-9_-]+$/.test(String(g.group_code||''))?'<div class="actions" style="margin-top:8px"><button class="btn" onclick="requestAtlasGroupEvidenceV7322(\''+g.group_code+'\')">Paquete de evidencias del grupo (Berilio)</button></div>':'')+'<p class="subtle">'+t.work+' en curso o perfiladas · '+t.notStarted+' previstas sin iniciar. No equivalen a retraso sin plazo acreditado.</p>'+(containerId==='groupsGrid'?atlasPaceHTML(g):'')+(g.foods||[]).slice().sort((a,b)=>Number(a.display_order??a.delivery_number)-Number(b.display_order??b.delivery_number)).map(atlasFoodHTML).join('')+'</div></details>';
  }).join('')||'<div class="empty">No hay actividades para estos filtros.</div>';
  for(const d of root.querySelectorAll('details[data-atlas-group],details[data-atlas-food]')){
  const key=d.dataset.atlasGroup?'g:'+d.dataset.atlasGroup:'f:'+d.dataset.atlasFood;
@@ -95,4 +95,33 @@ function atlasExportPDF(id,onlyActa){
  line('Póster original: '+(atlasSafeLink(x.poster_url)||'No consta enlace válido.'));line('Copia generada desde Control. No sustituye el PDF original ni el acta general archivada.');
  const n=doc.getNumberOfPages();for(let i=1;i<=n;i++){doc.setPage(i);doc.setFontSize(8);doc.setTextColor(100);doc.text('Academia CENQAL | Gran Atlas',18,289);doc.text(i+'/'+n,191,289,{align:'right'})}doc.save('CENQAL_Atlas_'+String(x.food_code||id).replace(/[^a-zA-Z0-9_-]/g,'_')+(onlyActa?'_acta':'_ficha_rubrica')+'.pdf');
  }catch(e){toast('No se pudo exportar el PDF: '+(e.message||String(e)),true)}
+}
+
+/* Ritmo orientativo: no equivale a un plazo confirmado ni altera las notas. */
+function atlasPace(g,board=state.atlasBoard,today=null){
+ const fs=g.foods||[], start=String(board?.start_date||'');
+ const fmt=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Madrid',year:'numeric',month:'2-digit',day:'2-digit'});
+ if(!today){const parts=Object.fromEntries(fmt.formatToParts(new Date()).map(p=>[p.type,p.value]));today=parts.year+'-'+parts.month+'-'+parts.day}
+ const delta=(Date.parse(today+'T00:00:00Z')-Date.parse(start+'T00:00:00Z'))/86400000;
+ const week=Number.isFinite(delta)?Math.max(0,Math.floor(delta/7)+1):null;
+ const received=f=>['ready_review','reviewed','final'].includes(f.status);
+ const expected=week==null?null:Math.min(week,fs.length);
+ const missing=expected==null?[]:fs.filter(f=>Number(f.display_order??f.delivery_number)<=expected&&!received(f));
+ const n=fs.filter(received).length;
+ return {week,expected,received:n,missing,remaining:fs.length-n,percent:fs.length?Math.round(n/fs.length*1000)/10:0};
+}
+function atlasPaceHTML(g){
+ const p=atlasPace(g),t=atlasStats(g);
+ return '<div class="note '+(p.missing.length||t.review?'warn':'')+'"><b>Score de entregas: '+p.received+'/'+t.total+' · '+p.percent.toFixed(1)+'%</b><br>'+p.remaining+' por entregar en total · '+t.review+' por corregir/validar'+(p.week==null?'':'<br>Semana '+p.week+' · referencia orientativa '+p.expected+' entregas; '+p.missing.length+' actividades pendientes hasta ese número.')+(p.missing.length?'<br><b>Priorizar:</b> '+p.missing.map(f=>esc('#'+(f.display_order??f.delivery_number)+' '+(f.name||f.food_name||f.food_code))).join(' · '):'')+'<br><span class="subtle">Sin fecha límite confirmada, el ritmo es orientativo y no implica retraso oficial ni penalización.</span></div>';
+}
+function atlasAgendaRows(){
+ const board=state.atlasBoard;if(!board)return [];
+ const rows=[];
+ for(const g of board.groups||[]){
+  const p=atlasPace(g,board),t=atlasStats(g);
+  const names=(g.foods||[]).filter(f=>['ready_review','reviewed'].includes(f.status)).map(f=>'#'+f.display_order+' '+f.name);
+  if(t.review)rows.push({key:'atlas-review:'+g.group_code,kind:'auto',source:'Gran Atlas · corrección',title:atlasGroupLabel(g.group_code)+' · '+t.review+' por corregir / validar',note:names.join(' · '),status:'open',priority:'high',view:'groups',due_at:null});
+  if(p.missing.length)rows.push({key:'atlas-pace:'+g.group_code,kind:'auto',source:'Gran Atlas · seguimiento',title:atlasGroupLabel(g.group_code)+' · '+p.missing.length+' pendientes respecto al ritmo orientativo',note:'Semana '+p.week+' · '+p.missing.map(f=>'#'+f.display_order+' '+f.name).join(' · ')+' · Sin fecha límite confirmada',status:'open',priority:'high',view:'groups',due_at:null});
+ }
+ return rows;
 }
