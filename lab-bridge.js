@@ -8,7 +8,7 @@ const CENQAL_LAB_BRIDGE=(()=>{
     if(!loaded){loaded=true;f.src="./lab.html?v=20261125-1"}
   }
   function reset(){
-    const f=frame();if(f?.contentWindow&&loaded)f.contentWindow.postMessage({type:"CENQAL_LAB_RESET"},location.origin);
+    const f=frame();loaded=false;if(f)f.src="about:blank";
   }
   window.addEventListener("message",async event=>{
     const f=frame();if(!f||event.source!==f.contentWindow||event.origin!==location.origin)return;
@@ -24,7 +24,7 @@ const CENQAL_LAB_BRIDGE=(()=>{
     try{
       const payload=m.payload&&typeof m.payload==="object"&&!Array.isArray(m.payload)?m.payload:{};
       if(Object.keys(payload).length>12)throw Error("Solicitud demasiado extensa.");
-      const content={p_token:TOKEN,action:m.action,...payload};
+      const content={...payload,p_token:TOKEN,action:m.action};
       // Only the stable, known CENQAL Supabase project is contacted.
       const result=await fetch(PUBLIC_SUPABASE_URL+"/functions/v1/cenqal-lab",{
         method:"POST",headers:{"apikey":PUBLIC_SUPABASE_KEY,"Content-Type":"application/json"},
