@@ -5,7 +5,7 @@ const CENQAL_LAB_BRIDGE=(()=>{
   function frame(){return document.getElementById("labFrame")}
   function open(){
     const f=frame();if(!f)return;
-    if(!loaded){loaded=true;f.src="./lab.html?v=20261125-2"}
+    if(!loaded){loaded=true;f.src="./lab.html?v=20261125-3"}
   }
   function reset(){
     const f=frame();loaded=false;if(f)f.src="about:blank";
