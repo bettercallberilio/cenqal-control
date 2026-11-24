@@ -592,7 +592,7 @@ details.card>.detailBody{padding:0 16px 16px}
           <div class="grid two">
             <button class="btn primary" onclick="go('learning')">📊 Learning Analytics</button>
             <button class="btn" onclick="go('students')">👥 Alumnado</button>
-            <button class="btn" onclick="go('management')">🎓 Gestión docente</button>
+            <button class="btn" onclick="go('management')">🎓 Gestión docente</button><button class="btn primary" onclick="go('lab')">⚗️ CENQAL LAB</button>
             <button class="btn" onclick="go('records')">📁 Actas y evidencias</button>
             <button class="btn" onclick="newEvent()">＋ Añadir evento</button>
             <button class="btn warn" onclick="go('admin')">⚙️ Administración</button>
@@ -7287,6 +7287,7 @@ async function startPanel(){
       );
     }
 
+    if(location.hash==='#lab')go('lab');
     toast(
       'CENQAL Control conectado.'
     );
