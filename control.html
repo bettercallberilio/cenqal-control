@@ -506,6 +506,7 @@ details.card>.detailBody{padding:0 16px 16px}
       <button data-view="students">👥 Alumnado</button>
       <button data-view="learning">📊 Learning Analytics</button>
       <button data-view="management">🎓 Gestión docente</button>
+      <button data-view="lab">⚗️ CENQAL LAB</button>
       <button data-view="deliveries">📥 Entregas</button>
       <button data-view="records">📁 Actas y evidencias</button>
       <button data-view="admin">⚙️ Administración</button>
@@ -605,6 +606,20 @@ details.card>.detailBody{padding:0 16px 16px}
 
       </div>
 
+    </section>
+
+    <section class="view" id="view-lab">
+      <div class="viewHeader">
+        <div>
+          <h2>⚗️ CENQAL LAB · Mi laboratorio docente</h2>
+          <p>Microaplicación conectada a CENQAL: formación científica, innovación docente, apuntes, lecturas, prácticas en cocina y gimnasio personal. Sin deberes ni consecuencias académicas.</p>
+        </div>
+        <div class="actions"><button class="btn" onclick="CENQAL_LAB_BRIDGE.reset();CENQAL_LAB_BRIDGE.open()">↻ Recargar LAB</button></div>
+      </div>
+      <div class="note" style="margin-bottom:14px">🔒 Acceso desde tu sesión docente. Los repasos del LAB quedan fuera del libro de notas, PP y Oganesones. Las propuestas de contenido se guardan como candidatas hasta validarlas.</div>
+      <div class="card" style="padding:4px;overflow:hidden">
+        <iframe id="labFrame" title="CENQAL LAB · microaplicación docente" loading="lazy" referrerpolicy="no-referrer" style="display:block;border:0;width:100%;height:76vh;min-height:720px;border-radius:10px;background:#f5f8fc"></iframe>
+      </div>
     </section>
 
     <section class="view" id="view-agenda">
@@ -1365,6 +1380,7 @@ details.card>.detailBody{padding:0 16px 16px}
 <div class="toast" id="toast"></div>
 
 <script src="./atlas-control.js?v=20261120-3"></script>
+<script src="./lab-bridge.js?v=20261125-1"></script>
 <script>
 const qs=new URLSearchParams(location.search);
 const PUBLIC_SUPABASE_URL='https://aibtvkjlmpezjsujlkvn.supabase.co';
@@ -1849,6 +1865,7 @@ function go(name){
     `.nav button[data-view="${name}"]`
   )?.classList.add('active');
 
+  if(name==='lab')CENQAL_LAB_BRIDGE.open();
   if(name==='agenda')loadTeacherAgenda();
   if(name==='students')loadStudents();
   if(name==='progress')loadProgress();
@@ -2023,6 +2040,7 @@ function clearCourseScopedState(){
   state.studentPlay=null;
   state.studentDetail=null;
   state.currentStudentId=null;
+  CENQAL_LAB_BRIDGE.reset();
 }
 
 async function loadCourses(force=false){
