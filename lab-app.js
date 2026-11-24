@@ -28,7 +28,7 @@ function weeklyTopic(){
   return week<0?1:(week%8)+1;
  }catch{return 1}
 }
-const state={data:null,topic:weeklyTopic(),area:"lesson",gym:null,practiceAll:false,search:"",busy:false};
+const state={data:null,topic:weeklyTopic(),area:"lesson",gym:null,practiceAll:false,search:"",busy:false,improveYear:"all"};
 const pending=new Map();let nextRequest=0;
 const el=(id)=>document.getElementById(id);
 const esc=(s)=>String(s??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
@@ -112,7 +112,7 @@ function renderGrowth(){
  const sorted=[...byTopic.entries()].sort((a,b)=>b[1]-a[1]);
  return sectionTop("VIERNES · CENQAL CRECE","Una base de conocimiento viva","Resumen de lo que está documentado y de las propuestas guardadas. No confunde referencias validadas con ideas por revisar.")+
  '<div class="deck"><div class="panel"><div class="miniLabel">Evolución verificada</div><h3>'+rs.length+' referencias científicas validadas</h3><p>'+recent.length+' referencias con alta registrada en los últimos 7 días.</p><p>'+cards.length+' ideas docentes personales registradas; '+cards.filter(c=>c.state==="approved").length+' marcadas como aprobadas por ti.</p><p class="subtle">Las propuestas docentes no alteran las fichas científicas oficiales automáticamente.</p></div><div class="panel"><h3>Temas más representados</h3>'+sorted.slice(0,9).map(([k,v])=>'<div class="resource"><b>'+esc(k)+'</b> <span class="chip slate">'+v+' referencias</span></div>').join("")+'</div></div>'+
- '<div class="panel"><h3>La conexión de esta semana</h3><p class="lecture">'+esc(topic().focus)+'</p>'+renderConcepts()+'<button class="btn primary" data-switch="library">Explorar referencias y propuestas</button></div>';
+ '<div class="panel"><h3>La conexión de esta semana</h3><p class="lecture">'+esc(topic().focus)+'</p>'+renderConcepts()+'<button class="btn primary" data-switch="library">Explorar referencias y propuestas</button> <button class="btn" data-switch="improvements">🔁 Ver mejora continua</button></div>';
 }
 function renderReading(){
  const rs=libraryMatches(),review=rs.find(x=>x.resource_type==="review"),article=rs.find(x=>x.resource_type==="scientific_article"&&x.id!==review?.id),other=rs.find(x=>x.id!==review?.id&&x.id!==article?.id);
@@ -154,10 +154,51 @@ function renderLibrary(){
  return sectionTop("MI BIBLIOTECA DOCENTE","Ideas conectadas con CENQAL","Guarda conexiones, recursos, ideas de cocina y mejoras de apuntes. Las propuestas se mantienen separadas del conocimiento científico validado.")+
  '<div class="deck"><div class="panel"><h3>Añadir una idea o descubrimiento</h3><form id="newLabCard"><div class="inlineForm"><div class="field"><label for="cardTopic">Tema</label><select id="cardTopic" name="topic">'+TOPICS.map(t=>'<option value="'+t.id+'"'+(t.id===state.topic?" selected":"")+'>'+t.id+' · '+esc(t.title)+'</option>').join("")+'</select></div><div class="field"><label for="cardSection">Sección</label><select id="cardSection" name="section"><option value="lesson">Lección magistral</option><option value="radar">Radar de ciencia</option><option value="teaching">Mejora la profesora</option><option value="notes">Mis apuntes</option><option value="growth">CENQAL crece</option><option value="reading">Lecturas</option><option value="practice">Práctica en cocina</option><option value="infographic">Infografía</option></select></div></div><div class="field"><label for="cardTitle">Título</label><input id="cardTitle" name="title" maxlength="180" required placeholder="Algo que merece la pena conservar"></div><div class="field"><label for="cardSummary">Explicación o idea</label><textarea id="cardSummary" name="summary" maxlength="5000" placeholder="Resumen, observación o posible conexión…"></textarea></div><div class="field"><label for="cardURL">Enlace a la fuente (opcional)</label><input id="cardURL" name="source_url" type="url" placeholder="https://…"></div><button type="submit" class="btn primary">Guardar propuesta</button><p class="subtle">No se incorpora automáticamente al catálogo científico validado; primero queda como candidata.</p></form></div><div class="panel"><div class="sectionTitle"><h2>Mis ideas guardadas</h2><span class="chip">'+cards.length+'</span></div><div class="field"><label for="librarySearch">Buscar entre mis ideas</label><input id="librarySearch" placeholder="Buscar por título o descripción…" value="'+esc(state.search)+'"></div><div id="savedCards">'+(filtered.length?filtered.map(cardHTML).join(""):'<div class="empty">No hay ideas guardadas con esta búsqueda.</div>')+'</div></div></div>';
 }
+
+function academicYear(){
+ const parts=Object.fromEntries(new Intl.DateTimeFormat("en-US",{timeZone:"Europe/Madrid",year:"numeric",month:"2-digit"}).formatToParts(new Date()).map(x=>[x.type,x.value]));
+ const y=Number(parts.year),m=Number(parts.month),start=m>=9?y:y-1;
+ return start+"-"+(start+1);
+}
+function improvementStatus(stage){
+ return {idea:"Idea identificada",pilot:"Prueba de aula",evaluated:"Resultados analizados",adopted:"Mejora incorporada",discarded:"No se incorpora"}[stage]||"Propuesta";
+}
+function improvementThreads(){
+ const items=state.data?.improvements||[],grouped=new Map();
+ for(const entry of [...items].sort((a,b)=>Date.parse(b.created_at)-Date.parse(a.created_at))){
+  if(!grouped.has(entry.thread_id))grouped.set(entry.thread_id,[]);
+  grouped.get(entry.thread_id).push(entry);
+ }
+ return [...grouped.values()].sort((a,b)=>Date.parse(b[0].created_at)-Date.parse(a[0].created_at));
+}
+function renderImprovements(){
+ const all=improvementThreads(),years=[...new Set([academicYear(),...all.map(x=>x[0].academic_year)])].sort().reverse();
+ const selected=state.improveYear==="all"?all:all.filter(a=>a[0].academic_year===state.improveYear);
+ const adopted=selected.filter(a=>a[0].stage==="adopted").length;
+ const evaluated=selected.filter(a=>a[0].stage==="evaluated").length;
+ const topics=new Set(selected.map(a=>a[0].topic_number));
+ const h=sectionTop("MEJORA CONTINUA · CENQAL LAB","Un sistema que aprende con cada promoción","Conservar lo que funcionó, comprender lo que no funcionó y transformar la evidencia en mejoras para futuros cursos. Sin entregas ni tareas obligatorias.");
+ const cards='<div class="deck">'+[
+  ["Propuestas de mejora",selected.length,"Cada línea conserva su historial"],
+  ["Ya incorporadas",adopted,"Decisiones registradas por ti"],
+  ["Con resultados",evaluated,"Revisadas con algún tipo de evidencia"],
+  ["Temas abordados",topics.size,"De los 8 bloques de la asignatura"]
+ ].map(x=>'<div class="panel"><div class="miniLabel">'+x[0]+'</div><h3>'+x[1]+'</h3><p class="subtle">'+x[2]+'</p></div>').join("")+'</div>';
+ const intro='<div class="panel"><h3>El ciclo de aprendizaje del sistema</h3><div class="flowDiagram"><div class="flowStep">Detectar<small>Dudas, dificultades y oportunidades</small></div><div class="flowStep">Mejorar<small>Apuntes, cocina, explicación o evaluación</small></div><div class="flowStep">Contrastar<small>Evidencia, observación y decisiones</small></div></div><p>Una propuesta no se convierte automáticamente en éxito. Las conclusiones se contrastarán con evidencias del aula y, cuando proceda, con datos agregados de Learning Analytics. Se conserva el contexto de cada promoción: así podemos mejorar año tras año sin comparar grupos como si fueran idénticos.</p><div class="infoBand green">El sistema te presentará oportunidades; solo registrarás una decisión cuando quieras. No hay vencimientos ni recordatorios de tareas pendientes.</div></div>';
+ const form='<div class="panel"><h3>Conservar una mejora para los próximos cursos</h3><p>Una idea que nace de un descubrimiento, una práctica en cocina, una dificultad de aprendizaje o una actualización científica. Puedes dejar campos en blanco y completarlos cuando lo consideres útil.</p><form id="newImprovement"><div class="inlineForm"><div class="field"><label for="improveYear">Curso de origen</label><select id="improveYear" name="academic_year">'+[...new Set([academicYear(),...years])].sort().reverse().map(y=>'<option value="'+esc(y)+'">'+esc(y)+'</option>').join("")+'</select></div><div class="field"><label for="improveTopic">Tema</label><select id="improveTopic" name="topic">'+TOPICS.map(t=>'<option value="'+t.id+'"'+(t.id===state.topic?" selected":"")+'>'+t.id+' · '+esc(t.title)+'</option>').join("")+'</select></div></div><div class="field"><label for="improveTitle">Título de la mejora</label><input id="improveTitle" name="title" maxlength="180" placeholder="Por ejemplo, explicar mejor el polimorfismo de las grasas" required></div><div class="field"><label for="improveObservation">Qué hemos observado</label><textarea id="improveObservation" name="observation" maxlength="3500" placeholder="Dificultad, hallazgo, oportunidad…"></textarea></div><div class="field"><label for="improveProposal">Qué podríamos cambiar</label><textarea id="improveProposal" name="proposal" maxlength="3500" placeholder="Una infografía, una actividad en cocina, un nuevo ejemplo…"></textarea></div><div class="field"><label for="improveEvidence">Fuentes o indicios</label><textarea id="improveEvidence" name="evidence" maxlength="3500" placeholder="Publicación, observación, resultados agregados, experiencia de aula…"></textarea></div><div class="field"><label for="improveIndicator">Cómo sabremos si ayuda</label><input id="improveIndicator" name="indicator" maxlength="1000" placeholder="Por ejemplo, errores conceptuales antes y después"></div><button type="submit" class="btn primary">Conservar propuesta</button></form></div>';
+ const rows=selected.map(thread=>{
+  const c=thread[0],timeline=thread.slice().reverse();
+  const opts=["idea","pilot","evaluated","adopted","discarded"].map(v=>'<option value="'+v+'"'+(v===c.stage?" selected":"")+'>'+improvementStatus(v)+'</option>').join("");
+  return '<article class="panel"><div class="tagRow">'+tag(c.academic_year,"slate")+tag("Tema "+c.topic_number)+tag(improvementStatus(c.stage),c.stage==="adopted"?"gold":"")+'<span class="chip slate">'+thread.length+' versión/es</span></div><h3>'+esc(c.title)+'</h3><p><b>Observación:</b> '+esc(c.observation||"Sin anotar")+'</p><p><b>Propuesta:</b> '+esc(c.proposal||"Sin concretar")+'</p><p><b>Evidencia:</b> '+esc(c.evidence||"Todavía por contrastar")+'</p><p><b>Indicador:</b> '+esc(c.indicator||"Sin definir")+'</p>'+(c.outcome?'<div class="infoBand green"><b>Resultado/decisión:</b> '+esc(c.outcome)+'</div>':'')+
+   '<details><summary>Revisar evolución y registrar un cambio (opcional)</summary><form class="reviseImprovement" data-thread="'+esc(c.thread_id)+'"><div class="field"><label>Situación actual</label><select name="stage">'+opts+'</select></div><div class="field"><label>Qué hemos observado ahora</label><textarea name="outcome" maxlength="3500" placeholder="Resultado de una prueba, decisión o motivo…">'+esc(c.outcome||"")+'</textarea></div><button class="btn" type="submit">Registrar versión nueva</button></form><p class="subtle">Historial conservado sin sobrescribir:</p>'+timeline.map(e=>'<div class="detailsNote"><b>'+esc(new Date(e.created_at).toLocaleDateString("es-ES"))+' · '+esc(improvementStatus(e.stage))+'</b><div>'+esc(e.outcome||e.observation||e.proposal||"Sin anotaciones")+'</div></div>').join("")+'</details></article>';
+ }).join("");
+ return h+cards+intro+'<div class="deck">'+form+'<div><div class="panel"><div class="sectionTitle"><h2>Memoria de decisiones</h2><select id="improvementYearFilter" class="btn" aria-label="Filtrar curso académico"><option value="all">Todos los cursos</option>'+years.map(y=>'<option value="'+esc(y)+'"'+(state.improveYear===y?" selected":"")+'>'+esc(y)+'</option>').join("")+'</select></div><p class="subtle">Se conserva el historial de cada decisión. Nada se implementa automáticamente en los materiales ni en las evaluaciones.</p></div>'+(rows||'<div class="empty">Aquí aparecerán las propuestas documentadas y su evolución por cursos, cuando existan.</div>')+'</div></div>';
+}
+
 function draw(){
  if(!state.data){el("labContent").innerHTML='<div class="empty">Abre CENQAL LAB desde tu panel. Si ya estás dentro, actualiza la conexión.</div>';return}
  renderTopicSelect();renderMetrics();
- const actions={lesson:renderLesson,radar:renderRadar,teaching:renderTeaching,notes:renderNotes,growth:renderGrowth,reading:renderReading,practices:renderPractices,gym:renderGym,library:renderLibrary};
+ const actions={lesson:renderLesson,radar:renderRadar,teaching:renderTeaching,notes:renderNotes,growth:renderGrowth,reading:renderReading,practices:renderPractices,gym:renderGym,library:renderLibrary,improvements:renderImprovements};
  el("labContent").innerHTML=(actions[state.area]||renderLesson)();
  document.querySelectorAll("#labNav button").forEach(b=>{b.classList.toggle("selected",b.dataset.area===state.area);b.setAttribute("aria-pressed",b.dataset.area===state.area?"true":"false")});
 }
@@ -199,6 +240,9 @@ document.querySelector("#labNav").addEventListener("click",e=>{
  const b=e.target.closest("button[data-area]");if(!b)return;state.area=b.dataset.area;state.gym=null;draw();el("labContent").focus({preventScroll:true});
 });
 el("topicSelect").addEventListener("change",e=>{state.topic=Number(e.target.value)||1;state.gym=null;state.practiceAll=false;draw()});
+el("labContent").addEventListener("change",e=>{
+ if(e.target.id==="improvementYearFilter"){state.improveYear=e.target.value;draw()}
+});
 el("labContent").addEventListener("click",async e=>{
  const b=e.target.closest("button");if(!b)return;
  if(b.dataset.switch){state.area=b.dataset.switch;draw();return}
@@ -215,6 +259,26 @@ el("labContent").addEventListener("click",async e=>{
  }catch(err){notify(err.message,true)}finally{state.busy=false}}
 });
 el("labContent").addEventListener("submit",async e=>{
+
+ if(e.target.id==="newImprovement"){
+  e.preventDefault();if(state.busy)return;state.busy=true;
+  try{const d=new FormData(e.target);
+   const r=await api("improvement_add",Object.fromEntries(d.entries()));
+   state.data.improvements=[r.improvement,...(state.data.improvements||[])];
+   notify("Mejora conservada para futuros cursos.");draw();
+  }catch(err){notify(err.message,true)}finally{state.busy=false}
+  return;
+ }
+ if(e.target.classList?.contains("reviseImprovement")){
+  e.preventDefault();if(state.busy)return;state.busy=true;
+  try{
+   const d=new FormData(e.target);
+   const r=await api("improvement_revision",{thread_id:e.target.dataset.thread,stage:String(d.get("stage")),outcome:String(d.get("outcome")||"")});
+   state.data.improvements=[r.improvement,...(state.data.improvements||[])];
+   notify("Nueva versión registrada; el historial se conserva.");draw();
+  }catch(err){notify(err.message,true)}finally{state.busy=false}
+  return;
+ }
  if(e.target.id!=="newLabCard")return;e.preventDefault();
  const form=e.target,data=new FormData(form);
  await saveIdea(String(data.get("section")),String(data.get("title")||"").trim(),String(data.get("summary")||"").trim(),{topic:Number(data.get("topic")),source_url:String(data.get("source_url")||"")});
