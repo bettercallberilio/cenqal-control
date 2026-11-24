@@ -1,6 +1,6 @@
 /* CENQAL LAB: puente de mínima exposición. El iframe nunca recibe el token docente. */
 const CENQAL_LAB_BRIDGE=(()=>{
-  const allowed=new Set(["overview","gym_start","gym_answer","save_card","card_status"]);
+  const allowed=new Set(["overview","gym_start","gym_answer","save_card","card_status","improvement_add","improvement_revision"]);
   let loaded=false;
   function frame(){return document.getElementById("labFrame")}
   function open(){
