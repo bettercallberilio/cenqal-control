@@ -20,7 +20,15 @@ const PRACTICES=[
  {topic:7,title:"Indicadores naturales de pH en cocina",time:"35–55 min",ingredients:"Col lombarda, limón, bicarbonato alimentario y agua",equipment:"Vasos, filtros, cuchara y hervidor",process:"Preparar un extracto acuoso de lombarda y añadir pequeñas cantidades de ingredientes alimentarios ácidos o básicos; observar y registrar colores.",safety:"No ingerir las muestras experimentales; evitar recipientes no alimentarios.",signal:"Cambios de color relacionados cualitativamente con el equilibrio ácido-base."},
  {topic:8,title:"Pardeamiento de manzana: oxígeno, acidez y calor",time:"40–60 min",ingredients:"Manzanas del mismo lote, limón y agua",equipment:"Cuchillos, recipientes, cronómetro y tabla",process:"Comparar rodajas equivalentes al aire, tratadas con zumo de limón, protegidas del aire y escaldadas; fotografiar en intervalos iguales.",safety:"Seguridad con cuchillos, calor y superficies limpias.",signal:"Velocidad y extensión del cambio de color."}
 ];
-const state={data:null,topic:1,area:"lesson",gym:null,practiceAll:false,search:"",busy:false};
+function weeklyTopic(){
+ try{
+  const parts=Object.fromEntries(new Intl.DateTimeFormat("en-US",{timeZone:"Europe/Madrid",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date()).map(x=>[x.type,x.value]));
+  const today=Date.UTC(Number(parts.year),Number(parts.month)-1,Number(parts.day));
+  const week=Math.floor((today-Date.UTC(2027,0,18))/(7*86400000));
+  return week<0?1:(week%8)+1;
+ }catch{return 1}
+}
+const state={data:null,topic:weeklyTopic(),area:"lesson",gym:null,practiceAll:false,search:"",busy:false};
 const pending=new Map();let nextRequest=0;
 const el=(id)=>document.getElementById(id);
 const esc=(s)=>String(s??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
