@@ -217,5 +217,5 @@ el("labContent").addEventListener("input",e=>{
  const node=el("savedCards");if(node)node.innerHTML=filtered.length?filtered.map(cardHTML).join(""):'<div class="empty">No se han encontrado ideas.</div>';
 });
 if(window.parent===window){el("connection").textContent="Acceso desde el panel";el("labContent").innerHTML='<div class="empty">Abre la pestaña CENQAL LAB desde CENQAL Control. No se envían tokens por la URL.</div>'}
-else window.parent.postMessage({type:"CENQAL_LAB_READY"},location.origin);
+else {window.parent.postMessage({type:"CENQAL_LAB_READY"},location.origin);load();}
 })();
