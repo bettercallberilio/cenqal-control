@@ -111,7 +111,7 @@ function renderGrowth(){
  for(const r of rs)byTopic.set(r.topic||"Sin tema",(byTopic.get(r.topic||"Sin tema")||0)+1);
  const sorted=[...byTopic.entries()].sort((a,b)=>b[1]-a[1]);
  return sectionTop("VIERNES · CENQAL CRECE","Una base de conocimiento viva","Resumen de lo que está documentado y de las propuestas guardadas. No confunde referencias validadas con ideas por revisar.")+
- '<div class="deck"><div class="panel"><div class="miniLabel">Evolución verificada</div><h3>'+rs.length+' referencias científicas validadas</h3><p>'+recent.length+' referencias con alta registrada en los últimos 7 días.</p><p>'+cards.length+' ideas docentes personales registradas; '+cards.filter(c=>c.state==="approved").length+' marcadas como aprobadas por ti.</p><p class="subtle">Las propuestas docentes no alteran las fichas científicas oficiales automáticamente.</p></div><div class="panel"><h3>Temas más representados</h3>'+sorted.slice(0,9).map(([k,v])=>'<div class="resource"><b>'+esc(k)+'</b> <span class="chip slate">'+v+' referencias</span></div>').join("")+'</div></div>'+
+ '<div class="deck"><div class="panel"><div class="miniLabel">Evolución verificada</div><h3>'+rs.length+' referencias científicas validadas</h3><p>'+recent.length+' referencias con alta registrada en los últimos 7 días.</p><p>'+cards.length+' ideas docentes personales registradas; '+cards.filter(c=>c.state==="approved").length+' marcadas como aprobadas por ti.</p><p>' + improvementThreads().length + ' mejoras interanuales documentadas.</p><p class="subtle">Las propuestas docentes no alteran las fichas científicas oficiales automáticamente.</p></div><div class="panel"><h3>Temas más representados</h3>'+sorted.slice(0,9).map(([k,v])=>'<div class="resource"><b>'+esc(k)+'</b> <span class="chip slate">'+v+' referencias</span></div>').join("")+'</div></div>'+
  '<div class="panel"><h3>La conexión de esta semana</h3><p class="lecture">'+esc(topic().focus)+'</p>'+renderConcepts()+'<button class="btn primary" data-switch="library">Explorar referencias y propuestas</button> <button class="btn" data-switch="improvements">🔁 Ver mejora continua</button></div>';
 }
 function renderReading(){
@@ -147,7 +147,7 @@ function renderGym(){
 function cardHTML(c){
  const states={candidate:"Propuesta",reviewed:"Revisada",approved:"Aprobada"};
  const source=safeUrl(c.source_url);
- return '<div class="resource"><div class="tagRow">'+tag("Tema "+c.topic_number)+tag(c.section,"slate")+'<span class="status '+esc(c.state)+'">'+esc(states[c.state]||"Propuesta")+'</span></div><h4>'+esc(c.title)+'</h4><p>'+esc(c.summary||"Sin descripción")+'</p><div class="actions">'+(source?'<a class="btn" href="'+esc(source)+'" target="_blank" rel="noopener noreferrer">Abrir fuente</a>':'')+(c.state!=="reviewed"?'<button class="btn" data-card-id="'+esc(c.id)+'" data-card-state="reviewed">Marcar revisada</button>':'')+(c.state!=="approved"?'<button class="btn" data-card-id="'+esc(c.id)+'" data-card-state="approved">Aprobar idea</button>':'')+'</div></div>';
+ return '<div class="resource"><div class="tagRow">'+tag("Tema "+c.topic_number)+tag(c.section,"slate")+'<span class="status '+esc(c.state)+'">'+esc(states[c.state]||"Propuesta")+'</span></div><h4>'+esc(c.title)+'</h4><p>'+esc(c.summary||"Sin descripción")+'</p><div class="actions">'+(source?'<a class="btn" href="'+esc(source)+'" target="_blank" rel="noopener noreferrer">Abrir fuente</a>':'')+(c.state!=="reviewed"?'<button class="btn" data-card-id="'+esc(c.id)+'" data-card-state="reviewed">Marcar revisada</button>':'')+(c.state!=="approved"?'<button class="btn" data-card-id="'+esc(c.id)+'" data-card-state="approved">Aprobar idea</button>':'')+'<button class="btn" data-improve-card="'+esc(c.id)+'">🔁 Proponer para próximos cursos</button></div></div>';
 }
 function renderLibrary(){
  const cards=state.data?.cards||[],q=state.search.toLowerCase(),filtered=cards.filter(c=>(String(c.title||"")+" "+String(c.summary||"")).toLowerCase().includes(q));
@@ -253,6 +253,17 @@ el("labContent").addEventListener("click",async e=>{
  if(b.id==="gymNext"){const g=state.gym;if(!g)return;g.index++;g.selected=null;g.answer=null;draw();return}
  if(b.id==="gymStop"){state.gym=null;draw();return}
  if(b.dataset.answer){await answerGym(b.dataset.answer);return}
+ if(b.dataset.improveCard){
+  if(state.busy)return;const c=(state.data.cards||[]).find(x=>x.id===b.dataset.improveCard);
+  if(!c){notify("No se encontró la idea.",true);return}
+  state.busy=true;
+  try{
+   const r=await api("improvement_add",{academic_year:academicYear(),topic:Number(c.topic_number),title:String(c.title||"").slice(0,180),observation:"Idea procedente de la biblioteca CENQAL LAB ("+c.section+").",proposal:String(c.summary||"").slice(0,3500),evidence:String(c.source_url||"").slice(0,3500),indicator:"",outcome:""});
+   state.data.improvements=[r.improvement,...(state.data.improvements||[])];
+   state.area="improvements";notify("Idea incorporada a la memoria de mejora continua.");draw();
+  }catch(err){notify(err.message,true)}finally{state.busy=false}
+  return;
+ }
  if(b.dataset.cardId){if(state.busy)return;state.busy=true;try{
   const r=await api("card_status",{id:b.dataset.cardId,state:b.dataset.cardState});
   state.data.cards=state.data.cards.map(c=>c.id===r.card.id?r.card:c);notify("Estado de la propuesta actualizado.");draw();
