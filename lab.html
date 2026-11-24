@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>CENQAL LAB · Laboratorio docente</title>
+<link rel="stylesheet" href="./lab-style.css?v=20261125-1">
+<script src="./lab-app.js?v=20261125-1" defer></script>
+</head>
+<body>
+<div class="lab" id="labApp">
+  <header class="labHead">
+    <div class="labBrand"><span class="labAtom">⚗</span><div><small>ACADEMIA CENQAL</small><h1>CENQAL <em>LAB</em></h1><p>Tu laboratorio de aprendizaje, ciencia y docencia</p></div></div>
+    <div class="labHeaderRight"><span class="liveDot"></span><span id="connection">Conectando al panel docente…</span></div>
+  </header>
+  <section class="labIntro">
+    <div><span class="eyebrow">CONOCIMIENTO QUE CRECE CONTIGO</span>
+      <h2>Una semana, seis miradas, un mismo tema.</h2>
+      <p>Sin deberes. Explora lo que te interese, practica cuando te apetezca y conserva las mejores ideas para el próximo curso.</p>
+    </div>
+    <div class="focus">
+      <label for="topicSelect">Tema conductor</label>
+      <select id="topicSelect" aria-label="Tema conductor"><option value="1">Cargando temas…</option></select>
+    </div>
+  </section>
+  <div id="notice" role="status" aria-live="polite" class="notice" hidden></div>
+  <section id="labMetrics" class="metrics"></section>
+  <nav id="labNav" class="labNav" aria-label="Áreas de CENQAL LAB">
+    <button type="button" data-area="lesson" class="selected"><span>Lun</span> La lección magistral</button>
+    <button type="button" data-area="radar"><span>Mar</span> Radar de ciencia</button>
+    <button type="button" data-area="teaching"><span>Mié</span> Mejora la profesora</button>
+    <button type="button" data-area="notes"><span>Jue</span> Berilio mejora mis apuntes</button>
+    <button type="button" data-area="growth"><span>Vie</span> CENQAL crece</button>
+    <button type="button" data-area="reading"><span>Sáb</span> Lecturas de fin de semana</button>
+    <button type="button" data-area="practices"><span>🍳</span> Ideas para prácticas</button>
+    <button type="button" data-area="gym"><span>🧠</span> Gimnasio de preguntas</button>
+    <button type="button" data-area="library"><span>📚</span> Mi biblioteca</button>
+  </nav>
+  <main id="labContent" tabindex="-1"><div class="empty"><span class="spinner"></span> Preparando CENQAL LAB…</div></main>
+  <footer class="labFoot">CENQAL LAB · Biblioteca docente conectada a CENQAL · Los materiales propuestos no se consideran validados hasta su revisión · Nada de esto modifica las notas de los alumnos.</footer>
+</div>
+</body>
+</html>
