@@ -28,13 +28,14 @@ function weeklyTopic(){
   return week<0?1:(week%8)+1;
  }catch{return 1}
 }
-const state={data:null,topic:weeklyTopic(),area:"lesson",gym:null,practiceAll:false,search:"",busy:false,improveYear:"all"};
+const state={data:null,topic:weeklyTopic(),area:"overview",gym:null,practiceAll:false,search:"",busy:false,improveYear:"all",qualityAll:true};
 const pending=new Map();let nextRequest=0;
 const el=(id)=>document.getElementById(id);
 const esc=(s)=>String(s??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
 function safeUrl(v){try{const u=new URL(String(v));return u.protocol==="https:"?u.href:""}catch{return ""}}
 function notify(msg,bad){const n=el("notice");n.textContent=String(msg||"");n.className="notice"+(bad?" bad":"");n.hidden=false;clearTimeout(notify._timer);notify._timer=setTimeout(()=>n.hidden=true,6500)}
 function api(action,payload={}){
+ if(window.parent===window&&window.CENQAL_LAB_API)return window.CENQAL_LAB_API.request(action,payload);
  return new Promise((resolve,reject)=>{
   if(window.parent===window)return reject(Error("Abre CENQAL LAB desde tu panel docente."));
   const id=++nextRequest;const timer=setTimeout(()=>{pending.delete(id);reject(Error("La consulta ha tardado demasiado. Revisa la conexión."))},30000);
@@ -69,10 +70,10 @@ function renderMetrics(){
  const d=state.data||{},n=Object.values(d.question_counts||{}).reduce((a,b)=>a+Number(b||0),0);
  const total=Object.values(d.progress||{}).reduce((a,b)=>a+Number(b.total||0),0);
  el("labMetrics").innerHTML=[
-  ["Referencias CENQAL",d.resources?.length??"—","documentos validados"],
-  ["Preguntas disponibles",n,"banco científico conectado"],
-  ["Mis ideas",d.cards?.length??"—","archivo docente personal"],
-  ["Repasos libres",total,"sin notas académicas"]
+  ["Fuentes validadas",d.resources?.length??"—","registros documentales"],
+  ["Banco de preguntas",n,"cuestiones activas"],
+  ["Fichas de trabajo",d.cards?.length??"—","propuestas registradas"],
+  ["Repasos docentes",total,"respuestas acumuladas"]
  ].map(a=>'<div class="stat"><span>'+esc(a[0])+'</span><b>'+esc(a[1])+'</b><small>'+esc(a[2])+'</small></div>').join("");
 }
 function renderTopicSelect(){
@@ -195,10 +196,94 @@ function renderImprovements(){
  return h+cards+intro+'<div class="deck">'+form+'<div><div class="panel"><div class="sectionTitle"><h2>Memoria de decisiones</h2><select id="improvementYearFilter" class="btn" aria-label="Filtrar curso académico"><option value="all">Todos los cursos</option>'+years.map(y=>'<option value="'+esc(y)+'"'+(state.improveYear===y?" selected":"")+'>'+esc(y)+'</option>').join("")+'</select></div><p class="subtle">Se conserva el historial de cada decisión. Nada se implementa automáticamente en los materiales ni en las evaluaciones.</p></div>'+(rows||'<div class="empty">Aquí aparecerán las propuestas documentadas y su evolución por cursos, cuando existan.</div>')+'</div></div>';
 }
 
+
+/* --- Análisis documental y planificación, basado exclusivamente en registros actuales --- */
+function topicReferenceCounts(){
+ const rs=state.data?.resources||[];
+ const map=new Map();
+ for(const t of TOPICS){
+  const related=rs.filter(r=>t.tags.includes(String(r.topic||"")));
+  const withLink=related.filter(r=>safeUrl(r.url)||r.doi);
+  map.set(t.id,{related,withLink,reviews:related.filter(r=>r.resource_type==="review"||r.resource_type==="book")});
+ }
+ return map;
+}
+function qualityStats(resources){
+ const n=resources.length;
+ const noLink=resources.filter(r=>!safeUrl(r.url)&&!r.doi).length;
+ const noYear=resources.filter(r=>!Number.isInteger(Number(r.publication_year))||Number(r.publication_year)<1900).length;
+ const noDOI=resources.filter(r=>!r.doi).length;
+ const noEvidence=resources.filter(r=>!r.evidence_level).length;
+ const declaredPeer=resources.filter(r=>r.peer_reviewed===true).length;
+ return {n,noLink,noYear,noDOI,noEvidence,declaredPeer};
+}
+function infoStat(title,count,sub){
+ return '<div class="panel"><div class="miniLabel">'+esc(title)+'</div><div class="summaryNumber">'+esc(count)+'</div><p class="smallStat">'+esc(sub)+'</p></div>';
+}
+function renderOverview(){
+ const d=state.data||{},refs=d.resources||[],quality=qualityStats(refs),ct=topicReferenceCounts(),questions=d.question_counts||{};
+ const refTopics=TOPICS.filter(t=>(ct.get(t.id)?.related.length||0)>0).length;
+ const improvements=improvementThreads();
+ const pending=(d.cards||[]).filter(c=>c.state==="candidate").length;
+ const sum=Object.values(questions).reduce((a,b)=>a+Number(b||0),0);
+ const rows=TOPICS.map(t=>{
+  const q=ct.get(t.id),count=q.related.length;
+  return '<tr><td><b>T'+t.id+'</b></td><td>'+esc(t.title)+'</td><td class="num">'+count+'</td><td class="num">'+(q.reviews.length)+'</td><td class="num">'+(questions[t.id]||0)+'</td><td><button class="btn" data-focus-topic="'+t.id+'" data-focus-area="knowledge">Ver conexiones</button></td></tr>';
+ }).join("");
+ const checks=[
+  ['Referencias sin enlace web ni DOI',quality.noLink,'Completar localizador cuando sea posible'],
+  ['Referencias sin año registrado',quality.noYear,'Revisar metadatos'],
+  ['Registros sin nivel de evidencia',quality.noEvidence,'Calificar calidad documental, no borrar automáticamente']
+ ].map(r=>'<div class="miniData"><span>'+esc(r[0])+'<small class="smallStat" style="display:block">'+esc(r[2])+'</small></span><b>'+esc(r[1])+'</b></div>').join("");
+ return sectionTop("PANEL GENERAL / VISIÓN DEL SISTEMA","Estado de CENQAL LAB","Indicadores derivados del repositorio y de tu biblioteca docente. No incluyen calificaciones ni datos individuales de estudiantes.")+
+ '<div class="deck">'+infoStat("Cobertura documental",refTopics+" / "+TOPICS.length,"Temas con ≥1 referencia relacionada")+infoStat("Banco de preguntas",sum,"Preguntas activas disponibles")+infoStat("Mejoras históricas",improvements.length,"Líneas registradas por promoción")+infoStat("Propuestas pendientes",pending,"Fichas docentes aún candidatas")+'</div>'+
+ '<div class="deck"><div class="panel"><h3>Estado del archivo bibliográfico</h3>'+checks+'<div class="actions"><button class="btn primary" data-switch="quality">Auditar metadatos</button></div></div><div class="panel"><h3>Ciclo editorial programado</h3><p><b>Inicio previsto:</b> 20/01/2027, 09:00 (Europe/Madrid)</p><p><b>Periodicidad:</b> seis publicaciones semanales · domingo sin envío</p><p><b>Destino:</b> Telegram privado de la profesora</p><p><b>Vinculación:</b> una misma materia por semana, con perspectivas científicas y docentes</p><div class="actions"><button class="btn" data-switch="editorial">Consultar programa</button></div></div></div>'+
+ '<div class="panel"><div class="sectionTitle"><h2>Cobertura por bloque temático</h2><span class="subtle">Referencias por etiquetas ya registradas en CENQAL</span></div><div class="tableScroll"><table class="dataTable"><thead><tr><th>Bloque</th><th>Materia</th><th>Referencias asociadas</th><th>Revisiones / libros</th><th>Preguntas</th><th>Acción</th></tr></thead><tbody>'+rows+'</tbody></table></div><p class="subtle">Las referencias pueden relacionarse con varios temas; estos recuentos no son una evaluación automática de la calidad del aprendizaje.</p></div>';
+}
+function renderQuality(){
+ const all=state.data?.resources||[],target=topic(),scope=state.qualityAll?all:all.filter(r=>target.tags.includes(String(r.topic||"")));
+ const q=qualityStats(scope);
+ const issues=scope.filter(r=>!safeUrl(r.url)&&!r.doi||!r.publication_year||!r.evidence_level);
+ const rows=issues.slice(0,60).map(r=>{
+  const labels=[!safeUrl(r.url)&&!r.doi?"Sin localizador":"",!r.publication_year?"Sin año":"",!r.evidence_level?"Sin nivel de evidencia":""].filter(Boolean);
+  return '<tr><td>'+esc(r.title||"Sin título")+'</td><td>'+esc(r.topic||"—")+'</td><td>'+esc(r.resource_type||"—")+'</td><td>'+esc(r.publication_year||"—")+'</td><td>'+esc(labels.join("; "))+'</td></tr>';
+ }).join("");
+ return sectionTop("CONTROL DE CALIDAD / BIBLIOGRAFÍA","Auditoría de metadatos","Verificación de completitud documental. La ausencia de un campo no implica que un estudio sea incorrecto ni de baja calidad.")+
+ '<div class="actions"><button id="toggleQualityScope" class="btn primary">'+(state.qualityAll?"Ver solo tema "+state.topic:"Volver a todas las referencias")+'</button><span class="subtle">'+(state.qualityAll?"Alcance: repositorio completo":"Alcance: "+esc(target.title))+'</span></div>'+
+ '<div class="deck">'+infoStat("Registros incluidos",q.n,"Verificados en CENQAL")+infoStat("Sin URL ni DOI",q.noLink,"Requieren localizar la fuente")+infoStat("Sin año de publicación",q.noYear,"Metadato ausente")+infoStat("Revisión por pares declarada",q.declaredPeer,"Según los campos existentes")+'</div>'+
+ '<div class="panel"><div class="sectionTitle"><h2>Registros con metadatos incompletos</h2><span class="chip slate">'+issues.length+' identificados</span></div>'+
+ (issues.length?'<div class="tableScroll"><table class="dataTable"><thead><tr><th>Referencia</th><th>Clasificación</th><th>Tipo</th><th>Año</th><th>Campo a revisar</th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<div class="empty">No hay registros con los campos analizados incompletos en este ámbito.</div>')+
+ '<div class="infoBand slate">Control documental, no revisión crítica del contenido. La calidad metodológica debe evaluarse separadamente y no se deduce de un DOI, una revista o el número de metadatos completos.</div></div>';
+}
+function renderKnowledge(){
+ const d=state.data||{},counts=topicReferenceCounts(),qs=d.question_counts||{},cards=d.cards||[],improvements=improvementThreads();
+ const table=TOPICS.map(t=>{
+  const r=counts.get(t.id),cit=r.related.length,n=Number(qs[t.id]||0),mine=cards.filter(c=>Number(c.topic_number)===t.id).length,threads=improvements.filter(ti=>Number(ti[0].topic_number)===t.id).length;
+  return '<tr><td><b>T'+t.id+'</b></td><td>'+esc(t.title)+'<div class="tagRow">'+t.tags.map(v=>tag(v)).join("")+'</div></td><td class="num">'+cit+'</td><td class="num">'+n+'</td><td class="num">'+mine+'</td><td class="num">'+threads+'</td><td><button class="btn" data-focus-topic="'+t.id+'" data-focus-area="notes">Materiales</button> <button class="btn" data-focus-topic="'+t.id+'" data-focus-area="practices">Cocina</button></td></tr>';
+ }).join("");
+ const t=topic(),related=TOPICS.filter(x=>x.id!==t.id&&x.tags.some(v=>t.tags.includes(v)));
+ return sectionTop("MAPA DE CONOCIMIENTO / TEMARIO","Cobertura y relaciones entre contenidos","Cruza los ocho bloques del curso con referencias clasificadas, preguntas, fichas docentes y propuestas de mejora.")+
+ '<div class="panel"><h3>Relaciones del bloque seleccionado</h3><p><b>Tema '+t.id+': '+esc(t.title)+'</b></p><div class="tagRow">'+t.tags.map(v=>tag(v)).join("")+'</div><div class="cardStack">'+(related.length?related.map(x=>'<div class="miniData"><span>T'+x.id+' · '+esc(x.title)+'</span><button class="btn" data-focus-topic="'+x.id+'" data-focus-area="knowledge">Ver tema</button></div>').join(""):'<p class="subtle">Sin etiquetas compartidas en el mapa actual. Se pueden añadir nuevas relaciones una vez verificadas.</p>')+'</div></div>'+
+ '<div class="panel"><div class="sectionTitle"><h2>Matriz de contenidos</h2><span class="subtle">Vista documental, no calificaciones</span></div><div class="tableScroll"><table class="dataTable"><thead><tr><th>Bloque</th><th>Contenido y conexiones</th><th>Referencias</th><th>Preguntas</th><th>Fichas</th><th>Mejoras</th><th>Abrir</th></tr></thead><tbody>'+table+'</tbody></table></div></div>';
+}
+function renderEditorial(){
+ const schedule=[
+ ["LUNES","La lección magistral","Explicación científica, mecanismos y aplicaciones alimentarias","lesson"],
+ ["MARTES","Radar de ciencia","Lecturas del repositorio CENQAL, con fuente y fecha","radar"],
+ ["MIÉRCOLES","Mejora la profesora","Diseño didáctico, demostraciones y evaluación formativa","teaching"],
+ ["JUEVES","Berilio mejora mis apuntes","Correcciones propuestas, nuevos esquemas y variantes docentes","notes"],
+ ["VIERNES","CENQAL crece","Estado bibliográfico y memoria de mejora interanual","growth"],
+ ["SÁBADO","Lecturas para el fin de semana","Selección de publicaciones y revisiones de interés","reading"]
+ ];
+ return sectionTop("PROGRAMA EDITORIAL / BERILIO","Publicaciones privadas de CENQAL LAB","Calendario editorial separado del trabajo en la aplicación. La publicación se realiza a través de Berilio; los materiales y registros permanecen en LAB.")+
+ '<div class="panel"><div class="miniData"><span><b>Fecha de activación</b></span><b>20 de enero de 2027</b></div><div class="miniData"><span><b>Horario</b></span><b>09:00 h · Europe/Madrid</b></div><div class="miniData"><span><b>Destinatario</b></span><b>Cuenta docente privada</b></div><div class="miniData"><span><b>Ciclo</b></span><b>Bloque temático semanal</b></div><div class="miniData"><span><b>Domingo</b></span><b>Sin publicaciones</b></div><p class="subtle">La sección muestra el calendario configurado; no constituye un registro de entregas futuras.</p></div>'+
+ '<div class="weekGrid">'+schedule.map(s=>'<div class="weekCell"><span class="pillDay">'+s[0]+'</span><h3>'+s[1]+'</h3><p>'+s[2]+'</p><button class="btn" data-switch="'+s[3]+'">Abrir módulo</button></div>').join("")+'</div>';
+}
+
 function draw(){
  if(!state.data){el("labContent").innerHTML='<div class="empty">Abre CENQAL LAB desde tu panel. Si ya estás dentro, actualiza la conexión.</div>';return}
  renderTopicSelect();renderMetrics();
- const actions={lesson:renderLesson,radar:renderRadar,teaching:renderTeaching,notes:renderNotes,growth:renderGrowth,reading:renderReading,practices:renderPractices,gym:renderGym,library:renderLibrary,improvements:renderImprovements};
+ const actions={overview:renderOverview,quality:renderQuality,knowledge:renderKnowledge,editorial:renderEditorial,lesson:renderLesson,radar:renderRadar,teaching:renderTeaching,notes:renderNotes,growth:renderGrowth,reading:renderReading,practices:renderPractices,gym:renderGym,library:renderLibrary,improvements:renderImprovements};
  el("labContent").innerHTML=(actions[state.area]||renderLesson)();
  document.querySelectorAll("#labNav button").forEach(b=>{b.classList.toggle("selected",b.dataset.area===state.area);b.setAttribute("aria-pressed",b.dataset.area===state.area?"true":"false")});
 }
@@ -248,6 +333,8 @@ el("labContent").addEventListener("click",async e=>{
  if(b.dataset.switch){state.area=b.dataset.switch;draw();return}
  if(b.id==="downloadInfographic"){svgDownload();return}
  if(b.id==="togglePractices"){state.practiceAll=!state.practiceAll;draw();return}
+ if(b.id==="toggleQualityScope"){state.qualityAll=!state.qualityAll;draw();return}
+ if(b.dataset.focusTopic){state.topic=Number(b.dataset.focusTopic)||1;state.gym=null;state.area=b.dataset.focusArea||"knowledge";draw();return}
  if(b.dataset.savePrompt){await saveIdea(b.dataset.savePrompt,b.dataset.promptTitle,b.dataset.promptSummary);return}
  if(b.id==="gymStart"||b.id==="gymAgain"){await startGym();return}
  if(b.id==="gymNext"){const g=state.gym;if(!g)return;g.index++;g.selected=null;g.answer=null;draw();return}
@@ -299,6 +386,10 @@ el("labContent").addEventListener("input",e=>{
  state.search=e.target.value;const filtered=(state.data?.cards||[]).filter(c=>(String(c.title||"")+" "+String(c.summary||"")).toLowerCase().includes(state.search.toLowerCase()));
  const node=el("savedCards");if(node)node.innerHTML=filtered.length?filtered.map(cardHTML).join(""):'<div class="empty">No se han encontrado ideas.</div>';
 });
-if(window.parent===window){el("connection").textContent="Acceso desde el panel";el("labContent").innerHTML='<div class="empty">Abre la pestaña CENQAL LAB desde CENQAL Control. No se envían tokens por la URL.</div>'}
-else {window.parent.postMessage({type:"CENQAL_LAB_READY"},location.origin);load();}
+if(window.parent===window){
+ if(window.CENQAL_LAB_API){window.addEventListener("cenqal-lab-session",load);}
+ else {el("connection").textContent="Error de inicio";el("labContent").innerHTML='<div class="empty">No se puede iniciar la sesión de CENQAL LAB.</div>';}
+}else {
+ el("labApp")?.removeAttribute("hidden");window.parent.postMessage({type:"CENQAL_LAB_READY"},location.origin);load();
+}
 })();
