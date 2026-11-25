@@ -4,42 +4,68 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="referrer" content="no-referrer">
-<title>CENQAL LAB · Laboratorio docente</title>
-<link rel="stylesheet" href="./lab-style.css?v=20261125-1">
-<script src="./lab-app.js?v=20261125-4" defer></script>
+<meta name="robots" content="noindex,nofollow">
+<title>CENQAL LAB | Desarrollo docente</title>
+<link rel="stylesheet" href="./lab-style.css?v=20261125-5">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+<script src="./lab-auth.js?v=20261125-1" defer></script>
+<script src="./lab-app.js?v=20261125-5" defer></script>
 </head>
 <body>
-<div class="lab" id="labApp">
-  <header class="labHead">
-    <div class="labBrand"><span class="labAtom">⚗</span><div><small>ACADEMIA CENQAL</small><h1>CENQAL <em>LAB</em></h1><p>Tu laboratorio de aprendizaje, ciencia y docencia</p></div></div>
-    <div class="labHeaderRight"><span class="liveDot"></span><span id="connection">Conectando al panel docente…</span></div>
-  </header>
-  <section class="labIntro">
-    <div><span class="eyebrow">CONOCIMIENTO QUE CRECE CONTIGO</span>
-      <h2>Una semana, seis miradas, un mismo tema.</h2>
-      <p>Sin deberes. Explora lo que te interese, practica cuando te apetezca y conserva las mejores ideas para el próximo curso.</p>
-    </div>
-    <div class="focus">
-      <label for="topicSelect">Tema conductor</label>
-      <select id="topicSelect" aria-label="Tema conductor"><option value="1">Cargando temas…</option></select>
-    </div>
+<section id="labAuthGate" class="labLogin" hidden>
+  <div class="labLoginCard">
+    <div class="labLoginBrand"><div class="labLoginMark">CL</div><div><small>CENQAL / DOCENCIA</small><h1>CENQAL LAB</h1></div></div>
+    <h2>Acceso docente</h2>
+    <p>Herramienta privada de desarrollo docente. Utiliza las credenciales de CENQAL Control.</p>
+    <form id="labLoginForm">
+      <div class="field"><label for="labEmail">Correo electrónico</label><input id="labEmail" type="email" autocomplete="username" required></div>
+      <div class="field"><label for="labPassword">Contraseña</label><input id="labPassword" type="password" autocomplete="current-password" required></div>
+      <button id="labLoginButton" class="btn primary" type="submit">Acceder</button>
+    </form>
+    <p id="labAuthMessage" role="status"></p>
+    <p class="subtle">El acceso se verifica con tu cuenta de profesora. No se utilizan enlaces con contraseña ni tokens visibles.</p>
+    <a href="./control.html">Volver a CENQAL Control</a>
+  </div>
+</section>
+<div class="lab" id="labApp" hidden>
+ <header class="labHead">
+   <div class="labBrand"><div class="labWordmark">CL</div><div><small>HERRAMIENTAS DOCENTES / CENQAL</small><h1>CENQAL LAB</h1><p>Desarrollo científico, materiales y mejora continua</p></div></div>
+   <div class="labHeaderRight"><span class="liveDot"></span><span id="connection">Verificando acceso</span><a class="labTopLink" href="./control.html">Panel académico</a><button id="labSignOut" class="labTopLink labLogout" type="button" hidden>Cerrar sesión</button></div>
+ </header>
+ <div class="labLayout">
+  <aside class="labSidebar">
+   <nav id="labNav" class="labNav" aria-label="Módulos de CENQAL LAB">
+     <div class="navGroup">ANÁLISIS</div>
+     <button type="button" data-area="overview" class="selected"><span>01</span> Panel general</button>
+     <button type="button" data-area="quality"><span>02</span> Calidad del archivo</button>
+     <button type="button" data-area="knowledge"><span>03</span> Mapa de contenidos</button>
+     <div class="navGroup">DESARROLLO DOCENTE</div>
+     <button type="button" data-area="lesson"><span>L</span> Profundización científica</button>
+     <button type="button" data-area="radar"><span>M</span> Radar bibliográfico</button>
+     <button type="button" data-area="teaching"><span>X</span> Metodología docente</button>
+     <button type="button" data-area="notes"><span>J</span> Revisión de apuntes</button>
+     <button type="button" data-area="growth"><span>V</span> Balance CENQAL</button>
+     <button type="button" data-area="reading"><span>S</span> Lecturas científicas</button>
+     <div class="navGroup">RECURSOS Y EVALUACIÓN</div>
+     <button type="button" data-area="practices"><span>04</span> Prácticas en cocina</button>
+     <button type="button" data-area="gym"><span>05</span> Gimnasio docente</button>
+     <button type="button" data-area="library"><span>06</span> Biblioteca de trabajo</button>
+     <button type="button" data-area="improvements"><span>07</span> Mejora continua</button>
+     <button type="button" data-area="editorial"><span>08</span> Programa editorial</button>
+   </nav>
+   <div class="labSidebarFoot">Área de profesora · Los datos académicos no se modifican desde LAB</div>
+  </aside>
+  <section class="labMain">
+    <section class="labIntro">
+      <div><span class="eyebrow">HERRAMIENTA DOCENTE / VERSIÓN DE TRABAJO</span><h2>Centro de desarrollo docente</h2><p>Investigación bibliográfica, revisión de contenidos, prácticas en cocina, repaso científico y seguimiento interanual.</p></div>
+      <div class="focus"><label for="topicSelect">Bloque temático activo</label><select id="topicSelect" aria-label="Bloque temático"><option value="1">Cargando temas…</option></select></div>
+    </section>
+    <div id="notice" role="status" aria-live="polite" class="notice" hidden></div>
+    <section id="labMetrics" class="metrics" aria-label="Indicadores de CENQAL LAB"></section>
+    <main id="labContent" tabindex="-1"><div class="empty">Conectando con CENQAL…</div></main>
   </section>
-  <div id="notice" role="status" aria-live="polite" class="notice" hidden></div>
-  <section id="labMetrics" class="metrics"></section>
-  <nav id="labNav" class="labNav" aria-label="Áreas de CENQAL LAB">
-    <button type="button" data-area="lesson" class="selected"><span>Lun</span> La lección magistral</button>
-    <button type="button" data-area="radar"><span>Mar</span> Radar de ciencia</button>
-    <button type="button" data-area="teaching"><span>Mié</span> Mejora la profesora</button>
-    <button type="button" data-area="notes"><span>Jue</span> Berilio mejora mis apuntes</button>
-    <button type="button" data-area="growth"><span>Vie</span> CENQAL crece</button>
-    <button type="button" data-area="reading"><span>Sáb</span> Lecturas de fin de semana</button>
-    <button type="button" data-area="practices"><span>🍳</span> Ideas para prácticas</button>
-    <button type="button" data-area="gym"><span>🧠</span> Gimnasio de preguntas</button>
-    <button type="button" data-area="library"><span>📚</span> Mi biblioteca</button>
-    <button type="button" data-area="improvements"><span>🔁</span> Mejora continua</button>
-  </nav>
-  <main id="labContent" tabindex="-1"><div class="empty"><span class="spinner"></span> Preparando CENQAL LAB…</div></main>
-  <footer class="labFoot">CENQAL LAB · Biblioteca docente conectada a CENQAL · Los materiales propuestos no se consideran validados hasta su revisión · Nada de esto modifica las notas de los alumnos.</footer>
+ </div>
+ <footer class="labFoot">CENQAL LAB · Área privada de desarrollo docente · Los indicadores describen registros disponibles, no evaluaciones de calidad científica ni resultados del alumnado.</footer>
 </div>
 </body>
 </html>
