@@ -87,7 +87,7 @@ function renderInfographic(){
 }
 function renderLesson(){
  const t=topic();
- return sectionTop("LUNES · LA LECCIÓN MAGISTRAL","Una historia que merece ser contada","Ciencia, anécdotas y conexiones que puedes utilizar para despertar la curiosidad del alumnado.")+
+ return sectionTop("LUNES · LA LECCIÓN MAGISTRAL","Fundamento y mecanismo","Desarrollo conceptual, interpretación fisicoquímica y ejemplos de aplicación en el aula.")+
  '<div class="deck"><div class="panel"><div class="miniLabel">Pregunta de apertura</div><h3>'+esc(t.hook)+'</h3><p class="lecture">'+esc(t.story)+'</p><div class="infoBand">'+esc(t.anecdote)+'</div></div><div class="panel"><div class="miniLabel">Hilo científico</div><h3>'+esc(t.focus)+'</h3>'+renderConcepts()+'<p class="subtle">Las referencias asociadas se consultan desde Radar de ciencia y la biblioteca CENQAL.</p>'+saveButton("lesson",t.hook,t.story)+'</div></div>'+renderInfographic();
 }
 function renderConcepts(){return '<div class="tagRow">'+topic().tags.map(x=>tag(x)).join("")+'</div><p class="subtle">Conexiones explícitas con conceptos ya catalogados en CENQAL.</p>'}
@@ -98,7 +98,7 @@ function renderRadar(){
 }
 function renderTeaching(){
  const t=topic();
- return sectionTop("MIÉRCOLES · MEJORA LA PROFESORA","Una forma mejor de enseñar","Técnicas que puedes incorporar cuando te interesen; sin entregas ni tareas obligatorias.")+
+ return sectionTop("MIÉRCOLES · MEJORA LA PROFESORA","Diseño de explicación y actividad","Propuestas de metodologías activas y estrategias de explicación, sujetas a revisión docente.")+
  '<div class="deck"><div class="panel"><div class="miniLabel">Propuesta pedagógica</div><h3>De la observación a la explicación</h3><p class="lecture">'+esc(t.teaching)+'</p><div class="infoBand green">Pregunta opcional para tu propia reflexión: ¿qué concepción previa sobre este tema descubrirían tus alumnos con esta demostración?</div>'+saveButton("teaching","Explicar mejor: "+t.title,t.teaching)+'</div><div class="panel"><h3>La secuencia pedagógica</h3><div class="flowDiagram"><div class="flowStep">Predecir<small>Qué esperas observar</small></div><div class="flowStep">Observar<small>Contrastar el fenómeno</small></div><div class="flowStep">Explicar<small>Modelo químico</small></div></div><p>La propuesta sirve para plantear preguntas, recoger ideas previas y guiar la explicación. La eficacia real depende del diseño, del feedback y de la adaptación al grupo.</p></div></div>';
 }
 function renderNotes(){
@@ -111,26 +111,26 @@ function renderGrowth(){
  const d=state.data||{},rs=d.resources||[],cards=d.cards||[],recent=rs.filter(x=>x.created_at&&Date.now()-Date.parse(x.created_at)<7*86400000),byTopic=new Map();
  for(const r of rs)byTopic.set(r.topic||"Sin tema",(byTopic.get(r.topic||"Sin tema")||0)+1);
  const sorted=[...byTopic.entries()].sort((a,b)=>b[1]-a[1]);
- return sectionTop("VIERNES · CENQAL CRECE","Una base de conocimiento viva","Resumen de lo que está documentado y de las propuestas guardadas. No confunde referencias validadas con ideas por revisar.")+
+ return sectionTop("VIERNES · CENQAL CRECE","Estado del repositorio","Indicadores bibliográficos y estado de revisión de las propuestas docentes.")+
  '<div class="deck"><div class="panel"><div class="miniLabel">Evolución verificada</div><h3>'+rs.length+' referencias científicas validadas</h3><p>'+recent.length+' referencias con alta registrada en los últimos 7 días.</p><p>'+cards.length+' ideas docentes personales registradas; '+cards.filter(c=>c.state==="approved").length+' marcadas como aprobadas por ti.</p><p>' + improvementThreads().length + ' mejoras interanuales documentadas.</p><p class="subtle">Las propuestas docentes no alteran las fichas científicas oficiales automáticamente.</p></div><div class="panel"><h3>Temas más representados</h3>'+sorted.slice(0,9).map(([k,v])=>'<div class="resource"><b>'+esc(k)+'</b> <span class="chip slate">'+v+' referencias</span></div>').join("")+'</div></div>'+
  '<div class="panel"><h3>La conexión de esta semana</h3><p class="lecture">'+esc(topic().focus)+'</p>'+renderConcepts()+'<button class="btn primary" data-switch="library">Explorar referencias y propuestas</button> <button class="btn" data-switch="improvements">🔁 Ver mejora continua</button></div>';
 }
 function renderReading(){
  const rs=libraryMatches(),review=rs.find(x=>x.resource_type==="review"),article=rs.find(x=>x.resource_type==="scientific_article"&&x.id!==review?.id),other=rs.find(x=>x.id!==review?.id&&x.id!==article?.id);
  const picks=[review,article,other].filter(Boolean);
- return sectionTop("SÁBADO · LECTURAS PARA EL FIN DE SEMANA","Leer por curiosidad","Tres lecturas vinculadas al hilo conductor, elegidas de la base validada. No hay seguimiento ni lecturas obligatorias.")+
+ return sectionTop("SÁBADO · LECTURAS PARA EL FIN DE SEMANA","Selección documental","Selección de referencias relacionadas con el bloque temático, recuperadas del repositorio validado.")+
  '<div class="panel"><h3>En tu mesita de lectura</h3>'+picks.map(resourceCard).join("")+'<div class="infoBand green">Si no te apetece leer ninguna, no pasa nada. Las referencias siguen disponibles en CENQAL.</div></div>';
 }
 function renderPractices(){
  const list=state.practiceAll?PRACTICES:PRACTICES.filter(p=>p.topic===state.topic);
- return sectionTop("BANCO DE PRÁCTICAS · COCINA DOCENTE","La cocina es nuestro laboratorio","Experiencias culinarias con fundamento químico, diseñadas para cocina docente. Son ideas para ensayar, no protocolos validados ni tareas pendientes.")+
+ return sectionTop("BANCO DE PRÁCTICAS · COCINA DOCENTE","Diseño experimental en cocina","Propuestas experimentales adaptadas al equipamiento y a los ingredientes de una cocina docente. Requieren evaluación de viabilidad y seguridad antes de su uso.")+
  '<div class="actions"><button class="btn'+(state.practiceAll?" primary":"")+'" id="togglePractices">'+(state.practiceAll?"Ver solo tema "+state.topic:"Mostrar prácticas de todos los temas")+'</button><button class="btn" data-switch="library">Ver mis ideas guardadas</button></div>'+
  '<div class="kitchenGrid">'+list.map(p=>'<article class="kitchenCard"><div class="miniLabel">TEMA '+p.topic+' · '+esc(p.time)+'</div><h3>'+esc(p.title)+'</h3><p><b>Qué demuestra:</b> '+esc(TOPICS.find(t=>t.id===p.topic)?.focus||"Química alimentaria")+'</p><details><summary>Ver idea de práctica en cocina</summary><p><b>Ingredientes:</b> '+esc(p.ingredients)+'</p><p><b>Equipo:</b> '+esc(p.equipment)+'</p><p><b>Propuesta:</b> '+esc(p.process)+'</p><p><b>Qué observar:</b> '+esc(p.signal)+'</p><p><b>Seguridad:</b> '+esc(p.safety)+'</p></details>'+saveButton("practice",p.title,"Ingredientes: "+p.ingredients+". Equipo: "+p.equipment+". "+p.process+". Seguridad: "+p.safety+". Observación: "+p.signal)+'</article>').join("")+'</div>';
 }
 function renderGym(){
  const t=topic(),count=state.data?.question_counts?.[state.topic]||0,stat=state.data?.progress?.[state.topic]||{total:0,correct:0};
  if(!state.gym||state.gym.topic!==state.topic){
- return sectionTop("GIMNASIO · REPASO LIBRE","Cuestiones para mantener la curiosidad","Preguntas auténticas del banco CENQAL, con corrección y explicación. Tus respuestas se guardan en un registro docente separado; no generan notas, premios ni sanciones.")+
+ return sectionTop("GIMNASIO · REPASO LIBRE","Autoevaluación de conocimientos","Banco de preguntas con explicación y registro personal. Los intentos de la profesora son independientes del rendimiento, los puntos y las notas del alumnado.")+
  '<div class="gymWrap"><div class="panel"><h3>'+esc(t.title)+'</h3><p class="lecture">Repasa diez preguntas de este tema, o vuelve otro día cuando te apetezca. Elige la respuesta y Berilio te explicará el fundamento.</p><div class="infoBand green">'+count+' preguntas activas disponibles para este tema.</div><button id="gymStart" class="btn primary"'+(count?"":" disabled")+'>Empezar un repaso de 10 preguntas</button></div><div class="panel"><h3>Tu recorrido personal</h3><p><b>'+stat.total+'</b> respuestas registradas · <b>'+stat.correct+'</b> aciertos.</p><div class="progressTrack"><div class="progressFill" style="width:'+(stat.total?Math.round(stat.correct/stat.total*100):0)+'%"></div></div><p class="subtle">Este indicador describe la práctica personal, no es una calificación docente.</p></div></div>';
  }
  const g=state.gym;
@@ -178,7 +178,7 @@ function renderImprovements(){
  const adopted=selected.filter(a=>a[0].stage==="adopted").length;
  const evaluated=selected.filter(a=>a[0].stage==="evaluated").length;
  const topics=new Set(selected.map(a=>a[0].topic_number));
- const h=sectionTop("MEJORA CONTINUA · CENQAL LAB","Un sistema que aprende con cada promoción","Conservar lo que funcionó, comprender lo que no funcionó y transformar la evidencia en mejoras para futuros cursos. Sin entregas ni tareas obligatorias.");
+ const h=sectionTop("MEJORA CONTINUA · CENQAL LAB","Registro de mejora y validación interanual","Historial versionado de observaciones, propuestas, pilotos, indicadores y decisiones por curso académico.");
  const cards='<div class="deck">'+[
   ["Propuestas de mejora",selected.length,"Cada línea conserva su historial"],
   ["Ya incorporadas",adopted,"Decisiones registradas por ti"],
