@@ -46,7 +46,6 @@
     token=data.token;tokenCreated=Date.now();return token;
   }
   async function request(action,payload={}){
-    if(processing&&action==="overview")return {ok:false,error:"initializing"};
     if(!["overview","gym_start","gym_answer","save_card","card_status","improvement_add","improvement_revision"].includes(action))throw Error("Acción no autorizada.");
     const input=payload&&typeof payload==="object"&&!Array.isArray(payload)?payload:{};
     if(Object.keys(input).length>12)throw Error("Solicitud demasiado grande.");
