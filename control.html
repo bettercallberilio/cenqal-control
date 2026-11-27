@@ -730,6 +730,8 @@ details.card>.detailBody{padding:0 16px 16px}
     </section>
 
     <section class="view" id="view-learning">
+<div class="card"><h3>Evaluación de la experiencia CENQAL–Berilio</h3><p>Evaluación intermedia · lunes 30/11/2026 · entrega el mismo día. Opiniones y autorización científica sin puntuación. Datos docentes seudonimizados y exportación de investigación separada.</p><div class="actions"><button class="btn" onclick="cSurveyLoad()">Consultar entregas del cuestionario</button><button class="btn" onclick="cSurveyResearchExport()">Excel de investigación: solo autorizados</button></div><div id="cSurveyStatus"></div><div id="cSurveyPrivateLink"></div></div>
+
       <div class="viewHeader">
         <div>
           <h2>📊 CENQAL Learning Analytics</h2>
@@ -10961,6 +10963,7 @@ async function exportLearningExcel(anonymized=false){
     v69AddSheet(wb,'GYM_PLAY_EXAMEN',clean(strat.students||[]),Array(14).fill(18));
     v69AddSheet(wb,'DICCIONARIO',v69Dictionary(),[24,70]);
     v742AppendRecoveredEx1Sheet(wb,anonymized,map);
+    await cSurveyAppendSheets(wb,anonymized);
     const year=String(raw.course?.academic_year||'curso').replace(/[^0-9A-Za-z_-]+/g,'_');
     v742PrepareExcel(wb,`CENQAL_Learning_Analytics_${year}${anonymized?'_ANON':''}.xlsx`);
     toast('Excel preparado. Pulsa Descargar Excel en el cuadro que aparece.');
@@ -11459,5 +11462,6 @@ loadDeliveries=async function(force=false){
 boot();
   </script>
 
+<script src="./survey-control.js?v=1"></script>
 </body>
 </html>
